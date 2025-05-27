@@ -69,33 +69,6 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - 70+ professional color grading presets
 - Recommended channel suggestions for each style
 
-#### Basic Workflows
-
-**Standard Workflow:**
-```
-Load Image → PS Curve Preset → PS Curve → Save Image
-```
-
-**Curve Visualization Workflow:**
-```
-Load Image → PS Curve (enable show_histogram) → View Curve Chart → Save Image
-```
-
-**Masked Workflow:**
-```
-Load Image → Load Mask → PS Curve (with mask) → Save Image
-```
-
-**Histogram Analysis Workflow:**
-```
-Load Image → PS Histogram & Levels → Save Image
-```
-
-**Advanced Workflow:**
-```
-Load Image → PS Histogram & Levels → PS Curve → Save Image
-```
-
 ### Histogram & Levels Features
 
 - **Real-time Histogram Analysis**: Complete histogram data for all channels
@@ -115,19 +88,6 @@ The histogram node provides four outputs:
 2. **Histogram Image**: Visual histogram chart as an image (can be saved or viewed)
 3. **Histogram Data**: Text data with detailed histogram information
 4. **Statistics**: Comprehensive statistical analysis of the image
-
-#### Histogram Parameters
-
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| **input_black** | 0-254 | 0.0 | Input black point for levels adjustment |
-| **input_white** | 1-255 | 255.0 | Input white point for levels adjustment |
-| **gamma** | 0.1-9.99 | 1.0 | Gamma correction value |
-| **output_black** | 0-254 | 0.0 | Output black point mapping |
-| **output_white** | 1-255 | 255.0 | Output white point mapping |
-| **auto_levels** | Boolean | False | Enable automatic levels adjustment |
-| **auto_contrast** | Boolean | False | Enable automatic contrast adjustment |
-| **clip_percentage** | 0-5.0 | 0.1 | Clipping percentage for auto adjustments |
 
 #### Histogram Visualization Features
 
@@ -152,35 +112,6 @@ The histogram node provides four outputs:
 |-----------|-------|---------|-------------|
 | **mask_blur** | 0-20 | 0.0 | Mask edge feathering, higher values create softer edges |
 | **invert_mask** | True/False | False | Whether to invert the mask area |
-
-#### Usage Examples
-
-**Portrait Skin Adjustment:**
-```
-Workflow: Load Image → Face Segmentation → PS Curve (with mask)
-Settings: 
-- curve_points: "0,15;64,85;128,155;192,210;255,245" (Portrait Beauty)
-- mask_blur: 3.0 (Soft edges)
-- channel: "R" (Warm skin tone)
-```
-
-**Sky Color Enhancement:**
-```
-Workflow: Load Image → Sky Segmentation → PS Curve (with mask)
-Settings:
-- curve_points: "0,0;32,15;96,75;160,185;224,245;255,255" (Landscape)
-- mask_blur: 5.0 (Natural transition)
-- channel: "B" (Enhance blue)
-```
-
-**Background Processing:**
-```
-Workflow: Load Image → Subject Segmentation → PS Curve (with mask)
-Settings:
-- invert_mask: True (Process background)
-- curve_points: "0,20;64,80;128,140;192,200;255,240" (Soft contrast)
-- mask_blur: 8.0 (Large feathering)
-```
 
 #### Mask Sources
 
@@ -299,33 +230,6 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - 70+种专业调色预设
 - 每种风格都有推荐通道建议
 
-#### 基础工作流
-
-**标准工作流：**
-```
-Load Image → PS Curve Preset → PS Curve → Save Image
-```
-
-**Curve Visualization Workflow:**
-```
-Load Image → PS Curve (enable show_histogram) → View Curve Chart → Save Image
-```
-
-**Masked Workflow:**
-```
-Load Image → Load Mask → PS Curve (with mask) → Save Image
-```
-
-**直方图分析工作流：**
-```
-Load Image → PS Histogram & Levels → Save Image
-```
-
-**高级工作流：**
-```
-Load Image → PS Histogram & Levels → PS Curve → Save Image
-```
-
 ### 直方图与色阶功能
 
 - **实时直方图分析**: 所有通道的完整直方图数据
@@ -346,19 +250,6 @@ Load Image → PS Histogram & Levels → PS Curve → Save Image
 3. **直方图数据**: 带详细直方图信息的文本数据
 4. **统计信息**: 图像的综合统计分析
 
-#### 直方图参数说明
-
-| 参数 | 范围 | 默认值 | 说明 |
-|------|------|--------|------|
-| **input_black** | 0-254 | 0.0 | 输入黑场点，用于色阶调整 |
-| **input_white** | 1-255 | 255.0 | 输入白场点，用于色阶调整 |
-| **gamma** | 0.1-9.99 | 1.0 | 伽马校正值 |
-| **output_black** | 0-254 | 0.0 | 输出黑场点映射 |
-| **output_white** | 1-255 | 255.0 | 输出白场点映射 |
-| **auto_levels** | 布尔值 | False | 启用自动色阶调整 |
-| **auto_contrast** | 布尔值 | False | 启用自动对比度调整 |
-| **clip_percentage** | 0-5.0 | 0.1 | 自动调整时的裁剪百分比 |
-
 #### 直方图可视化功能
 
 - **RGB模式**: 显示重叠的红、绿、蓝通道直方图
@@ -367,85 +258,56 @@ Load Image → PS Histogram & Levels → PS Curve → Save Image
 - **色阶指示线**: 显示输入黑/白场点和伽马中点的可视化线条
 - **专业样式**: 清洁、适合发布的直方图图表
 
-### Mask Usage Guide
+### 遮罩使用指南
 
-#### Mask Support in PS Curve
+#### PS Curve中的遮罩支持
 
-**🎨 PS Curve (Professional) - Integrated Mask Support**
-- Original curve node with optional mask input
-- Backward compatible, can work without mask
-- Use case: All mask applications with full control
+**🎨 PS Curve (Professional) - 集成遮罩支持**
+- 原始曲线节点，带可选遮罩输入
+- 向后兼容，可以不使用遮罩
+- 使用场景：所有遮罩应用，完全控制
 
-#### Mask Parameters
+#### 遮罩参数
 
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| **mask_blur** | 0-20 | 0.0 | Mask edge feathering, higher values create softer edges |
-| **invert_mask** | True/False | False | Whether to invert the mask area |
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| **mask_blur** | 0-20 | 0.0 | 遮罩边缘羽化，值越高边缘越柔和 |
+| **invert_mask** | True/False | False | 是否反转遮罩区域 |
 
-#### Usage Examples
+#### 遮罩来源
 
-**Portrait Skin Adjustment:**
-```
-Workflow: Load Image → Face Segmentation → PS Curve (with mask)
-Settings: 
-- curve_points: "0,15;64,85;128,155;192,210;255,245" (Portrait Beauty)
-- mask_blur: 3.0 (Soft edges)
-- channel: "R" (Warm skin tone)
-```
+- **SAM（Segment Anything Model）**: 自动分割任何对象
+- **人脸/身体分割**: 专门用于人像，精度高
+- **手绘遮罩**: 使用绘图软件创建，完全可定制
+- **其他ComfyUI遮罩节点**: CLIPSeg、RemBG等
 
-**Sky Color Enhancement:**
-```
-Workflow: Load Image → Sky Segmentation → PS Curve (with mask)
-Settings:
-- curve_points: "0,0;32,15;96,75;160,185;224,245;255,255" (Landscape)
-- mask_blur: 5.0 (Natural transition)
-- channel: "B" (Enhance blue)
-```
+#### 最佳实践
 
-**Background Processing:**
-```
-Workflow: Load Image → Subject Segmentation → PS Curve (with mask)
-Settings:
-- invert_mask: True (Process background)
-- curve_points: "0,20;64,80;128,140;192,200;255,240" (Soft contrast)
-- mask_blur: 8.0 (Large feathering)
-```
+**遮罩模糊推荐值：**
+- 人像皮肤：2-4像素
+- 天空背景：5-10像素
+- 物体边缘：1-3像素
+- 大面积区域：8-15像素
 
-#### Mask Sources
+**通道选择技巧：**
+- 皮肤调整：R通道（暖化）
+- 天空增强：B通道（蓝色）
+- 植被增强：G通道（绿色）
+- 整体调色：RGB通道
 
-- **SAM (Segment Anything Model)**: Automatic segmentation of any object
-- **Face/Body Segmentation**: Specialized for portraits with high accuracy
-- **Hand-drawn Masks**: Created with drawing software, fully customizable
-- **Other ComfyUI Mask Nodes**: CLIPSeg, RemBG, etc.
+**曲线强度推荐：**
+- 细微：0.3-0.7
+- 标准：0.8-1.2
+- 强烈：1.3-2.0
 
-#### Best Practices
+#### 故障排除
 
-**Mask Blur Recommendations:**
-- Portrait skin: 2-4 pixels
-- Sky background: 5-10 pixels
-- Object edges: 1-3 pixels
-- Large areas: 8-15 pixels
+- **遮罩边缘太硬**: 增加mask_blur值（推荐3-8）
+- **效果太强**: 降低curve_strength或mask_opacity值
+- **遮罩区域不准确**: 使用invert_mask或生成更准确的遮罩
+- **批处理问题**: 确保遮罩数量与图像批次数量匹配
 
-**Channel Selection Tips:**
-- Skin adjustment: R channel (warming)
-- Sky enhancement: B channel (blue)
-- Vegetation enhancement: G channel (green)
-- Overall grading: RGB channel
-
-**Curve Strength Recommendations:**
-- Subtle: 0.3-0.7
-- Standard: 0.8-1.2
-- Strong: 1.3-2.0
-
-#### Troubleshooting
-
-- **Mask edges too hard**: Increase mask_blur value (recommended 3-8)
-- **Effect too strong**: Decrease curve_strength or mask_opacity values
-- **Mask area inaccurate**: Use invert_mask or generate more accurate mask
-- **Batch processing issues**: Ensure mask count matches image batch count
-
-### Preset Categories
+### 预设分类
 
 - **人像摄影**: 美颜、质感、柔光
 - **风景摄影**: 增强、自然、山水画意
