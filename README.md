@@ -11,6 +11,8 @@
 
 Professional curve adjustment nodes for ComfyUI with Photoshop-like functionality, 70+ preset styles, advanced mask support, and histogram analysis.
 
+![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/c922f986-6236-48b1-a2c8-59c4222be210)
+
 ### Features
 
 - **Professional Curve Tool**: Photoshop-style curve adjustment with multiple interpolation methods
@@ -23,7 +25,8 @@ Professional curve adjustment nodes for ComfyUI with Photoshop-like functionalit
 - **Real-time Preview**: Visual curve preview with recommended channels
 - **Batch Processing**: GPU-accelerated batch image processing
 
-### Installation
+### Installation![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/28214828-9079-47dc-ae7e-446c6613613c)
+
 
 #### Git Clone (Recommended)
 ```bash
