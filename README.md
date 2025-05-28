@@ -2,169 +2,8 @@
 
 <!-- Language Switch -->
 <div align="center">
-  <a href="#english">English</a> | <a href="#中文">中文</a>
+  <a href="#中文">中文</a> | <a href="#english">English</a>
 </div>
-
----
-
-## English
-
-Professional curve adjustment nodes for ComfyUI with Photoshop-like functionality, 70+ preset styles, advanced mask support, and histogram analysis.
-![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/d76f5f84-1ec3-48bd-bb96-2f2dafef6be6)
-
-### Features
-
-- **Professional Curve Tool**: Photoshop-style curve adjustment with multiple interpolation methods
-- **PS-Style Curve Visualization**: Real-time curve chart with optional histogram background display
-- **Advanced Mask Support**: Selective curve adjustment with mask blending and feathering
-- **Histogram Analysis & Levels**: Complete histogram analysis with PS-style levels adjustment
-- **70+ Preset Styles**: Ready-to-use color grading presets for various photography styles
-- **Channel Control**: RGB overall or individual R/G/B channel adjustment
-- **Strength Control**: Adjustable curve effect intensity (0-200%)
-- **Real-time Preview**: Visual curve preview with recommended channels
-- **Batch Processing**: GPU-accelerated batch image processing
-
-### Installation
-
-#### Git Clone (Recommended)
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/your-username/ComfyUI-Curve.git
-```
-
-#### Manual Download
-1. Download ZIP file
-2. Extract to `ComfyUI/custom_nodes/ComfyUI-Curve`
-3. Restart ComfyUI
-
-#### Dependencies
-- torch>=1.9.0
-- numpy>=1.21.0
-- scipy>=1.7.0
-### Usage
-
-#### Nodes
-
-**🎨 PS Curve (Professional)**
-- Professional curve adjustment with precise control
-- **PS-style curve visualization**: Real-time curve chart with histogram background (optional)
-- Input: image, interpolation method, channel, curve points, strength
-- Optional mask support with feathering and opacity control
-- **Interactive curve display**: Shows curve with histogram background like Photoshop
-- Curve format: `x1,y1;x2,y2;x3,y3` (e.g., `0,0;128,150;255,255`)
-- **Dual output**: Processed image + curve chart visualization
-
-**📊 PS Histogram & Levels**
-- Complete histogram analysis and levels adjustment
-- **可视化直方图显示**: 实时直方图图表，支持彩色通道显示
-- Real-time histogram data and statistics output
-- **交互式可视化**: Shows input black/white points and gamma curves on chart
-- Auto levels and auto contrast functions
-- Manual levels control: input black/white, gamma, output black/white
-- Channel-specific analysis: RGB, R, G, B, Luminance
-- Professional color grading capabilities
-
-**🎨 PS Curve Preset**
-- One-click preset styles with visual preview
-- 70+ professional color grading presets
-- Recommended channel suggestions for each style
-
-### Histogram & Levels Features
-
-- **Real-time Histogram Analysis**: Complete histogram data for all channels
-- **Visual Histogram Display**: Professional histogram charts with color-coded channels (RGB/R/G/B/Luminance)
-- **Interactive Visualization**: Shows input black/white points and gamma adjustment lines on the chart
-- **Statistical Information**: Mean, std dev, min, max, median, percentiles
-- **Auto Levels**: Automatic black/white point detection with clip percentage control
-- **Auto Contrast**: Intelligent contrast enhancement with gamma adjustment
-- **Manual Levels Control**: Precise input/output black/white points and gamma
-- **Channel Selection**: RGB combined, individual R/G/B, or Luminance analysis
-- **Batch Processing**: Analyze and adjust multiple images simultaneously
-
-#### Histogram Outputs
-
-The histogram node provides four outputs:
-1. **Processed Image**: Image with levels adjustment applied
-2. **Histogram Image**: Visual histogram chart as an image (can be saved or viewed)
-3. **Histogram Data**: Text data with detailed histogram information
-4. **Statistics**: Comprehensive statistical analysis of the image
-
-#### Histogram Visualization Features
-
-- **RGB Mode**: Shows overlaid red, green, and blue channel histograms
-- **Individual Channels**: Displays single channel histogram in corresponding color
-- **Luminance Mode**: Shows grayscale luminance distribution
-- **Level Indicators**: Visual lines showing input black/white points and gamma midpoint
-- **Professional Styling**: Clean, publication-ready histogram charts
-
-### Mask Usage Guide
-
-#### Mask Support in PS Curve
-
-**🎨 PS Curve (Professional) - Integrated Mask Support**
-- Original curve node with optional mask input
-- Backward compatible, can work without mask
-- Use case: All mask applications with full control
-
-#### Mask Parameters
-
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| **mask_blur** | 0-20 | 0.0 | Mask edge feathering, higher values create softer edges |
-| **invert_mask** | True/False | False | Whether to invert the mask area |
-
-#### Mask Sources
-
-- **SAM (Segment Anything Model)**: Automatic segmentation of any object
-- **Face/Body Segmentation**: Specialized for portraits with high accuracy
-- **Hand-drawn Masks**: Created with drawing software, fully customizable
-- **Other ComfyUI Mask Nodes**: CLIPSeg, RemBG, etc.
-
-#### Best Practices
-
-**Mask Blur Recommendations:**
-- Portrait skin: 2-4 pixels
-- Sky background: 5-10 pixels
-- Object edges: 1-3 pixels
-- Large areas: 8-15 pixels
-
-**Channel Selection Tips:**
-- Skin adjustment: R channel (warming)
-- Sky enhancement: B channel (blue)
-- Vegetation enhancement: G channel (green)
-- Overall grading: RGB channel
-
-**Curve Strength Recommendations:**
-- Subtle: 0.3-0.7
-- Standard: 0.8-1.2
-- Strong: 1.3-2.0
-
-#### Troubleshooting
-
-- **Mask edges too hard**: Increase mask_blur value (recommended 3-8)
-- **Effect too strong**: Decrease curve_strength or mask_opacity values
-- **Mask area inaccurate**: Use invert_mask or generate more accurate mask
-- **Batch processing issues**: Ensure mask count matches image batch count
-
-### Preset Categories
-
-- **Portrait**: Beauty, Texture, Soft Light
-- **Landscape**: Enhanced, Natural, Chinese Painting
-- **Cinematic**: Film Stock, Cool Tone, Warm Tone
-- **Vintage**: Film, Warm Tone, Nostalgic
-- **Modern**: Minimal, Tech, Futuristic
-- **Japanese**: Fresh, Transparent, Creamy, Forest
-- **Hong Kong**: Classic, Dark, Neon
-- **Social Media**: Xiaohongshu, Instagram, TikTok
-- **Fashion**: Magazine, Premium Gray, Morandi, Milk Tea
-- **Artistic**: Oil Painting, Watercolor, Sketch, Print
-- **Seasonal**: Spring, Summer, Autumn, Winter
-- **Contrast**: High, Ultra High, Soft, Low Key, High Key
-- **Extreme**: Brighten, Darken, Invert, S-Curve
-
-### License
-
-MIT License - see [LICENSE](LICENSE) file.
 
 ---
 
@@ -326,6 +165,167 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 ### 许可证
 
 MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
+
+---
+
+## English
+
+Professional curve adjustment nodes for ComfyUI with Photoshop-like functionality, 70+ preset styles, advanced mask support, and histogram analysis.
+![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/d76f5f84-1ec3-48bd-bb96-2f2dafef6be6)
+
+### Features
+
+- **Professional Curve Tool**: Photoshop-style curve adjustment with multiple interpolation methods
+- **PS-Style Curve Visualization**: Real-time curve chart with optional histogram background display
+- **Advanced Mask Support**: Selective curve adjustment with mask blending and feathering
+- **Histogram Analysis & Levels**: Complete histogram analysis with PS-style levels adjustment
+- **70+ Preset Styles**: Ready-to-use color grading presets for various photography styles
+- **Channel Control**: RGB overall or individual R/G/B channel adjustment
+- **Strength Control**: Adjustable curve effect intensity (0-200%)
+- **Real-time Preview**: Visual curve preview with recommended channels
+- **Batch Processing**: GPU-accelerated batch image processing
+
+### Installation
+
+#### Git Clone (Recommended)
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/your-username/ComfyUI-Curve.git
+```
+
+#### Manual Download
+1. Download ZIP file
+2. Extract to `ComfyUI/custom_nodes/ComfyUI-Curve`
+3. Restart ComfyUI
+
+#### Dependencies
+- torch>=1.9.0
+- numpy>=1.21.0
+- scipy>=1.7.0
+### Usage
+
+#### Nodes
+
+**🎨 PS Curve (Professional)**
+- Professional curve adjustment with precise control
+- **PS-style curve visualization**: Real-time curve chart with histogram background (optional)
+- Input: image, interpolation method, channel, curve points, strength
+- Optional mask support with feathering and opacity control
+- **Interactive curve display**: Shows curve with histogram background like Photoshop
+- Curve format: `x1,y1;x2,y2;x3,y3` (e.g., `0,0;128,150;255,255`)
+- **Dual output**: Processed image + curve chart visualization
+
+**📊 PS Histogram & Levels**
+- Complete histogram analysis and levels adjustment
+- **可视化直方图显示**: 实时直方图图表，支持彩色通道显示
+- Real-time histogram data and statistics output
+- **交互式可视化**: Shows input black/white points and gamma curves on chart
+- Auto levels and auto contrast functions
+- Manual levels control: input black/white, gamma, output black/white
+- Channel-specific analysis: RGB, R, G, B, Luminance
+- Professional color grading capabilities
+
+**🎨 PS Curve Preset**
+- One-click preset styles with visual preview
+- 70+ professional color grading presets
+- Recommended channel suggestions for each style
+
+### Histogram & Levels Features
+
+- **Real-time Histogram Analysis**: Complete histogram data for all channels
+- **Visual Histogram Display**: Professional histogram charts with color-coded channels (RGB/R/G/B/Luminance)
+- **Interactive Visualization**: Shows input black/white points and gamma adjustment lines on the chart
+- **Statistical Information**: Mean, std dev, min, max, median, percentiles
+- **Auto Levels**: Automatic black/white point detection with clip percentage control
+- **Auto Contrast**: Intelligent contrast enhancement with gamma adjustment
+- **Manual Levels Control**: Precise input/output black/white points and gamma
+- **Channel Selection**: RGB combined, individual R/G/B, or Luminance analysis
+- **Batch Processing**: Analyze and adjust multiple images simultaneously
+
+#### Histogram Outputs
+
+The histogram node provides four outputs:
+1. **Processed Image**: Image with levels adjustment applied
+2. **Histogram Image**: Visual histogram chart as an image (can be saved or viewed)
+3. **Histogram Data**: Text data with detailed histogram information
+4. **Statistics**: Comprehensive statistical analysis of the image
+
+#### Histogram Visualization Features
+
+- **RGB Mode**: Shows overlaid red, green, and blue channel histograms
+- **Individual Channels**: Displays single channel histogram in corresponding color
+- **Luminance Mode**: Shows grayscale luminance distribution
+- **Level Indicators**: Visual lines showing input black/white points and gamma midpoint
+- **Professional Styling**: Clean, publication-ready histogram charts
+
+### Mask Usage Guide
+
+#### Mask Support in PS Curve
+
+**🎨 PS Curve (Professional) - Integrated Mask Support**
+- Original curve node with optional mask input
+- Backward compatible, can work without mask
+- Use case: All mask applications with full control
+
+#### Mask Parameters
+
+| Parameter | Range | Default | Description |
+|-----------|-------|---------|-------------|
+| **mask_blur** | 0-20 | 0.0 | Mask edge feathering, higher values create softer edges |
+| **invert_mask** | True/False | False | Whether to invert the mask area |
+
+#### Mask Sources
+
+- **SAM (Segment Anything Model)**: Automatic segmentation of any object
+- **Face/Body Segmentation**: Specialized for portraits with high accuracy
+- **Hand-drawn Masks**: Created with drawing software, fully customizable
+- **Other ComfyUI Mask Nodes**: CLIPSeg, RemBG, etc.
+
+#### Best Practices
+
+**Mask Blur Recommendations:**
+- Portrait skin: 2-4 pixels
+- Sky background: 5-10 pixels
+- Object edges: 1-3 pixels
+- Large areas: 8-15 pixels
+
+**Channel Selection Tips:**
+- Skin adjustment: R channel (warming)
+- Sky enhancement: B channel (blue)
+- Vegetation enhancement: G channel (green)
+- Overall grading: RGB channel
+
+**Curve Strength Recommendations:**
+- Subtle: 0.3-0.7
+- Standard: 0.8-1.2
+- Strong: 1.3-2.0
+
+#### Troubleshooting
+
+- **Mask edges too hard**: Increase mask_blur value (recommended 3-8)
+- **Effect too strong**: Decrease curve_strength or mask_opacity values
+- **Mask area inaccurate**: Use invert_mask or generate more accurate mask
+- **Batch processing issues**: Ensure mask count matches image batch count
+
+### Preset Categories
+
+- **Portrait**: Beauty, Texture, Soft Light
+- **Landscape**: Enhanced, Natural, Chinese Painting
+- **Cinematic**: Film Stock, Cool Tone, Warm Tone
+- **Vintage**: Film, Warm Tone, Nostalgic
+- **Modern**: Minimal, Tech, Futuristic
+- **Japanese**: Fresh, Transparent, Creamy, Forest
+- **Hong Kong**: Classic, Dark, Neon
+- **Social Media**: Xiaohongshu, Instagram, TikTok
+- **Fashion**: Magazine, Premium Gray, Morandi, Milk Tea
+- **Artistic**: Oil Painting, Watercolor, Sketch, Print
+- **Seasonal**: Spring, Summer, Autumn, Winter
+- **Contrast**: High, Ultra High, Soft, Low Key, High Key
+- **Extreme**: Brighten, Darken, Invert, S-Curve
+
+### License
+
+MIT License - see [LICENSE](LICENSE) file.
 
 ---
 
