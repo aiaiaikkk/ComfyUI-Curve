@@ -1,0 +1,6 @@
+# ComfyUI-Curve 项目依赖
+
+# 核心依赖
+torch>=1.9.0
+numpy>=1.21.0
+scipy>=1.7.0
