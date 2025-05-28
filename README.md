@@ -8,6 +8,7 @@
 ---
 
 ## English
+![Uploading LRPG_Curve曲线调色节点.png…]()
 
 Professional curve adjustment nodes for ComfyUI with Photoshop-like functionality, 70+ preset styles, advanced mask support, and histogram analysis.
 
