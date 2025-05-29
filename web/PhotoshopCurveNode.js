@@ -13,6 +13,7 @@ class PhotoshopCurveNodeWidget {
             this.node = { widgets: [], id: "unknown" };
         } else {
             this.node = node;
+            console.log("🎨 节点ID:", node.id);
         }
         
         // 查找widgets
@@ -45,10 +46,8 @@ class PhotoshopCurveNodeWidget {
         this.selectedPoint = -1;
         this.isDragging = false;
         
-        // 初始化直方图数据
-        this.histogramData = null;
-        
         try {
+            console.log("🎨 开始创建曲线编辑器UI");
             this.createWidget();
             this.setupEventListeners();
             this.setupWidgetCallbacks();
@@ -93,6 +92,12 @@ class PhotoshopCurveNodeWidget {
         
         // 添加到ComfyUI节点
         try {
+            console.log("🎨 正在添加DOM widget到节点:", this.node);
+            if (!this.node || !this.node.addDOMWidget) {
+                console.error("🎨 节点对象无效或缺少addDOMWidget方法");
+                return;
+            }
+            
             this.node.addDOMWidget('curve_editor', 'div', this.container);
             console.log("🎨 DOM widget 添加成功");
         } catch (error) {
@@ -276,38 +281,6 @@ class PhotoshopCurveNodeWidget {
                     self.drawCurve();
                 }
             };
-            
-            // 检查graph对象是否存在
-            if (!node.graph) {
-                console.warn("🎨 节点graph对象未初始化");
-                return;
-            }
-            
-            // 保存节点ID用于后续查找
-            const nodeId = node.id;
-            
-            // 为当前节点添加自定义事件处理器而不是修改全局事件
-            this._histogramUpdater = (message) => {
-                try {
-                    // 检查该节点是否执行完成
-                    if (message && message.result && nodeId in message.result) {
-                        const outputs = message.result[nodeId];
-                        if (outputs && outputs.length >= 3) {
-                            self.histogramData = outputs[2];
-                            console.log("🎨 执行后获取到直方图数据", self.histogramData ? "成功" : "失败");
-                            // 更新绘图
-                            self.drawCurve();
-                        }
-                    }
-                } catch (error) {
-                    console.error("🎨 执行后获取直方图数据错误:", error);
-                }
-            };
-            
-            // 注册到全局执行事件
-            if (app && app.graph) {
-                app.graph.addEventListener("executed", this._histogramUpdater);
-            }
         } catch (error) {
             console.error("🎨 设置回调函数错误:", error);
         }
@@ -435,71 +408,107 @@ class PhotoshopCurveNodeWidget {
         // 基于当前通道返回渐变定义
         switch (currentChannel) {
             case 'R':
-                return 'linear-gradient(to bottom, #ff0000 0%, #000000 100%)';
+                return 'linear-gradient(135deg, #ff0000 0%, #00ffff 100%)';
             case 'G':
-                return 'linear-gradient(to bottom, #00ff00 0%, #000000 100%)';
+                return 'linear-gradient(135deg, #00ff00 0%, #ff00ff 100%)';
             case 'B':
-                return 'linear-gradient(to bottom, #0000ff 0%, #000000 100%)';
+                return 'linear-gradient(135deg, #0000ff 0%, #ffff00 100%)';
             default: // RGB
-                return 'linear-gradient(to bottom, #ffffff 0%, #000000 100%)';
+                return 'linear-gradient(135deg, #ffffff 0%, #000000 100%)';
         }
     }
     
     drawCurve() {
-        // 清空SVG
-        while (this.svg.firstChild) {
-            this.svg.removeChild(this.svg.firstChild);
-        }
-        
-        // 绘制网格
-        this.drawGrid();
-        
-        // 绘制色调标签
-        this.drawToneLabels();
-        
-        // 绘制当前通道的渐变背景
-        const bgGradient = this.createChannelGradient();
-        const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        gradient.setAttribute('x', '0');
-        gradient.setAttribute('y', '0');
-        gradient.setAttribute('width', '384');
-        gradient.setAttribute('height', '384');
-        gradient.setAttribute('fill', bgGradient);
-        gradient.setAttribute('opacity', '0.05');
-        this.svg.appendChild(gradient);
-        
-        // 绘制直方图（如果有数据）
-        this.drawHistogram();
-        
-        // 对角线参考线
-        const diagonal = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        diagonal.setAttribute('x1', '0');
-        diagonal.setAttribute('y1', '384');
-        diagonal.setAttribute('x2', '384');
-        diagonal.setAttribute('y2', '0');
-        diagonal.setAttribute('stroke', '#777');
-        diagonal.setAttribute('stroke-width', '1');
-        diagonal.setAttribute('stroke-dasharray', '4, 4');
-        this.svg.appendChild(diagonal);
-        
-        // 绘制曲线
-            this.drawSmoothCurve();
-        
-        // 绘制控制点
-        for (let i = 0; i < this.controlPoints.length; i++) {
-            const point = this.controlPoints[i];
-            const x = (point.x / 255) * 384;
-            const y = 384 - (point.y / 255) * 384;
+        try {
+            // 清空SVG
+            while (this.svg.firstChild) {
+                this.svg.removeChild(this.svg.firstChild);
+            }
             
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', x);
-            circle.setAttribute('cy', y);
-            circle.setAttribute('r', i === this.selectedPoint ? '7' : '5');
-            circle.setAttribute('fill', i === this.selectedPoint ? '#4ecdc4' : 'white');
-            circle.setAttribute('stroke', '#4ecdc4');
-            circle.setAttribute('stroke-width', '2');
-            circle.setAttribute('data-index', i);
-            this.svg.appendChild(circle);
+            // 生成唯一ID以避免多个编辑器之间的ID冲突
+            const uniqueId = `curve_${this.node.id || Math.random().toString(36).substring(2, 10)}`;
+            
+            // 绘制网格
+            this.drawGrid();
+            
+            // 绘制色调标签
+            this.drawToneLabels();
+            
+            // 创建渐变定义
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const bgGradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+            bgGradient.setAttribute('id', `channelGradient_${uniqueId}`);
+            bgGradient.setAttribute('x1', '0%');
+            bgGradient.setAttribute('y1', '0%');
+            bgGradient.setAttribute('x2', '100%');
+            bgGradient.setAttribute('y2', '100%');
+            
+            // 设置渐变色 - 不透明度调整到60%
+            const currentChannel = this.channel ? this.channel.value : 'RGB';
+            const colors = {
+                'RGB': { start: 'rgba(255,255,255,0.6)', end: 'rgba(0,0,0,0.6)' },
+                'R': { start: 'rgba(255,0,0,0.6)', end: 'rgba(0,255,255,0.6)' },
+                'G': { start: 'rgba(0,255,0,0.6)', end: 'rgba(255,0,255,0.6)' },
+                'B': { start: 'rgba(0,0,255,0.6)', end: 'rgba(255,255,0,0.6)' }
+            };
+            
+            const channelColors = colors[currentChannel] || colors['RGB'];
+            
+            const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            stop1.setAttribute('offset', '0%');
+            stop1.setAttribute('stop-color', channelColors.start);
+            
+            const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            stop2.setAttribute('offset', '100%');
+            stop2.setAttribute('stop-color', channelColors.end);
+            
+            bgGradient.appendChild(stop1);
+            bgGradient.appendChild(stop2);
+            defs.appendChild(bgGradient);
+            this.svg.appendChild(defs);
+            
+            // 绘制当前通道的渐变背景
+            const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            gradient.setAttribute('x', '0');
+            gradient.setAttribute('y', '0');
+            gradient.setAttribute('width', '384');
+            gradient.setAttribute('height', '384');
+            gradient.setAttribute('fill', `url(#channelGradient_${uniqueId})`);
+            gradient.setAttribute('opacity', '0.15'); // 设置整体不透明度，与渐变色的alpha值结合
+            this.svg.appendChild(gradient);
+            
+            // 对角线参考线
+            const diagonal = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            diagonal.setAttribute('x1', '0');
+            diagonal.setAttribute('y1', '384');
+            diagonal.setAttribute('x2', '384');
+            diagonal.setAttribute('y2', '0');
+            diagonal.setAttribute('stroke', '#777');
+            diagonal.setAttribute('stroke-width', '1');
+            diagonal.setAttribute('stroke-dasharray', '4, 4');
+            this.svg.appendChild(diagonal);
+            
+            // 绘制曲线
+            this.drawSmoothCurve();
+            
+            // 绘制控制点
+            for (let i = 0; i < this.controlPoints.length; i++) {
+                const point = this.controlPoints[i];
+                const x = (point.x / 255) * 384;
+                const y = 384 - (point.y / 255) * 384;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', i === this.selectedPoint ? '7' : '5');
+                circle.setAttribute('fill', i === this.selectedPoint ? '#4ecdc4' : 'white');
+                circle.setAttribute('stroke', '#4ecdc4');
+                circle.setAttribute('stroke-width', '2');
+                circle.setAttribute('data-index', i);
+                this.svg.appendChild(circle);
+            }
+        } catch (error) {
+            console.error("🎨 绘制曲线时出错:", error);
         }
     }
     
@@ -713,109 +722,8 @@ class PhotoshopCurveNodeWidget {
         return a + b * dx + c * dx * dx + d * dx * dx * dx;
     }
     
-    drawHistogram() {
-        if (!this.histogramData) return;
-        
-        try {
-            // 尝试解析JSON数据
-            let histogramData;
-            try {
-                histogramData = JSON.parse(this.histogramData);
-            } catch (error) {
-                console.error("🎨 解析直方图JSON数据失败:", error, this.histogramData);
-                return;
-            }
-            
-            if (!histogramData || !histogramData.histograms) {
-                console.warn("🎨 直方图数据格式无效:", histogramData);
-                return;
-            }
-            
-            // 获取当前通道
-            const currentChannel = this.channel ? this.channel.value : 'RGB';
-            
-            // 颜色映射
-            const colors = {
-                'R': '#ff5555',
-                'G': '#55ff55', 
-                'B': '#5555ff',
-                'RGB': '#aaaaaa',
-                'Luminance': '#aaaaaa'
-            };
-            
-            // 绘制直方图
-            if (currentChannel === 'RGB') {
-                // RGB模式下，绘制三个通道
-                ['R', 'G', 'B'].forEach(channel => {
-                    if (histogramData.histograms[channel]) {
-                        this.drawHistogramChannel(histogramData.histograms[channel], colors[channel], 0.3);
-                    }
-                });
-            } else {
-                // 单通道模式
-                if (histogramData.histograms[currentChannel]) {
-                    this.drawHistogramChannel(histogramData.histograms[currentChannel], colors[currentChannel], 0.5);
-                } else if (histogramData.histograms['RGB']) {
-                    // 如果找不到对应通道，尝试使用RGB通道数据
-                    this.drawHistogramChannel(histogramData.histograms['RGB'], colors[currentChannel], 0.3);
-                }
-            }
-        } catch (error) {
-            console.error("🎨 绘制直方图失败:", error);
-        }
-    }
-    
-    drawHistogramChannel(data, color, alpha) {
-        try {
-            if (!data || !Array.isArray(data) || data.length === 0) {
-                console.warn("🎨 无效的直方图数据:", data);
-                return;
-            }
-            
-            // 创建SVG路径
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            
-            // 构建路径数据
-            let pathData = `M 0,384 `;  // 起始点（左下角）
-            
-            // 添加每个数据点
-            for (let i = 0; i < data.length; i++) {
-                if (typeof data[i] !== 'number' || isNaN(data[i])) {
-                    continue; // 跳过无效数据点
-                }
-                
-                const x = (i / 255) * 384;
-                const height = data[i] * 384 * 0.8;  // 缩放到80%高度
-                const y = 384 - height;
-                pathData += `L ${x},${y} `;
-            }
-            
-            // 闭合路径回到底部
-            pathData += `L 384,384 Z`;
-            
-            // 设置路径属性
-            path.setAttribute('d', pathData);
-            path.setAttribute('fill', color);
-            path.setAttribute('fill-opacity', alpha);
-            path.setAttribute('stroke', 'none');
-            
-            // 添加到SVG
-            if (this.svg) {
-                this.svg.appendChild(path);
-            }
-        } catch (error) {
-            console.error("🎨 绘制直方图通道失败:", error);
-        }
-    }
-    
     cleanup() {
         try {
-            // 移除执行事件监听器
-            if (app && app.graph && this._histogramUpdater) {
-                app.graph.removeEventListener("executed", this._histogramUpdater);
-                this._histogramUpdater = null;
-            }
-            
             // 移除SVG事件监听器
             if (this.svg) {
                 this.svg.removeEventListener('mousedown', this._boundOnMouseDown);
@@ -834,7 +742,6 @@ class PhotoshopCurveNodeWidget {
             this.controlPoints = null;
             this.selectedPoint = -1;
             this.isDragging = false;
-            this.histogramData = null;
             
             // 移除DOM元素
             if (this.container && this.container.parentNode) {
@@ -856,6 +763,9 @@ class PhotoshopCurveNodeWidget {
 // 注册扩展
 console.log("🎨 开始注册扩展...");
 
+// 注意：直方图不会显示在曲线编辑器中，但会显示在curve_chart输出中
+// 这样可以保持UI简洁，同时保留直方图功能
+
 app.registerExtension({
     name: "PhotoshopCurveNode",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -865,42 +775,70 @@ app.registerExtension({
         }
         
         console.log("🎨 注册PhotoshopCurveNode节点处理...");
-        
+            
         // 保存节点原始的onNodeCreated方法
         const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
-        
+            
         // 修改节点的创建方法
         nodeType.prototype.onNodeCreated = function() {
+            console.log("🎨 PhotoshopCurveNode 节点创建开始");
+            
             // 调用原始onNodeCreated
             if (originalOnNodeCreated) {
                 originalOnNodeCreated.apply(this, arguments);
             }
             
-            // 确保widgets已初始化
-            if (this.widgets && Array.isArray(this.widgets)) {
-                // 为每个参数小部件添加回调
-                for (const w of this.widgets) {
-                    const originalCallback = w.callback;
-                    
-                    // 使用闭包保存节点引用，而不是直接设置widget.node属性
-                    const node = this;
-                    w.callback = function() {
-                        // 调用原始回调
-                        if (originalCallback) {
-                            originalCallback.apply(this, arguments);
-                        }
-                        
-                        // 触发自定义回调
-                        if (node.onCurveNodeValueChanged) {
-                            node.onCurveNodeValueChanged(this, this.value);
-                        }
-                    };
-                }
-            }
+            // 初始化尺寸，确保有足够的空间
+            this.size = this.size || [400, 550];
+            if (this.size[0] < 400) this.size[0] = 400;
+            if (this.size[1] < 550) this.size[1] = 550;
             
-            // 创建曲线编辑器实例
-            console.log("🎨 创建曲线编辑器实例");
-            this.curveEditor = new PhotoshopCurveNodeWidget(this);
+            // 延迟创建编辑器，确保DOM已经准备好
+            setTimeout(() => {
+                // 确保widgets已初始化
+                if (this.widgets && Array.isArray(this.widgets)) {
+                    console.log("🎨 节点widgets数量:", this.widgets.length);
+                    
+                    // 为每个参数小部件添加回调
+                    for (const w of this.widgets) {
+                        const originalCallback = w.callback;
+                        
+                        // 使用闭包保存节点引用，而不是直接设置widget.node属性
+                        const node = this;
+                        w.callback = function() {
+                            // 调用原始回调
+                            if (originalCallback) {
+                                originalCallback.apply(this, arguments);
+                            }
+                            
+                            // 触发自定义回调
+                            if (node.onCurveNodeValueChanged) {
+                                node.onCurveNodeValueChanged(this, this.value);
+                            }
+                        };
+                    }
+                } else {
+                    console.warn("🎨 节点widgets尚未初始化");
+                }
+                
+                // 创建曲线编辑器实例
+                console.log("🎨 创建曲线编辑器实例");
+                try {
+                    if (!this.curveEditor) {
+                        this.curveEditor = new PhotoshopCurveNodeWidget(this);
+                        console.log("🎨 曲线编辑器创建成功");
+                    }
+                } catch (error) {
+                    console.error("🎨 创建曲线编辑器失败:", error);
+                }
+                
+                // 强制更新节点尺寸和位置
+                if (this.graph) {
+                    this.graph.setDirtyCanvas(true, true);
+                }
+                
+                console.log("🎨 PhotoshopCurveNode 节点创建完成");
+            }, 100); // 延迟100ms确保DOM已准备好
         }
         
         // 保存原始的onRemoved方法
@@ -957,34 +895,6 @@ app.registerExtension({
             
             if (this.curveEditor) {
                 this.curveEditor.drawCurve();
-            }
-        }
-        
-        // 确保节点可以接收histogram_data输出
-        if (nodeData.output && nodeData.output.length >= 3) {
-            const outputs = nodeData.output.map(o => o[0]);
-            if (outputs.includes('histogram_data')) {
-                console.log("🎨 注册直方图数据输出处理...");
-                
-                // 添加右键菜单选项
-                if (!nodeType.prototype._originalGetExtraMenuOptions) {
-                    nodeType.prototype._originalGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
-                    
-                    nodeType.prototype.getExtraMenuOptions = function(canvas, options) {
-                        if (this._originalGetExtraMenuOptions) {
-                            this._originalGetExtraMenuOptions.call(this, canvas, options);
-                        }
-                        
-                        options.push({
-                            content: "刷新直方图",
-                            callback: () => {
-                                if (this.curveEditor) {
-                                    this.curveEditor.drawCurve();
-                                }
-                            }
-                        });
-                    };
-                }
             }
         }
     }
