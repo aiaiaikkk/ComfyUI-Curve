@@ -10,6 +10,10 @@
 ## 中文
 
 专业的ComfyUI曲线调整节点，提供类似Photoshop的曲线功能、70+种预设风格、高级遮罩支持和直方图分析。
+![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/d76f5f84-1ec3-48bd-bb96-2f2dafef6be6)
+
+### 📺 视频教程
+[B站视频介绍：ComfyUI-Curve节点详细使用教程](https://www.bilibili.com/video/BV1pGjRzDEjf/)
 
 ### 功能特性
 
@@ -171,7 +175,6 @@ MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
 ## English
 
 Professional curve adjustment nodes for ComfyUI with Photoshop-like functionality, 70+ preset styles, advanced mask support, and histogram analysis.
-![LRPG_Curve曲线调色节点](https://github.com/user-attachments/assets/d76f5f84-1ec3-48bd-bb96-2f2dafef6be6)
 
 ### Features
 
