@@ -1,12 +1,16 @@
 import torch
 import numpy as np
-from scipy.interpolate import CubicSpline
-from comfy.model_management import get_torch_device
 import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')  # 使用非交互式后端
 from PIL import Image
 import io
+from scipy.interpolate import CubicSpline
+from comfy.model_management import get_torch_device
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
+
+# 获取当前设备
+def get_torch_device():
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # 添加全局缓存字典，用于存储每个节点实例的直方图数据
 _histogram_cache = {}
@@ -57,33 +61,26 @@ class PhotoshopCurveNode:
                     'default': 'Auto',
                     'tooltip': '直方图显示通道，Auto会根据curve channel自动选择'
                 }),
-                'auto_histogram': ('BOOLEAN', {
-                    'default': True,
-                    'tooltip': '自动分析并显示直方图，无需手动连接预览'
-                }),
             },
             'hidden': {'unique_id': 'UNIQUE_ID'}
         }
     
-    RETURN_TYPES = ('IMAGE', 'IMAGE')
-    RETURN_NAMES = ('image', 'curve_chart')
+    RETURN_TYPES = ('IMAGE', 'IMAGE', 'STRING')
+    RETURN_NAMES = ('image', 'curve_chart', 'histogram_data')
     FUNCTION = 'apply_curve'
     CATEGORY = 'Image/Adjustments'
     OUTPUT_NODE = False
     
     @classmethod
-    def IS_CHANGED(cls, image, interpolation, channel, curve_points='0,0;128,128;255,255', curve_strength=1.0, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto', auto_histogram=True, unique_id=None):
+    def IS_CHANGED(cls, image, interpolation, channel, curve_points='0,0;128,128;255,255', curve_strength=1.0, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto', unique_id=None):
         mask_hash = "none" if mask is None else str(hash(mask.data.tobytes()) if hasattr(mask, 'data') else hash(str(mask)))
-        return f"{curve_points}_{interpolation}_{channel}_{curve_strength}_{mask_hash}_{mask_blur}_{invert_mask}_{show_histogram}_{histogram_channel}_{auto_histogram}"
+        return f"{curve_points}_{interpolation}_{channel}_{curve_strength}_{mask_hash}_{mask_blur}_{invert_mask}_{show_histogram}_{histogram_channel}"
 
-    def apply_curve(self, image, interpolation, channel, curve_points='0,0;255,255', curve_strength=1.0, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto', auto_histogram=True, unique_id=None):
+    def apply_curve(self, image, interpolation, channel, curve_points='0,0;255,255', curve_strength=1.0, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto', unique_id=None):
         try:
             # 确保输入图像格式正确
             if image is None:
                 raise ValueError("Input image is None")
-            
-            # 使用唯一ID标识节点实例
-            instance_id = str(unique_id) if unique_id else id(self)
             
             # 处理批次维度
             if image.dim() == 4:  # Batch dimension exists
@@ -91,12 +88,8 @@ class PhotoshopCurveNode:
                 results = []
                 curve_charts = []
                 
-                # 首次运行时分析图像并缓存直方图数据
-                if auto_histogram and instance_id not in _histogram_cache:
-                    # 缓存该图像的直方图数据
-                    hist_data = self._analyze_histogram(image[0], histogram_channel, channel)
-                    _histogram_cache[instance_id] = hist_data
-                    print(f"已缓存直方图数据 ID: {instance_id}")
+                # 取第一张图像生成直方图数据
+                histogram_data = self._generate_histogram_json(image[0], histogram_channel, channel)
                 
                 for b in range(batch_size):
                     # 处理对应的遮罩
@@ -109,91 +102,29 @@ class PhotoshopCurveNode:
                         elif mask.dim() == 3 and mask.shape[0] == 1:
                             batch_mask = mask[0]
                     
-                    # 从缓存中获取直方图数据（如果有）
-                    cached_histogram = _histogram_cache.get(instance_id) if auto_histogram else None
-                    
                     result, curve_chart = self._process_single_image(
                         image[b], curve_points, interpolation, channel, curve_strength, 
-                        batch_mask, mask_blur, invert_mask, show_histogram, histogram_channel,
-                        cached_histogram
+                        batch_mask, mask_blur, invert_mask, show_histogram, histogram_channel
                     )
                     results.append(result)
                     curve_charts.append(curve_chart)
-                return (torch.stack(results, dim=0), torch.stack(curve_charts, dim=0))
+                return (torch.stack(results, dim=0), torch.stack(curve_charts, dim=0), histogram_data)
             else:
-                # 首次运行时分析图像并缓存直方图数据
-                if auto_histogram and instance_id not in _histogram_cache:
-                    # 缓存该图像的直方图数据
-                    hist_data = self._analyze_histogram(image, histogram_channel, channel)
-                    _histogram_cache[instance_id] = hist_data
-                    print(f"已缓存直方图数据 ID: {instance_id}")
-                
-                # 从缓存中获取直方图数据（如果有）
-                cached_histogram = _histogram_cache.get(instance_id) if auto_histogram else None
+                # 生成直方图数据
+                histogram_data = self._generate_histogram_json(image, histogram_channel, channel)
                 
                 result, curve_chart = self._process_single_image(
                     image, curve_points, interpolation, channel, curve_strength,
-                    mask, mask_blur, invert_mask, show_histogram, histogram_channel,
-                    cached_histogram
+                    mask, mask_blur, invert_mask, show_histogram, histogram_channel
                 )
-                return (result.unsqueeze(0), curve_chart.unsqueeze(0))  # 添加批次维度
+                return (result.unsqueeze(0), curve_chart.unsqueeze(0), histogram_data)  # 添加批次维度
                 
         except Exception as e:
             print(f"PhotoshopCurveNode error: {e}")
             # 返回原始图像作为fallback
-            return (image, self._create_fallback_curve_chart().unsqueeze(0))
+            return (image, self._create_fallback_curve_chart().unsqueeze(0), "{}")
     
-    def _analyze_histogram(self, image, histogram_channel, curve_channel):
-        """分析并返回图像的直方图数据"""
-        try:
-            # 将图像缩放到0-255
-            img_255 = (image * 255.0).clamp(0, 255).cpu().numpy()
-            
-            # 确定要分析的通道
-            analyze_channel = histogram_channel
-            if analyze_channel == 'Auto':
-                if curve_channel == 'RGB':
-                    analyze_channel = 'RGB'
-                else:
-                    analyze_channel = curve_channel
-            
-            # 收集直方图数据
-            num_channels = img_255.shape[-1]
-            if num_channels != 3:
-                # 灰度图像
-                hist, _ = np.histogram(img_255, bins=256, range=(0, 255))
-                return {'Luminance': hist}
-            
-            histograms = {}
-            
-            if analyze_channel in ['RGB', 'Luminance']:
-                # 计算亮度通道直方图
-                if analyze_channel == 'Luminance':
-                    # 转换为亮度 (0.299*R + 0.587*G + 0.114*B)
-                    luminance = 0.299 * img_255[..., 0] + 0.587 * img_255[..., 1] + 0.114 * img_255[..., 2]
-                    hist, _ = np.histogram(luminance, bins=256, range=(0, 255))
-                    histograms['Luminance'] = hist
-                else:
-                    # 计算RGB合成直方图 (平均所有通道)
-                    rgb_combined = np.mean([img_255[..., 0], img_255[..., 1], img_255[..., 2]], axis=0)
-                    hist, _ = np.histogram(rgb_combined, bins=256, range=(0, 255))
-                    histograms['RGB'] = hist
-            
-            # 计算单独通道直方图
-            if analyze_channel in ['R', 'G', 'B'] or analyze_channel == 'RGB':
-                channel_mapping = {'R': 0, 'G': 1, 'B': 2}
-                for ch_name, ch_idx in channel_mapping.items():
-                    if analyze_channel == ch_name or analyze_channel == 'RGB':
-                        hist, _ = np.histogram(img_255[..., ch_idx], bins=256, range=(0, 255))
-                        histograms[ch_name] = hist
-            
-            return histograms
-            
-        except Exception as e:
-            print(f"Error analyzing histogram: {e}")
-            return None
-    
-    def _process_single_image(self, image, curve_points, interpolation, channel, curve_strength, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto', cached_histogram=None):
+    def _process_single_image(self, image, curve_points, interpolation, channel, curve_strength, mask=None, mask_blur=0.0, invert_mask=False, show_histogram=True, histogram_channel='Auto'):
         # 确保图像在正确的设备上
         device = get_torch_device()
         image = image.to(device)
@@ -226,8 +157,8 @@ class PhotoshopCurveNode:
         if mask is not None:
             result = self._apply_mask(image, result, mask, mask_blur, invert_mask)
         
-        # 生成曲线图像 - 传入缓存的直方图数据
-        curve_chart = self._generate_curve_chart(result, show_histogram, histogram_channel, cached_histogram)
+        # 生成曲线图像 - 使用处理后的图像
+        curve_chart = self._generate_curve_chart(result, show_histogram, histogram_channel, control_points, interpolation, curve_strength)
         
         return result, curve_chart
     
@@ -428,37 +359,78 @@ class PhotoshopCurveNode:
         
         return blurred
 
-    def _generate_curve_chart(self, image, show_histogram, histogram_channel, cached_histogram=None):
-        """生成曲线图像 - 修改为支持缓存的直方图数据"""
+    def _generate_curve_chart(self, image, show_histogram, histogram_channel, control_points=None, interpolation='cubic', curve_strength=1.0):
+        """生成曲线图像 - 统一风格的版本"""
         try:
             # 创建图表
             fig, ax = plt.subplots(figsize=(4, 4), dpi=100)
+            
+            # 设置背景和网格风格（与曲线编辑器一致）
+            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
+            ax.set_facecolor('#1a1a1a')  # 内部背景
             
             # 设置图表范围
             ax.set_xlim(0, 255)
             ax.set_ylim(0, 255)
             
-            # 绘制网格
-            ax.grid(True, alpha=0.3)
+            # 绘制网格（与曲线编辑器一致）
+            gridColor = '#444444'
+            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
             
-            # 设置标题
-            ax.set_title("Curve Adjustment", fontsize=10)
+            # 设置轴标签颜色
+            ax.tick_params(axis='x', colors='white', labelsize=8)
+            ax.tick_params(axis='y', colors='white', labelsize=8)
+            ax.spines['bottom'].set_color('#555')
+            ax.spines['top'].set_color('#555')
+            ax.spines['left'].set_color('#555')
+            ax.spines['right'].set_color('#555')
             
-            # 如果启用了直方图显示
+            # 添加色调标签（模仿曲线编辑器的标签）
+            tone_points = [
+                (0, 0, "白色"), 
+                (64, 64, "高光"), 
+                (128, 128, "中间调"), 
+                (192, 192, "阴影"), 
+                (255, 255, "黑色")
+            ]
+            
+            for x, y, label in tone_points:
+                ax.text(x, 255-y, label, color='#888', fontsize=8, 
+                       ha='center', va='center', alpha=0.7)
+            
+            # 如果启用了直方图显示，直接从当前图像生成直方图
             if show_histogram:
-                if cached_histogram is not None:
-                    # 使用缓存的直方图数据
-                    self._draw_histogram_from_cache(ax, cached_histogram, histogram_channel)
-                else:
-                    # 否则，尝试从当前图像生成直方图
                     self._draw_histogram_background(ax, image, histogram_channel)
             
             # 绘制对角线（线性曲线参考）
-            ax.plot([0, 255], [0, 255], 'k--', alpha=0.5)
+            ax.plot([0, 255], [0, 255], color='#555555', linestyle='--', alpha=0.5, linewidth=1)
+            
+            # 绘制曲线
+            if control_points and len(control_points) >= 2:
+                try:
+                    # 提取x和y坐标
+                    x_points = [p[0] for p in control_points]
+                    y_points = [p[1] for p in control_points]
+                    
+                    # 绘制控制点
+                    ax.scatter(x_points, y_points, color='#4ecdc4', s=30, zorder=3)
+                    
+                    # 构建查找表获取完整曲线
+                    lut = self._build_lookup_table(control_points, interpolation)
+                    
+                    # 应用曲线强度（如果需要）
+                    if curve_strength != 1.0:
+                        identity_lut = np.arange(256, dtype=np.float32)
+                        lut = identity_lut * (1 - curve_strength) + lut * curve_strength
+                    
+                    # 绘制曲线
+                    ax.plot(np.arange(256), lut, color='#4ecdc4', linewidth=2, zorder=2)
+                except Exception as curve_error:
+                    print(f"Error drawing curve on chart: {curve_error}")
             
             # 保存图表为图像
             buf = io.BytesIO()
-            fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
+            fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
             plt.close(fig)
             
             # 转换为PIL图像
@@ -481,55 +453,9 @@ class PhotoshopCurveNode:
         except Exception as e:
             print(f"Error generating curve chart: {e}")
             return self._create_fallback_curve_chart()
-    
-    def _draw_histogram_from_cache(self, ax, histogram_data, histogram_channel):
-        """从缓存数据绘制直方图"""
-        if not histogram_data:
-            return
-        
-        # 确定要显示的通道
-        channel_to_show = histogram_channel
-        if channel_to_show == 'Auto':
-            # 默认显示RGB
-            channel_to_show = 'RGB'
-        
-        # 选择相应的直方图数据
-        if channel_to_show in histogram_data:
-            hist = histogram_data[channel_to_show]
-        elif 'RGB' in histogram_data:
-            hist = histogram_data['RGB']
-        elif 'Luminance' in histogram_data:
-            hist = histogram_data['Luminance']
-        else:
-            # 没有合适的数据
-            return
-        
-        # 归一化直方图，使其适合图表高度
-        hist_max = np.max(hist) if np.max(hist) > 0 else 1
-        normalized_hist = 255 * (hist / hist_max) * 0.8  # 缩放到图表高度的80%
-        
-        # 绘制直方图
-        x = np.arange(256)
-        
-        # 设置直方图颜色
-        if channel_to_show == 'R':
-            color = 'red'
-            alpha = 0.5
-        elif channel_to_show == 'G':
-            color = 'green'
-            alpha = 0.5
-        elif channel_to_show == 'B':
-            color = 'blue'
-            alpha = 0.5
-        else:  # RGB or Luminance
-            color = 'gray'
-            alpha = 0.3
-        
-        # 绘制直方图
-        ax.fill_between(x, normalized_hist, alpha=alpha, color=color)
         
     def _draw_histogram_background(self, ax, image, histogram_channel):
-        """在曲线图背景绘制直方图"""
+        """在曲线图背景绘制直方图 - 统一风格的版本"""
         try:
             # 将图像转换为0-255范围
             img_255 = (image * 255.0).clamp(0, 255)
@@ -541,7 +467,7 @@ class PhotoshopCurveNode:
             
             if histogram_channel == 'RGB':
                 # 显示RGB三个通道的直方图
-                colors = ['red', 'green', 'blue']
+                colors = ['#ff5555', '#55ff55', '#5555ff']  # 更鲜明的RGB颜色
                 alphas = [0.3, 0.3, 0.3]
                 
                 for c, (color, alpha) in enumerate(zip(colors, alphas)):
@@ -551,6 +477,7 @@ class PhotoshopCurveNode:
                         
                         # 归一化直方图到0-255范围
                         hist_normalized = (hist / np.max(hist)) * 255 if np.max(hist) > 0 else hist
+                        hist_normalized = hist_normalized * 0.8  # 缩放到图表高度的80%
                         
                         # 绘制直方图作为背景
                         ax.fill_between(bins[:-1], 0, hist_normalized, 
@@ -567,16 +494,17 @@ class PhotoshopCurveNode:
                     
                     # 归一化直方图
                     hist_normalized = (hist / np.max(hist)) * 255 if np.max(hist) > 0 else hist
+                    hist_normalized = hist_normalized * 0.8  # 缩放到图表高度的80%
                     
                     # 绘制灰色直方图
                     ax.fill_between(bins[:-1], 0, hist_normalized, 
-                                  alpha=0.3, color='white', step='pre')
+                                  alpha=0.3, color='#aaaaaa', step='pre')
                     
             else:
                 # 单通道直方图
                 channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(histogram_channel, 0)
-                colors = {'R': 'red', 'G': 'green', 'B': 'blue'}
-                color = colors.get(histogram_channel, 'white')
+                colors = {'R': '#ff5555', 'G': '#55ff55', 'B': '#5555ff'}
+                color = colors.get(histogram_channel, '#aaaaaa')
                 
                 if channel_idx < img_255.shape[2]:
                     channel_data = img_255[..., channel_idx].cpu().numpy().flatten()
@@ -584,59 +512,123 @@ class PhotoshopCurveNode:
                     
                     # 归一化直方图
                     hist_normalized = (hist / np.max(hist)) * 255 if np.max(hist) > 0 else hist
+                    hist_normalized = hist_normalized * 0.8  # 缩放到图表高度的80%
                     
                     # 绘制单通道直方图
                     ax.fill_between(bins[:-1], 0, hist_normalized, 
-                                  alpha=0.3, color=color, step='pre')
+                                  alpha=0.4, color=color, step='pre')
                     
         except Exception as e:
             print(f"Error drawing histogram background: {e}")
 
     def _create_fallback_curve_chart(self):
-        """创建备用曲线图像"""
+        """创建备用曲线图像 - 统一风格的版本"""
         try:
             # 创建一个简单的错误图像
-            fig, ax = plt.subplots(figsize=(8, 8))
-            fig.patch.set_facecolor('#2b2b2b')
+            fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
+            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
             
-            ax.set_facecolor('#3c3c3c')
-            ax.text(0.5, 0.5, 'Error generating curve chart\nPlease check your input image', 
+            ax.set_facecolor('#1a1a1a')  # 内部背景
+            ax.text(0.5, 0.5, 'Error generating curve chart\nPlease check console for details', 
                    horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes, fontsize=14, color='white')
+                   transform=ax.transAxes, fontsize=12, color='#ff5555')
             ax.set_xlim(0, 255)
             ax.set_ylim(0, 255)
-            ax.set_xlabel('Input', color='white')
-            ax.set_ylabel('Output', color='white')
-            ax.set_title('Curve Chart Error', color='white')
-            ax.tick_params(colors='white')
+            ax.set_xlabel('Input', color='#cccccc', fontsize=10)
+            ax.set_ylabel('Output', color='#cccccc', fontsize=10)
+            ax.set_title('Curve Chart Error', color='white', fontsize=12)
+            ax.tick_params(colors='#cccccc')
             
             # 设置边框颜色
             for spine in ax.spines.values():
-                spine.set_color('white')
-                spine.set_alpha(0.3)
+                spine.set_color('#555555')
+            
+            # 绘制对角线（线性曲线参考）
+            ax.plot([0, 255], [0, 255], color='#555555', linestyle='--', alpha=0.5, linewidth=1)
+            
+            # 绘制网格线
+            gridColor = '#444444'
+            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
             
             # 转换为tensor
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', facecolor='#2b2b2b')
+            plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
+            plt.close(fig)
             buf.seek(0)
             
             pil_image = Image.open(buf)
+            pil_image = pil_image.resize((512, 512), Image.LANCZOS)
+            
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            
             img_array = np.array(pil_image)
-            
-            if img_array.shape[2] == 4:
-                img_array = img_array[:, :, :3]
-            
             curve_chart_tensor = torch.from_numpy(img_array).float() / 255.0
             
-            plt.close(fig)
-            buf.close()
-            
-            return curve_chart_tensor
-            
+            return curve_chart_tensor.to(get_torch_device())
         except Exception as e:
             print(f"Error creating fallback curve chart: {e}")
-            # 创建一个纯色图像作为最后的备用
-            return torch.ones((600, 600, 3), dtype=torch.float32) * 0.2  # 深色背景
+            # 创建纯色图像作为最后的备用
+            empty_chart = torch.ones((512, 512, 3), dtype=torch.float32).to(get_torch_device()) * 0.1
+            # 在中间绘制红色十字表示错误
+            empty_chart[236:276, 236:276, 0] = 1.0
+            empty_chart[236:276, 236:276, 1] = 0.0
+            empty_chart[236:276, 236:276, 2] = 0.0
+            return empty_chart
+            
+    def _generate_histogram_json(self, image, histogram_channel, curve_channel):
+        """生成用于前端显示的直方图JSON数据"""
+        try:
+            # 将图像转换为0-255范围
+            img_255 = (image * 255.0).clamp(0, 255).cpu().numpy()
+            
+            # 确定要显示的通道
+            display_channel = histogram_channel
+            if display_channel == 'Auto':
+                display_channel = curve_channel
+            
+            # 创建存储直方图数据的字典
+            result = {'histograms': {}}
+            
+            # 收集RGB通道直方图数据
+            if display_channel == 'RGB' or display_channel == 'Auto':
+                for c, color_name in enumerate(['R', 'G', 'B']):
+                    if c < img_255.shape[-1]:
+                        channel_data = img_255[..., c].flatten()
+                        hist, _ = np.histogram(channel_data, bins=256, range=(0, 255))
+                        # 归一化直方图
+                        hist_max = np.max(hist) if np.max(hist) > 0 else 1
+                        normalized_hist = (hist / hist_max).tolist()
+                        result['histograms'][color_name] = normalized_hist
+            
+            # 收集亮度通道直方图数据
+            if display_channel == 'Luminance':
+                if img_255.shape[-1] >= 3:
+                    luminance = 0.299 * img_255[..., 0] + 0.587 * img_255[..., 1] + 0.114 * img_255[..., 2]
+                    hist, _ = np.histogram(luminance.flatten(), bins=256, range=(0, 255))
+                    hist_max = np.max(hist) if np.max(hist) > 0 else 1
+                    normalized_hist = (hist / hist_max).tolist()
+                    result['histograms']['Luminance'] = normalized_hist
+            
+            # 收集单个通道直方图数据
+            if display_channel in ['R', 'G', 'B']:
+                channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(display_channel, 0)
+                if channel_idx < img_255.shape[-1]:
+                    channel_data = img_255[..., channel_idx].flatten()
+                    hist, _ = np.histogram(channel_data, bins=256, range=(0, 255))
+                    hist_max = np.max(hist) if np.max(hist) > 0 else 1
+                    normalized_hist = (hist / hist_max).tolist()
+                    result['histograms'][display_channel] = normalized_hist
+            
+            # 添加当前通道选择
+            result['active_channel'] = display_channel
+            
+            import json
+            return json.dumps(result)
+            
+        except Exception as e:
+            print(f"Error generating histogram JSON: {e}")
+            return "{}"
 
 class CurvePresetNode:
     @classmethod
@@ -1059,20 +1051,33 @@ class PhotoshopHistogramNode:
         return "\n".join(histogram_info)
     
     def _generate_histogram_image(self, img_255, channel, input_black=0, input_white=255, gamma=1.0):
-        """生成直方图可视化图像"""
+        """生成直方图可视化图像 - 统一风格的版本"""
         try:
             # 设置图像大小
-            fig_width, fig_height = 8, 6
+            fig_width, fig_height = 6, 4
             fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-            fig.patch.set_facecolor('white')
             
-            # 设置样式
-            ax.set_facecolor('#f8f9fa')
-            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+            # 统一风格
+            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
+            ax.set_facecolor('#1a1a1a')  # 内部背景
+            
+            # 设置网格线和边框
+            gridColor = '#444444'
+            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
+            
+            # 设置轴标签颜色
+            ax.tick_params(axis='x', colors='white', labelsize=8)
+            ax.tick_params(axis='y', colors='white', labelsize=8)
+            for spine in ax.spines.values():
+                spine.set_color('#555555')
+            
+            # 设置标题和标签颜色
+            title_color = 'white'
+            label_color = '#cccccc'
             
             if channel == 'RGB':
                 # RGB综合直方图 - 显示三个通道
-                colors = ['red', 'green', 'blue']
+                colors = ['#ff5555', '#55ff55', '#5555ff']  # 更鲜明的RGB颜色
                 channel_names = ['Red', 'Green', 'Blue']
                 
                 for c, (color, name) in enumerate(zip(colors, channel_names)):
@@ -1081,10 +1086,10 @@ class PhotoshopHistogramNode:
                         hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
                         
                         # 绘制直方图
-                        ax.plot(bins[:-1], hist, color=color, alpha=0.7, linewidth=1.5, label=name)
+                        ax.plot(bins[:-1], hist, color=color, alpha=0.8, linewidth=1.5, label=name)
                         ax.fill_between(bins[:-1], hist, alpha=0.3, color=color)
                 
-                ax.legend(loc='upper right')
+                ax.legend(loc='upper right', framealpha=0.7, facecolor='#2a2a2a', edgecolor='#555555', labelcolor='white')
                 title = 'RGB Histogram'
                 
             elif channel == 'Luminance':
@@ -1096,57 +1101,56 @@ class PhotoshopHistogramNode:
                     lum_data = luminance.cpu().numpy().flatten()
                     hist, bins = np.histogram(lum_data, bins=256, range=(0, 255))
                     
-                    ax.plot(bins[:-1], hist, color='gray', linewidth=2)
-                    ax.fill_between(bins[:-1], hist, alpha=0.5, color='gray')
+                    ax.plot(bins[:-1], hist, color='#aaaaaa', linewidth=1.5)
+                    ax.fill_between(bins[:-1], hist, alpha=0.5, color='#aaaaaa')
                     
                 title = 'Luminance Histogram'
                 
             else:
                 # 单通道直方图
                 channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(channel, 0)
-                colors = {'R': 'red', 'G': 'green', 'B': 'blue'}
-                color = colors.get(channel, 'blue')
+                colors = {'R': '#ff5555', 'G': '#55ff55', 'B': '#5555ff'}
+                color = colors.get(channel, '#5555ff')
                 
                 if channel_idx < img_255.shape[2]:
                     channel_data = img_255[..., channel_idx].cpu().numpy().flatten()
                     hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
                     
-                    ax.plot(bins[:-1], hist, color=color, linewidth=2)
+                    ax.plot(bins[:-1], hist, color=color, linewidth=1.5)
                     ax.fill_between(bins[:-1], hist, alpha=0.5, color=color)
                     
                 title = f'{channel} Channel Histogram'
             
             # 添加色阶指示线
             if input_black > 0:
-                ax.axvline(x=input_black, color='black', linestyle='--', alpha=0.8, linewidth=2, label=f'Input Black: {input_black:.0f}')
+                ax.axvline(x=input_black, color='#ffffff', linestyle='--', alpha=0.7, linewidth=1, 
+                          label=f'Black: {input_black:.0f}')
             if input_white < 255:
-                ax.axvline(x=input_white, color='white', linestyle='--', alpha=0.8, linewidth=2, label=f'Input White: {input_white:.0f}')
+                ax.axvline(x=input_white, color='#ffffff', linestyle='--', alpha=0.7, linewidth=1, 
+                          label=f'White: {input_white:.0f}')
             if gamma != 1.0:
                 # 显示伽马中点
                 gamma_point = input_black + (input_white - input_black) * (0.5 ** (1/gamma))
-                ax.axvline(x=gamma_point, color='gray', linestyle=':', alpha=0.8, linewidth=2, label=f'Gamma: {gamma:.2f}')
+                ax.axvline(x=gamma_point, color='#aaaaaa', linestyle=':', alpha=0.7, linewidth=1, 
+                          label=f'Gamma: {gamma:.2f}')
             
             # 设置标题和标签
-            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-            ax.set_xlabel('Pixel Value (0-255)', fontsize=12)
-            ax.set_ylabel('Frequency', fontsize=12)
+            ax.set_title(title, fontsize=12, fontweight='bold', color=title_color, pad=10)
+            ax.set_xlabel('Pixel Value (0-255)', fontsize=10, color=label_color)
+            ax.set_ylabel('Frequency', fontsize=10, color=label_color)
             ax.set_xlim(0, 255)
-            
-            # 设置刻度
-            ax.set_xticks(np.arange(0, 256, 32))
-            ax.set_yticks(np.arange(0, 256, 32))
-            ax.tick_params(axis='both', which='major', labelsize=10)
             
             # 如果有色阶线，显示图例
             if input_black > 0 or input_white < 255 or gamma != 1.0:
-                ax.legend(loc='upper left', fontsize=10)
+                ax.legend(loc='upper left', fontsize=8, framealpha=0.7, 
+                         facecolor='#2a2a2a', edgecolor='#555555', labelcolor='white')
             
             # 调整布局
             plt.tight_layout()
             
             # 将图像转换为tensor
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
+            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
             plt.close(fig)
             
             # 转换为PIL图像
@@ -1171,43 +1175,57 @@ class PhotoshopHistogramNode:
             return self._create_fallback_histogram_image()
     
     def _create_fallback_histogram_image(self):
-        """创建备用直方图图像"""
+        """创建备用直方图图像 - 统一风格的版本"""
         try:
             # 创建一个简单的错误图像
-            fig, ax = plt.subplots(figsize=(8, 6))
-            fig.patch.set_facecolor('white')
+            fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
+            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
             
-            ax.text(0.5, 0.5, 'Error generating histogram\nPlease check your input image', 
+            ax.set_facecolor('#1a1a1a')  # 内部背景
+            ax.text(0.5, 0.5, 'Error generating histogram\nPlease check console for details', 
                    horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes, fontsize=14, color='red')
+                   transform=ax.transAxes, fontsize=12, color='#ff5555')
             ax.set_xlim(0, 255)
-            ax.set_ylim(0, 100)
-            ax.set_xlabel('Pixel Value (0-255)')
-            ax.set_ylabel('Frequency')
-            ax.set_title('Histogram Error')
+            ax.set_ylim(0, 255)
+            ax.set_xlabel('Pixel Value', color='#cccccc', fontsize=10)
+            ax.set_ylabel('Frequency', color='#cccccc', fontsize=10)
+            ax.set_title('Histogram Error', color='white', fontsize=12)
+            ax.tick_params(colors='#cccccc')
+            
+            # 设置边框颜色
+            for spine in ax.spines.values():
+                spine.set_color('#555555')
+            
+            # 绘制网格线
+            gridColor = '#444444'
+            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
             
             # 转换为tensor
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
+            plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
+            plt.close(fig)
             buf.seek(0)
             
             pil_image = Image.open(buf)
+            pil_image = pil_image.resize((512, 512), Image.LANCZOS)
+            
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            
             img_array = np.array(pil_image)
-            
-            if img_array.shape[2] == 4:
-                img_array = img_array[:, :, :3]
-            
             histogram_tensor = torch.from_numpy(img_array).float() / 255.0
             
-            plt.close(fig)
-            buf.close()
-            
-            return histogram_tensor
+            return histogram_tensor.to(get_torch_device())
             
         except Exception as e:
             print(f"Error creating fallback histogram: {e}")
             # 创建一个纯色图像作为最后的备用
-            return torch.ones((400, 600, 3), dtype=torch.float32) * 0.9
+            empty_chart = torch.ones((512, 512, 3), dtype=torch.float32).to(get_torch_device()) * 0.1
+            # 在中间绘制红色十字表示错误
+            empty_chart[236:276, 236:276, 0] = 1.0
+            empty_chart[236:276, 236:276, 1] = 0.0
+            empty_chart[236:276, 236:276, 2] = 0.0
+            return empty_chart
 
     def _calculate_statistics(self, img_255, channel):
         """计算图像统计信息"""

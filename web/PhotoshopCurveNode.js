@@ -4,19 +4,36 @@ console.log("🎨 PhotoshopCurveNode.js 开始加载...");
 
 class PhotoshopCurveNodeWidget {
     constructor(node) {
-        console.log("🎨 PhotoshopCurveNodeWidget 构造函数被调用", node);
-        this.node = node;
+        console.log("🎨 PhotoshopCurveNodeWidget 构造函数被调用");
+        
+        // 保存节点引用
+        if (!node) {
+            console.error("🎨 构造函数接收到无效节点:", node);
+            // 创建一个最小化的节点对象以避免错误
+            this.node = { widgets: [], id: "unknown" };
+        } else {
+            this.node = node;
+        }
         
         // 查找widgets
-        this.points = node.widgets.find(w => w.name === 'curve_points');
-        this.interp = node.widgets.find(w => w.name === 'interpolation');
-        this.channel = node.widgets.find(w => w.name === 'channel');
+        this.points = null;
+        this.interp = null;
+        this.channel = null;
         
-        console.log("🎨 找到的widgets", {
-            points: !!this.points,
-            interp: !!this.interp,
-            channel: !!this.channel
-        });
+        // 确保widgets已初始化
+        if (node && node.widgets && Array.isArray(node.widgets)) {
+            this.points = node.widgets.find(w => w.name === 'curve_points');
+            this.interp = node.widgets.find(w => w.name === 'interpolation');
+            this.channel = node.widgets.find(w => w.name === 'channel');
+            
+            console.log("🎨 找到的widgets", {
+                points: !!this.points,
+                interp: !!this.interp,
+                channel: !!this.channel
+            });
+        } else {
+            console.warn("🎨 节点widgets未初始化");
+        }
         
         // 确保有默认的曲线点值
         if (this.points && (!this.points.value || this.points.value.trim() === '')) {
@@ -27,6 +44,9 @@ class PhotoshopCurveNodeWidget {
         this.controlPoints = this.parsePoints(this.getActiveCurvePoints());
         this.selectedPoint = -1;
         this.isDragging = false;
+        
+        // 初始化直方图数据
+        this.histogramData = null;
         
         try {
             this.createWidget();
@@ -152,8 +172,10 @@ class PhotoshopCurveNodeWidget {
         this.updateChannelButtons();
         this.drawCurve();
         
-        if (this.node.onResize) {
-            this.node.onResize();
+        // 使用对象直接引用
+        const node = this.node;
+        if (node && typeof node.onResize === 'function') {
+            node.onResize();
         }
     }
     
@@ -180,7 +202,7 @@ class PhotoshopCurveNodeWidget {
     
     getActiveCurvePoints() {
         const defaultPoints = '0,0;255,255';
-        return this.points ? this.points.value || defaultPoints : defaultPoints;
+        return this.points && this.points.value ? this.points.value : defaultPoints;
     }
     
     parsePoints(pointsStr) {
@@ -211,40 +233,83 @@ class PhotoshopCurveNodeWidget {
     }
     
     setupEventListeners() {
-        this.svg.addEventListener('mousedown', this.onMouseDown.bind(this));
-        this.svg.addEventListener('mousemove', this.onMouseMove.bind(this));
-        this.svg.addEventListener('mouseup', this.onMouseUp.bind(this));
-        this.svg.addEventListener('mouseleave', this.onMouseUp.bind(this));
-        this.svg.addEventListener('dblclick', this.onDoubleClick.bind(this));
-        this.svg.addEventListener('contextmenu', this.onRightClick.bind(this));
-        this.svg.addEventListener('selectstart', e => e.preventDefault());
+        // 绑定事件处理函数以便于后续移除
+        this._boundOnMouseDown = this.onMouseDown.bind(this);
+        this._boundOnMouseMove = this.onMouseMove.bind(this);
+        this._boundOnMouseUp = this.onMouseUp.bind(this);
+        this._boundOnDoubleClick = this.onDoubleClick.bind(this);
+        this._boundOnRightClick = this.onRightClick.bind(this);
+        this._boundPreventSelect = e => e.preventDefault();
+        
+        // 添加事件监听器
+        this.svg.addEventListener('mousedown', this._boundOnMouseDown);
+        this.svg.addEventListener('mousemove', this._boundOnMouseMove);
+        this.svg.addEventListener('mouseup', this._boundOnMouseUp);
+        this.svg.addEventListener('mouseleave', this._boundOnMouseUp);
+        this.svg.addEventListener('dblclick', this._boundOnDoubleClick);
+        this.svg.addEventListener('contextmenu', this._boundOnRightClick);
+        this.svg.addEventListener('selectstart', this._boundPreventSelect);
     }
     
     setupWidgetCallbacks() {
-        if (this.points) {
-            const originalCallback = this.points.callback;
-            this.points.callback = () => {
-                if (originalCallback) originalCallback();
-                this.controlPoints = this.parsePoints(this.points.value);
-                this.drawCurve();
+        try {
+            const self = this;
+            const node = this.node;
+            
+            // 当节点值发生变化时更新UI
+            if (node.onCurveNodeValueChanged) {
+                console.log("🎨 移除现有回调");
+                node.onCurveNodeValueChanged = undefined;
+            }
+            
+            node.onCurveNodeValueChanged = function(widget, value) {
+                if (widget.name === 'curve_points') {
+                    console.log("🎨 曲线点更新为:", value);
+                    self.controlPoints = self.parsePoints(value);
+                    self.drawCurve();
+                } else if (widget.name === 'channel') {
+                    console.log("🎨 通道更新为:", value);
+                    self.updateChannelButtons();
+                    self.drawCurve();
+                } else if (widget.name === 'interpolation') {
+                    console.log("🎨 插值方法更新为:", value);
+                    self.drawCurve();
+                }
             };
-        }
-        
-        if (this.interp) {
-            const originalCallback = this.interp.callback;
-            this.interp.callback = () => {
-                if (originalCallback) originalCallback();
-                this.drawCurve();
+            
+            // 检查graph对象是否存在
+            if (!node.graph) {
+                console.warn("🎨 节点graph对象未初始化");
+                return;
+            }
+            
+            // 保存节点ID用于后续查找
+            const nodeId = node.id;
+            
+            // 为当前节点添加自定义事件处理器而不是修改全局事件
+            this._histogramUpdater = (message) => {
+                try {
+                    // 检查该节点是否执行完成
+                    if (message && message.result && nodeId in message.result) {
+                        const outputs = message.result[nodeId];
+                        if (outputs && outputs.length >= 3) {
+                            self.histogramData = outputs[2];
+                            console.log("🎨 执行后获取到直方图数据", self.histogramData ? "成功" : "失败");
+                            // 更新绘图
+                            self.drawCurve();
+                        }
+                    }
+                } catch (error) {
+                    console.error("🎨 执行后获取直方图数据错误:", error);
+                }
             };
-        }
-        
-        if (this.channel) {
-            const originalCallback = this.channel.callback;
-            this.channel.callback = () => {
-                if (originalCallback) originalCallback();
-                this.updateChannelButtons();
-                this.drawCurve();
-            };
+            
+            // 注册到全局执行事件
+            if (app && app.graph) {
+                app.graph.addEventListener("executed", this._histogramUpdater);
+            }
+        } catch (error) {
+            console.error("🎨 设置回调函数错误:", error);
         }
     }
     
@@ -356,179 +421,148 @@ class PhotoshopCurveNodeWidget {
         if (this.points) {
             this.points.value = this.pointsToString(this.controlPoints);
         }
-        if (this.node.onResize) {
-            this.node.onResize();
+        
+        // 使用对象直接引用
+        const node = this.node;
+        if (node && typeof node.onResize === 'function') {
+            node.onResize();
         }
     }
     
     createChannelGradient() {
-        const existingDefs = this.svg.querySelector('defs');
-        if (existingDefs) {
-            this.svg.removeChild(existingDefs);
-        }
-        
-        const defs = document.createElementNS(this.svg.namespaceURI, 'defs');
-        
-        // 创建渐变
-        const gradient = document.createElementNS(this.svg.namespaceURI, 'linearGradient');
-        gradient.setAttribute('id', 'channelGradient');
-        gradient.setAttribute('x1', '0%');
-        gradient.setAttribute('y1', '0%');
-        gradient.setAttribute('x2', '100%');
-        gradient.setAttribute('y2', '100%');
-        
         const currentChannel = this.channel ? this.channel.value : 'RGB';
         
-        const stop1 = document.createElementNS(this.svg.namespaceURI, 'stop');
-        const stop2 = document.createElementNS(this.svg.namespaceURI, 'stop');
-        stop1.setAttribute('offset', '0%');
-        stop2.setAttribute('offset', '100%');
-        
+        // 基于当前通道返回渐变定义
         switch (currentChannel) {
-            case 'RGB':
-                stop1.setAttribute('stop-color', 'rgba(255,255,255,0.5)');
-                stop2.setAttribute('stop-color', 'rgba(0,0,0,0.5)');
-                break;
             case 'R':
-                stop1.setAttribute('stop-color', 'rgba(255,0,0,0.5)');
-                stop2.setAttribute('stop-color', 'rgba(0,255,255,0.5)');
-                break;
+                return 'linear-gradient(to bottom, #ff0000 0%, #000000 100%)';
             case 'G':
-                stop1.setAttribute('stop-color', 'rgba(0,255,0,0.5)');
-                stop2.setAttribute('stop-color', 'rgba(255,0,255,0.5)');
-                break;
+                return 'linear-gradient(to bottom, #00ff00 0%, #000000 100%)';
             case 'B':
-                stop1.setAttribute('stop-color', 'rgba(0,0,255,0.5)');
-                stop2.setAttribute('stop-color', 'rgba(255,255,0,0.5)');
-                break;
-            default:
-                stop1.setAttribute('stop-color', 'rgba(255,255,255,0.5)');
-                stop2.setAttribute('stop-color', 'rgba(0,0,0,0.5)');
+                return 'linear-gradient(to bottom, #0000ff 0%, #000000 100%)';
+            default: // RGB
+                return 'linear-gradient(to bottom, #ffffff 0%, #000000 100%)';
         }
-        
-        gradient.appendChild(stop1);
-        gradient.appendChild(stop2);
-        defs.appendChild(gradient);
-        
-        this.svg.appendChild(defs);
     }
     
     drawCurve() {
-        console.log("🎨 开始绘制曲线");
-        
         // 清空SVG
         while (this.svg.firstChild) {
             this.svg.removeChild(this.svg.firstChild);
         }
         
-        // 创建通道渐变
-        this.createChannelGradient();
-        
-        // 绘制背景
-        const bg = document.createElementNS(this.svg.namespaceURI, 'rect');
-        bg.setAttribute('width', '384');
-        bg.setAttribute('height', '384');
-        bg.setAttribute('fill', 'url(#channelGradient)');
-        bg.setAttribute('stroke', '#444');
-        bg.setAttribute('stroke-width', '1');
-        this.svg.appendChild(bg);
-        
         // 绘制网格
         this.drawGrid();
         
+        // 绘制色调标签
+        this.drawToneLabels();
+        
+        // 绘制当前通道的渐变背景
+        const bgGradient = this.createChannelGradient();
+        const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        gradient.setAttribute('x', '0');
+        gradient.setAttribute('y', '0');
+        gradient.setAttribute('width', '384');
+        gradient.setAttribute('height', '384');
+        gradient.setAttribute('fill', bgGradient);
+        gradient.setAttribute('opacity', '0.05');
+        this.svg.appendChild(gradient);
+        
+        // 绘制直方图（如果有数据）
+        this.drawHistogram();
+        
+        // 对角线参考线
+        const diagonal = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        diagonal.setAttribute('x1', '0');
+        diagonal.setAttribute('y1', '384');
+        diagonal.setAttribute('x2', '384');
+        diagonal.setAttribute('y2', '0');
+        diagonal.setAttribute('stroke', '#777');
+        diagonal.setAttribute('stroke-width', '1');
+        diagonal.setAttribute('stroke-dasharray', '4, 4');
+        this.svg.appendChild(diagonal);
+        
         // 绘制曲线
-        if (this.controlPoints.length >= 2) {
             this.drawSmoothCurve();
-        }
         
         // 绘制控制点
-        this.controlPoints.forEach((point, index) => {
-            const circle = document.createElementNS(this.svg.namespaceURI, 'circle');
-            const canvasX = (point.x / 255) * 384;
-            const canvasY = 384 - (point.y / 255) * 384;
+        for (let i = 0; i < this.controlPoints.length; i++) {
+            const point = this.controlPoints[i];
+            const x = (point.x / 255) * 384;
+            const y = 384 - (point.y / 255) * 384;
             
-            // 限制控制点显示在画布范围内，但保持原始逻辑坐标
-            const displayX = Math.max(4, Math.min(380, canvasX));
-            const displayY = Math.max(4, Math.min(380, canvasY));
-            
-            circle.setAttribute('cx', displayX);
-            circle.setAttribute('cy', displayY);
-            circle.setAttribute('r', index === this.selectedPoint ? '6' : '4');
-            
-            // 如果控制点超出边界，使用不同的颜色表示
-            const isOutOfBounds = canvasY < 0 || canvasY > 384;
-            const fillColor = isOutOfBounds ? '#ff9999' : 
-                             (index === 0 || index === this.controlPoints.length - 1 ? '#ff6b6b' : '#4ecdc4');
-            
-            circle.setAttribute('fill', fillColor);
-            circle.setAttribute('stroke', '#fff');
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', i === this.selectedPoint ? '7' : '5');
+            circle.setAttribute('fill', i === this.selectedPoint ? '#4ecdc4' : 'white');
+            circle.setAttribute('stroke', '#4ecdc4');
             circle.setAttribute('stroke-width', '2');
+            circle.setAttribute('data-index', i);
             this.svg.appendChild(circle);
-            
-            // 添加坐标标签
-            const text = document.createElementNS(this.svg.namespaceURI, 'text');
-            text.setAttribute('x', displayX + 8);
-            text.setAttribute('y', displayY - 8);
-            text.setAttribute('fill', isOutOfBounds ? '#ff9999' : '#fff');
-            text.setAttribute('font-size', '10');
-            text.setAttribute('font-family', 'monospace');
-            text.textContent = `${Math.round(point.x)},${Math.round(point.y)}`;
-            this.svg.appendChild(text);
-        });
+        }
     }
     
     drawGrid() {
-        const gridColor = '#333';
-        const gridSpacing = 384 / 4;
+        // 绘制背景网格线
+        const gridColor = '#444444';
+        const gridSize = 64; // 6x6网格
         
-        for (let i = 1; i < 4; i++) {
-            const pos = gridSpacing * i;
-            
+        // 添加主网格
+        for (let i = 0; i <= 384; i += gridSize) {
             // 垂直线
-            const vLine = document.createElementNS(this.svg.namespaceURI, 'line');
-            vLine.setAttribute('x1', pos);
-            vLine.setAttribute('y1', '0');
-            vLine.setAttribute('x2', pos);
-            vLine.setAttribute('y2', '384');
+            const vLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            vLine.setAttribute('x1', i);
+            vLine.setAttribute('y1', 0);
+            vLine.setAttribute('x2', i);
+            vLine.setAttribute('y2', 384);
             vLine.setAttribute('stroke', gridColor);
-            vLine.setAttribute('stroke-width', '1');
+            vLine.setAttribute('stroke-width', i % 192 === 0 ? 1 : 0.5);
+            vLine.setAttribute('stroke-opacity', i % 192 === 0 ? 0.8 : 0.5);
             this.svg.appendChild(vLine);
             
             // 水平线
-            const hLine = document.createElementNS(this.svg.namespaceURI, 'line');
-            hLine.setAttribute('x1', '0');
-            hLine.setAttribute('y1', pos);
-            hLine.setAttribute('x2', '384');
-            hLine.setAttribute('y2', pos);
+            const hLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            hLine.setAttribute('x1', 0);
+            hLine.setAttribute('y1', i);
+            hLine.setAttribute('x2', 384);
+            hLine.setAttribute('y2', i);
             hLine.setAttribute('stroke', gridColor);
-            hLine.setAttribute('stroke-width', '1');
+            hLine.setAttribute('stroke-width', i % 192 === 0 ? 1 : 0.5);
+            hLine.setAttribute('stroke-opacity', i % 192 === 0 ? 0.8 : 0.5);
             this.svg.appendChild(hLine);
         }
         
-        // 添加色调标签
-        this.drawToneLabels();
+        // 添加边框
+        const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        border.setAttribute('x', 0);
+        border.setAttribute('y', 0);
+        border.setAttribute('width', 384);
+        border.setAttribute('height', 384);
+        border.setAttribute('fill', 'none');
+        border.setAttribute('stroke', '#555555');
+        border.setAttribute('stroke-width', 1);
+        this.svg.appendChild(border);
     }
     
     drawToneLabels() {
-        const tonePoints = [
-            { x: 0, y: 384, label: '黑色' },
-            { x: 96, y: 288, label: '阴影' },
-            { x: 192, y: 192, label: '中间调' },
-            { x: 288, y: 96, label: '高光' },
-            { x: 384, y: 0, label: '白色' }
+        // 添加色调标签
+        const tones = [
+            { x: 8, y: 376, text: "暗部" },
+            { x: 96, y: 288, text: "阴影" },
+            { x: 192, y: 192, text: "中间调" },
+            { x: 288, y: 96, text: "高光" },
+            { x: 376, y: 8, text: "亮部" }
         ];
         
-        tonePoints.forEach(point => {
-            const text = document.createElementNS(this.svg.namespaceURI, 'text');
-            text.setAttribute('x', point.x);
-            text.setAttribute('y', point.y);
-            text.setAttribute('fill', '#003366');
-            text.setAttribute('font-size', '10');
-            text.setAttribute('font-family', 'Arial, sans-serif');
-            text.setAttribute('font-weight', 'bold');
+        tones.forEach(tone => {
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', tone.x);
+            text.setAttribute('y', tone.y);
+            text.setAttribute('fill', '#888');
+            text.setAttribute('font-size', '12');
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('dominant-baseline', 'central');
-            text.textContent = point.label;
+            text.textContent = tone.text;
             this.svg.appendChild(text);
         });
     }
@@ -678,6 +712,145 @@ class PhotoshopCurveNodeWidget {
         
         return a + b * dx + c * dx * dx + d * dx * dx * dx;
     }
+    
+    drawHistogram() {
+        if (!this.histogramData) return;
+        
+        try {
+            // 尝试解析JSON数据
+            let histogramData;
+            try {
+                histogramData = JSON.parse(this.histogramData);
+            } catch (error) {
+                console.error("🎨 解析直方图JSON数据失败:", error, this.histogramData);
+                return;
+            }
+            
+            if (!histogramData || !histogramData.histograms) {
+                console.warn("🎨 直方图数据格式无效:", histogramData);
+                return;
+            }
+            
+            // 获取当前通道
+            const currentChannel = this.channel ? this.channel.value : 'RGB';
+            
+            // 颜色映射
+            const colors = {
+                'R': '#ff5555',
+                'G': '#55ff55', 
+                'B': '#5555ff',
+                'RGB': '#aaaaaa',
+                'Luminance': '#aaaaaa'
+            };
+            
+            // 绘制直方图
+            if (currentChannel === 'RGB') {
+                // RGB模式下，绘制三个通道
+                ['R', 'G', 'B'].forEach(channel => {
+                    if (histogramData.histograms[channel]) {
+                        this.drawHistogramChannel(histogramData.histograms[channel], colors[channel], 0.3);
+                    }
+                });
+            } else {
+                // 单通道模式
+                if (histogramData.histograms[currentChannel]) {
+                    this.drawHistogramChannel(histogramData.histograms[currentChannel], colors[currentChannel], 0.5);
+                } else if (histogramData.histograms['RGB']) {
+                    // 如果找不到对应通道，尝试使用RGB通道数据
+                    this.drawHistogramChannel(histogramData.histograms['RGB'], colors[currentChannel], 0.3);
+                }
+            }
+        } catch (error) {
+            console.error("🎨 绘制直方图失败:", error);
+        }
+    }
+    
+    drawHistogramChannel(data, color, alpha) {
+        try {
+            if (!data || !Array.isArray(data) || data.length === 0) {
+                console.warn("🎨 无效的直方图数据:", data);
+                return;
+            }
+            
+            // 创建SVG路径
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            
+            // 构建路径数据
+            let pathData = `M 0,384 `;  // 起始点（左下角）
+            
+            // 添加每个数据点
+            for (let i = 0; i < data.length; i++) {
+                if (typeof data[i] !== 'number' || isNaN(data[i])) {
+                    continue; // 跳过无效数据点
+                }
+                
+                const x = (i / 255) * 384;
+                const height = data[i] * 384 * 0.8;  // 缩放到80%高度
+                const y = 384 - height;
+                pathData += `L ${x},${y} `;
+            }
+            
+            // 闭合路径回到底部
+            pathData += `L 384,384 Z`;
+            
+            // 设置路径属性
+            path.setAttribute('d', pathData);
+            path.setAttribute('fill', color);
+            path.setAttribute('fill-opacity', alpha);
+            path.setAttribute('stroke', 'none');
+            
+            // 添加到SVG
+            if (this.svg) {
+                this.svg.appendChild(path);
+            }
+        } catch (error) {
+            console.error("🎨 绘制直方图通道失败:", error);
+        }
+    }
+    
+    cleanup() {
+        try {
+            // 移除执行事件监听器
+            if (app && app.graph && this._histogramUpdater) {
+                app.graph.removeEventListener("executed", this._histogramUpdater);
+                this._histogramUpdater = null;
+            }
+            
+            // 移除SVG事件监听器
+            if (this.svg) {
+                this.svg.removeEventListener('mousedown', this._boundOnMouseDown);
+                this.svg.removeEventListener('mousemove', this._boundOnMouseMove);
+                this.svg.removeEventListener('mouseup', this._boundOnMouseUp);
+                this.svg.removeEventListener('mouseleave', this._boundOnMouseUp);
+                this.svg.removeEventListener('dblclick', this._boundOnDoubleClick);
+                this.svg.removeEventListener('contextmenu', this._boundOnRightClick);
+                this.svg.removeEventListener('selectstart', this._boundPreventSelect);
+            }
+            
+            // 清理其他资源
+            this.points = null;
+            this.interp = null;
+            this.channel = null;
+            this.controlPoints = null;
+            this.selectedPoint = -1;
+            this.isDragging = false;
+            this.histogramData = null;
+            
+            // 移除DOM元素
+            if (this.container && this.container.parentNode) {
+                this.container.parentNode.removeChild(this.container);
+            }
+            
+            this.container = null;
+            this.channelSelector = null;
+            this.channelButtons = null;
+            this.svg = null;
+            
+            console.log("🎨 曲线编辑器已清理");
+        } catch (error) {
+            console.error("🎨 清理曲线编辑器失败:", error);
+        }
+    }
 }
 
 // 注册扩展
@@ -686,48 +859,133 @@ console.log("🎨 开始注册扩展...");
 app.registerExtension({
     name: "PhotoshopCurveNode",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        console.log("🎨 beforeRegisterNodeDef 被调用", nodeData.name);
+        // 只处理我们的目标节点
+        if (nodeData.name !== "PhotoshopCurveNode") {
+            return;
+        }
         
-        if (nodeData.name === "PhotoshopCurveNode") {
-            console.log("🎨 匹配到PhotoshopCurveNode节点！");
+        console.log("🎨 注册PhotoshopCurveNode节点处理...");
+        
+        // 保存节点原始的onNodeCreated方法
+        const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
+        
+        // 修改节点的创建方法
+        nodeType.prototype.onNodeCreated = function() {
+            // 调用原始onNodeCreated
+            if (originalOnNodeCreated) {
+                originalOnNodeCreated.apply(this, arguments);
+            }
             
-            // 保存原始的onNodeCreated
-            const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
-            
-            nodeType.prototype.onNodeCreated = function() {
-                console.log("🎨 onNodeCreated 被调用", this);
-                
-                // 调用原始的onNodeCreated（如果存在）
-                if (originalOnNodeCreated) {
-                    originalOnNodeCreated.call(this);
-                }
-                
-                // 设置节点默认大小，确保能完整显示曲线图
-                this.size = [420, 580];  // 宽度420，高度580，增加高度确保画布完全包含
-                
-                // 延迟创建widget
-                setTimeout(() => {
-                    console.log("🎨 开始创建曲线编辑器widget");
+            // 确保widgets已初始化
+            if (this.widgets && Array.isArray(this.widgets)) {
+                // 为每个参数小部件添加回调
+                for (const w of this.widgets) {
+                    const originalCallback = w.callback;
                     
-                    try {
-                        if (!this.curveEditor) {
-                            this.curveEditor = new PhotoshopCurveNodeWidget(this);
-                            console.log("🎨 曲线编辑器创建成功");
-                            
-                            // 确保节点大小适配内容
-                            if (this.onResize) {
-                                this.onResize();
-                            }
-                        } else {
-                            console.log("🎨 曲线编辑器已存在");
+                    // 使用闭包保存节点引用，而不是直接设置widget.node属性
+                    const node = this;
+                    w.callback = function() {
+                        // 调用原始回调
+                        if (originalCallback) {
+                            originalCallback.apply(this, arguments);
                         }
-                    } catch (error) {
-                        console.error("🎨 创建曲线编辑器失败", error);
-                    }
-                }, 100);
-            };
+                        
+                        // 触发自定义回调
+                        if (node.onCurveNodeValueChanged) {
+                            node.onCurveNodeValueChanged(this, this.value);
+                        }
+                    };
+                }
+            }
             
-            console.log("🎨 onNodeCreated 回调设置完成");
+            // 创建曲线编辑器实例
+            console.log("🎨 创建曲线编辑器实例");
+            this.curveEditor = new PhotoshopCurveNodeWidget(this);
+        }
+        
+        // 保存原始的onRemoved方法
+        const originalOnRemoved = nodeType.prototype.onRemoved;
+        
+        // 添加清理方法
+        nodeType.prototype.onRemoved = function() {
+            // 调用原始onRemoved
+            if (originalOnRemoved) {
+                originalOnRemoved.apply(this, arguments);
+            }
+            
+            // 清理曲线编辑器
+            if (this.curveEditor) {
+                this.curveEditor.cleanup();
+                this.curveEditor = null;
+            }
+        };
+        
+        // 修改节点的onDrawBackground方法，确保正确处理曲线编辑器的尺寸
+        const originalOnDrawBackground = nodeType.prototype.onDrawBackground;
+        nodeType.prototype.onDrawBackground = function(ctx) {
+            if (originalOnDrawBackground) {
+                originalOnDrawBackground.apply(this, arguments);
+            }
+            
+            // 调整曲线编辑器大小
+            if (this.curveEditor && this.curveEditor.container) {
+                const curveEditorWidget = this.widgets.find(w => w.name === 'curve_editor');
+                if (curveEditorWidget) {
+                    if (this.size[0] < 400) {
+                        this.size[0] = 400;
+                    }
+                    if (this.size[1] < 550) {
+                        this.size[1] = 550;
+                    }
+                    
+                    // 调整宽度
+                    const width = this.size[0] * 0.9;
+                    if (this.curveEditor.container.style.width !== width + "px") {
+                        this.curveEditor.container.style.width = width + "px";
+                        this.curveEditor.drawCurve();
+                    }
+                }
+            }
+        }
+        
+        // 修改节点的onResize方法，当大小变化时重绘曲线
+        const originalOnResize = nodeType.prototype.onResize;
+        nodeType.prototype.onResize = function(size) {
+            if (originalOnResize) {
+                originalOnResize.apply(this, arguments);
+            }
+            
+            if (this.curveEditor) {
+                this.curveEditor.drawCurve();
+            }
+        }
+        
+        // 确保节点可以接收histogram_data输出
+        if (nodeData.output && nodeData.output.length >= 3) {
+            const outputs = nodeData.output.map(o => o[0]);
+            if (outputs.includes('histogram_data')) {
+                console.log("🎨 注册直方图数据输出处理...");
+                
+                // 添加右键菜单选项
+                if (!nodeType.prototype._originalGetExtraMenuOptions) {
+                    nodeType.prototype._originalGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+                    
+                    nodeType.prototype.getExtraMenuOptions = function(canvas, options) {
+                        if (this._originalGetExtraMenuOptions) {
+                            this._originalGetExtraMenuOptions.call(this, canvas, options);
+                        }
+                        
+                        options.push({
+                            content: "刷新直方图",
+                            callback: () => {
+                                if (this.curveEditor) {
+                                    this.curveEditor.drawCurve();
+                                }
+                            }
+                        });
+                    };
+                }
+            }
         }
     }
 });
