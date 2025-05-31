@@ -21,6 +21,12 @@ class PhotoshopCurveNodeWidget {
         this.interp = null;
         this.channel = null;
         
+        // 初始化端点滑块值
+        this.blackPointX = 0;
+        this.whitePointX = 255;
+        this.isDraggingBlackSlider = false;
+        this.isDraggingWhiteSlider = false;
+        
         // 确保widgets已初始化
         if (node && node.widgets && Array.isArray(node.widgets)) {
             this.points = node.widgets.find(w => w.name === 'curve_points');
@@ -80,15 +86,75 @@ class PhotoshopCurveNodeWidget {
         this.svg.setAttribute('viewBox', '0 0 384 384');
         this.svg.style.cssText = `
             width: 100%; 
-            height: 384px; 
+            height: 354px; 
             cursor: crosshair;
             background: #1a1a1a;
             border-radius: 2px;
         `;
         
+        // 创建输入范围滑块容器
+        this.sliderContainer = document.createElement('div');
+        this.sliderContainer.style.cssText = `
+            width: 100%; 
+            height: 30px; 
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 2px;
+            margin-top: 4px;
+        `;
+        
+        // 创建滑块轨道
+        this.sliderTrack = document.createElement('div');
+        this.sliderTrack.style.cssText = `
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            top: 15px;
+            height: 2px;
+            background: #555;
+        `;
+        this.sliderContainer.appendChild(this.sliderTrack);
+        
+        // 创建左侧三角形滑块(黑点)
+        this.blackPointSlider = document.createElement('div');
+        this.blackPointSlider.style.cssText = `
+            position: absolute;
+            left: 10px;
+            top: 5px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid #4ecdc4;
+            transform: translateX(-8px);
+            cursor: ew-resize;
+            filter: drop-shadow(0px 0px 2px rgba(0,0,0,0.5));
+            transition: border-bottom-color 0.2s;
+        `;
+        this.sliderContainer.appendChild(this.blackPointSlider);
+        
+        // 创建右侧三角形滑块(白点)
+        this.whitePointSlider = document.createElement('div');
+        this.whitePointSlider.style.cssText = `
+            position: absolute;
+            right: 10px;
+            top: 5px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid #4ecdc4;
+            transform: translateX(8px);
+            cursor: ew-resize;
+            filter: drop-shadow(0px 0px 2px rgba(0,0,0,0.5));
+            transition: border-bottom-color 0.2s;
+        `;
+        this.sliderContainer.appendChild(this.whitePointSlider);
+        
         // 添加组件到容器
         this.container.appendChild(this.channelSelector);
         this.container.appendChild(this.svg);
+        this.container.appendChild(this.sliderContainer);
         
         // 添加到ComfyUI节点
         try {
@@ -100,6 +166,9 @@ class PhotoshopCurveNodeWidget {
             
             this.node.addDOMWidget('curve_editor', 'div', this.container);
             console.log("🎨 DOM widget 添加成功");
+            
+            // 设置滑块事件
+            this.setupSliderEvents();
         } catch (error) {
             console.error("🎨 DOM widget 添加失败", error);
         }
@@ -219,15 +288,19 @@ class PhotoshopCurveNodeWidget {
         
         // 如果没有有效的点，返回默认的对角线
         if (points.length === 0) {
-            return [{ x: 0, y: 0 }, { x: 255, y: 255 }];
+            return [{ x: this.blackPointX || 0, y: 0 }, { x: this.whitePointX || 255, y: 255 }];
         }
         
-        // 确保有起始和结束点
-        if (points[0].x > 0) {
-            points.unshift({ x: 0, y: 0 });
-        }
-        if (points[points.length - 1].x < 255) {
-            points.push({ x: 255, y: 255 });
+        // 确保至少有两个点，但不要强制起点和终点的位置
+        if (points.length < 2) {
+            // 如果只有一个点，根据它的位置添加另一个点
+            if (points[0].x <= 127) {
+                // 如果唯一点在左半边，添加一个右边的点
+                points.push({ x: this.whitePointX || 255, y: 255 });
+            } else {
+                // 如果唯一点在右半边，添加一个左边的点
+                points.unshift({ x: this.blackPointX || 0, y: 0 });
+            }
         }
         
         return points;
@@ -330,11 +403,20 @@ class PhotoshopCurveNodeWidget {
         const point = this.controlPoints[this.selectedPoint];
         
         if (this.selectedPoint === 0) {
-            point.x = 0;
+            // 允许起点在X轴上移动，但受黑点滑块的限制
+            point.x = Math.max(this.blackPointX, Math.min(this.controlPoints[1].x - 1, pos.x));
             point.y = pos.y;
+            // 同步更新黑点滑块位置
+            this.blackPointX = point.x;
+            this.updateSliderPositions();
         } else if (this.selectedPoint === this.controlPoints.length - 1) {
-            point.x = 255;
+            // 允许终点在X轴上移动，但受白点滑块的限制
+            point.x = Math.max(this.controlPoints[this.controlPoints.length - 2].x + 1, 
+                Math.min(this.whitePointX, pos.x));
             point.y = pos.y;
+            // 同步更新白点滑块位置
+            this.whitePointX = point.x;
+            this.updateSliderPositions();
         } else {
             const prevX = this.controlPoints[this.selectedPoint - 1].x;
             const nextX = this.controlPoints[this.selectedPoint + 1].x;
@@ -392,29 +474,27 @@ class PhotoshopCurveNodeWidget {
     
     updatePointsWidget() {
         if (this.points) {
+            // 转换为字符串并更新控件
             this.points.value = this.pointsToString(this.controlPoints);
-        }
-        
-        // 使用对象直接引用
-        const node = this.node;
-        if (node && typeof node.onResize === 'function') {
-            node.onResize();
-        }
-    }
-    
-    createChannelGradient() {
-        const currentChannel = this.channel ? this.channel.value : 'RGB';
-        
-        // 基于当前通道返回渐变定义
-        switch (currentChannel) {
-            case 'R':
-                return 'linear-gradient(135deg, #ff0000 0%, #00ffff 100%)';
-            case 'G':
-                return 'linear-gradient(135deg, #00ff00 0%, #ff00ff 100%)';
-            case 'B':
-                return 'linear-gradient(135deg, #0000ff 0%, #ffff00 100%)';
-            default: // RGB
-                return 'linear-gradient(135deg, #ffffff 0%, #000000 100%)';
+            
+            // 触发值更改回调
+            const node = this.node;
+            if (node) {
+                // 如果节点有自定义的值变化回调，调用它
+                if (typeof node.onCurveNodeValueChanged === 'function') {
+                    node.onCurveNodeValueChanged(this.points, this.points.value);
+                }
+                
+                // 强制刷新画布
+                if (node.graph) {
+                    node.graph.setDirtyCanvas(true, true);
+                }
+                
+                // 通知节点改变大小以触发重绘
+                if (typeof node.onResize === 'function') {
+                    node.onResize();
+                }
+            }
         }
     }
     
@@ -507,15 +587,18 @@ class PhotoshopCurveNodeWidget {
                 circle.setAttribute('data-index', i);
                 this.svg.appendChild(circle);
             }
+            
+            // 更新滑块位置以匹配曲线端点
+            this.updateSliderPositions();
         } catch (error) {
             console.error("🎨 绘制曲线时出错:", error);
         }
     }
     
     drawGrid() {
-        // 绘制背景网格线
+        // 绘制背景网格线 - 改为4x4网格
         const gridColor = '#444444';
-        const gridSize = 64; // 6x6网格
+        const gridSize = 96; // 4x4网格
         
         // 添加主网格
         for (let i = 0; i <= 384; i += gridSize) {
@@ -555,13 +638,13 @@ class PhotoshopCurveNodeWidget {
     }
     
     drawToneLabels() {
-        // 添加色调标签
+        // 添加色调标签 - 在网格分割线处显示
         const tones = [
-            { x: 8, y: 376, text: "暗部" },
-            { x: 96, y: 288, text: "阴影" },
+            { x: 24, y: 376, text: "暗部" },
+            { x: 128, y: 288, text: "阴影" },
             { x: 192, y: 192, text: "中间调" },
-            { x: 288, y: 96, text: "高光" },
-            { x: 376, y: 8, text: "亮部" }
+            { x: 256, y: 96, text: "高光" },
+            { x: 360, y: 8, text: "亮部" }
         ];
         
         tones.forEach(tone => {
@@ -601,40 +684,59 @@ class PhotoshopCurveNodeWidget {
     
     // 生成三次样条曲线点
     generateSplineCurve(points) {
-        const result = [];
-        const steps = 384; // 每个像素一个点，确保精确
-        
-        // 如果只有两个点，使用线性插值
-        if (points.length === 2) {
+        try {
+            const result = [];
+            const steps = 384; // 每个像素一个点，确保精确
+            
+            // 如果只有两个点，使用线性插值
+            if (points.length === 2) {
+                for (let step = 0; step <= steps; step++) {
+                    const t = step / steps;
+                    // 注意：这里我们要根据实际点的位置进行插值，而不是假设0-255范围
+                    const startX = points[0].x;
+                    const endX = points[1].x;
+                    const startY = points[0].y;
+                    const endY = points[1].y;
+                    
+                    const x = startX + t * (endX - startX);
+                    const y = startY + t * (endY - startY);
+                    
+                    // 转换到画布坐标
+                    const canvasX = (x / 255) * 384;
+                    const canvasY = 384 - (y / 255) * 384;
+                    const clampedY = Math.max(0, Math.min(384, canvasY));
+                    
+                    result.push({ x: canvasX, y: clampedY });
+                }
+                return result;
+            }
+            
+            // 使用自然三次样条插值（类似PS）
+            const splineCoeffs = this.calculateNaturalSpline(points);
+            
+            // 从第一个点到最后一个点进行插值
+            const startX = points[0].x;
+            const endX = points[points.length - 1].x;
+            
             for (let step = 0; step <= steps; step++) {
-                const x = (step / steps) * 255;
-                const t = x / 255;
-                const y = points[0].y * (1 - t) + points[1].y * t;
+                // 根据端点的实际位置插值
+                const t = step / steps;
+                const x = startX + t * (endX - startX);
+                const y = this.evaluateNaturalSpline(x, points, splineCoeffs);
                 
+                // 转换到画布坐标
                 const canvasX = (x / 255) * 384;
                 const canvasY = 384 - (y / 255) * 384;
                 const clampedY = Math.max(0, Math.min(384, canvasY));
                 
                 result.push({ x: canvasX, y: clampedY });
             }
+            
             return result;
+        } catch (error) {
+            console.error("🎨 生成曲线点失败:", error);
+            return [];
         }
-        
-        // 使用自然三次样条插值（类似PS）
-        const splineCoeffs = this.calculateNaturalSpline(points);
-        
-        for (let step = 0; step <= steps; step++) {
-            const x = (step / steps) * 255;
-            const y = this.evaluateNaturalSpline(x, points, splineCoeffs);
-            
-            const canvasX = (x / 255) * 384;
-            const canvasY = 384 - (y / 255) * 384;
-            const clampedY = Math.max(0, Math.min(384, canvasY));
-            
-            result.push({ x: canvasX, y: clampedY });
-        }
-        
-        return result;
     }
     
     // 计算自然三次样条插值系数（更接近PS的算法）
@@ -722,6 +824,167 @@ class PhotoshopCurveNodeWidget {
         return a + b * dx + c * dx * dx + d * dx * dx * dx;
     }
     
+    // 设置滑块事件
+    setupSliderEvents() {
+        try {
+            // 黑点滑块拖动
+            this.blackPointX = 0;
+            this.whitePointX = 255;
+            
+            this._boundBlackSliderDrag = this.handleBlackSliderDrag.bind(this);
+            this._boundWhiteSliderDrag = this.handleWhiteSliderDrag.bind(this);
+            this._boundStopSliderDrag = this.stopSliderDrag.bind(this);
+            
+            // 滑块鼠标进入/离开效果
+            this.blackPointSlider.addEventListener('mouseenter', () => {
+                this.blackPointSlider.style.borderBottomColor = '#7befe6';
+            });
+            
+            this.blackPointSlider.addEventListener('mouseleave', () => {
+                if (!this.isDraggingBlackSlider) {
+                    this.blackPointSlider.style.borderBottomColor = '#4ecdc4';
+                }
+            });
+            
+            this.whitePointSlider.addEventListener('mouseenter', () => {
+                this.whitePointSlider.style.borderBottomColor = '#7befe6';
+            });
+            
+            this.whitePointSlider.addEventListener('mouseleave', () => {
+                if (!this.isDraggingWhiteSlider) {
+                    this.whitePointSlider.style.borderBottomColor = '#4ecdc4';
+                }
+            });
+            
+            this.blackPointSlider.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                this.isDraggingBlackSlider = true;
+                this.blackPointSlider.style.borderBottomColor = '#aaffe9';
+                document.addEventListener('mousemove', this._boundBlackSliderDrag);
+                document.addEventListener('mouseup', this._boundStopSliderDrag);
+            });
+            
+            this.whitePointSlider.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                this.isDraggingWhiteSlider = true;
+                this.whitePointSlider.style.borderBottomColor = '#aaffe9';
+                document.addEventListener('mousemove', this._boundWhiteSliderDrag);
+                document.addEventListener('mouseup', this._boundStopSliderDrag);
+            });
+        } catch (error) {
+            console.error("🎨 设置滑块事件失败:", error);
+        }
+    }
+    
+    // 处理黑点滑块拖动
+    handleBlackSliderDrag(e) {
+        if (!this.isDraggingBlackSlider) return;
+        
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width - 20; // 减去左右边距
+            
+            // 计算相对位置 (0-1)
+            let relativeX = (e.clientX - rect.left - 10) / trackWidth;
+            relativeX = Math.max(0, Math.min(relativeX, (this.whitePointX - 10) / 255));
+            
+            // 设置新的X位置
+            const newLeft = 10 + relativeX * trackWidth;
+            this.blackPointSlider.style.left = `${newLeft}px`;
+            
+            // 更新黑点X值
+            this.blackPointX = Math.round(relativeX * 255);
+            
+            // 更新曲线起点
+            if (this.controlPoints.length >= 2) {
+                // 修改第一个点的X坐标
+                this.controlPoints[0].x = this.blackPointX;
+                
+                // 更新曲线点和重绘
+                this.updatePointsWidget();
+                this.drawCurve();
+            }
+        } catch (error) {
+            console.error("🎨 处理黑点滑块拖动失败:", error);
+        }
+    }
+    
+    // 处理白点滑块拖动
+    handleWhiteSliderDrag(e) {
+        if (!this.isDraggingWhiteSlider) return;
+        
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width - 20; // 减去左右边距
+            
+            // 计算相对位置 (0-1)
+            let relativeX = (e.clientX - rect.left - 10) / trackWidth;
+            relativeX = Math.max((this.blackPointX + 10) / 255, Math.min(relativeX, 1));
+            
+            // 设置新的X位置 - 修正计算方式
+            const newLeft = 10 + relativeX * trackWidth;
+            this.whitePointSlider.style.left = `${newLeft}px`;
+            this.whitePointSlider.style.right = 'auto';
+            
+            // 更新白点X值
+            this.whitePointX = Math.round(relativeX * 255);
+            
+            // 更新曲线终点
+            if (this.controlPoints.length >= 2) {
+                // 修改最后一个点的X坐标
+                this.controlPoints[this.controlPoints.length - 1].x = this.whitePointX;
+                
+                // 更新曲线点和重绘
+                this.updatePointsWidget();
+                this.drawCurve();
+            }
+        } catch (error) {
+            console.error("🎨 处理白点滑块拖动失败:", error);
+        }
+    }
+    
+    // 停止滑块拖动
+    stopSliderDrag() {
+        this.isDraggingBlackSlider = false;
+        this.isDraggingWhiteSlider = false;
+        // 恢复滑块颜色
+        this.blackPointSlider.style.borderBottomColor = '#4ecdc4';
+        this.whitePointSlider.style.borderBottomColor = '#4ecdc4';
+        document.removeEventListener('mousemove', this._boundBlackSliderDrag);
+        document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
+        document.removeEventListener('mouseup', this._boundStopSliderDrag);
+    }
+    
+    // 更新滑块位置
+    updateSliderPositions() {
+        try {
+            if (this.controlPoints.length >= 2 && this.sliderContainer) {
+                const startPoint = this.controlPoints[0];
+                const endPoint = this.controlPoints[this.controlPoints.length - 1];
+                const trackWidth = this.sliderContainer.offsetWidth - 20;
+                
+                if (startPoint && this.blackPointSlider) {
+                    // 更新黑点滑块位置
+                    const blackPosPercent = startPoint.x / 255;
+                    const blackPosPixels = 10 + (blackPosPercent * trackWidth);
+                    this.blackPointSlider.style.left = `${blackPosPixels}px`;
+                    this.blackPointX = startPoint.x;
+                }
+                
+                if (endPoint && this.whitePointSlider) {
+                    // 更新白点滑块位置
+                    const whitePosPercent = endPoint.x / 255;
+                    const whitePosPixels = 10 + (whitePosPercent * trackWidth);
+                    this.whitePointSlider.style.left = `${whitePosPixels}px`;
+                    this.whitePointSlider.style.right = 'auto';
+                    this.whitePointX = endPoint.x;
+                }
+            }
+        } catch (error) {
+            console.error("🎨 更新滑块位置失败:", error);
+        }
+    }
+    
     cleanup() {
         try {
             // 移除SVG事件监听器
@@ -735,6 +998,21 @@ class PhotoshopCurveNodeWidget {
                 this.svg.removeEventListener('selectstart', this._boundPreventSelect);
             }
             
+            // 移除滑块事件监听器
+            if (this.blackPointSlider) {
+                this.blackPointSlider.removeEventListener('mousedown', this._boundBlackSliderDrag);
+                this.blackPointSlider.removeEventListener('mouseenter', null);
+                this.blackPointSlider.removeEventListener('mouseleave', null);
+            }
+            if (this.whitePointSlider) {
+                this.whitePointSlider.removeEventListener('mousedown', this._boundWhiteSliderDrag);
+                this.whitePointSlider.removeEventListener('mouseenter', null);
+                this.whitePointSlider.removeEventListener('mouseleave', null);
+            }
+            document.removeEventListener('mousemove', this._boundBlackSliderDrag);
+            document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
+            document.removeEventListener('mouseup', this._boundStopSliderDrag);
+            
             // 清理其他资源
             this.points = null;
             this.interp = null;
@@ -742,6 +1020,8 @@ class PhotoshopCurveNodeWidget {
             this.controlPoints = null;
             this.selectedPoint = -1;
             this.isDragging = false;
+            this.isDraggingBlackSlider = false;
+            this.isDraggingWhiteSlider = false;
             
             // 移除DOM元素
             if (this.container && this.container.parentNode) {
@@ -752,6 +1032,10 @@ class PhotoshopCurveNodeWidget {
             this.channelSelector = null;
             this.channelButtons = null;
             this.svg = null;
+            this.sliderContainer = null;
+            this.sliderTrack = null;
+            this.blackPointSlider = null;
+            this.whitePointSlider = null;
             
             console.log("🎨 曲线编辑器已清理");
         } catch (error) {
