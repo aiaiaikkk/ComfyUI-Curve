@@ -108,6 +108,8 @@ class PhotoshopCurveNode:
                     )
                     results.append(result)
                     curve_charts.append(curve_chart)
+                
+                # 返回处理后的图像、曲线图和直方图数据
                 return (torch.stack(results, dim=0), torch.stack(curve_charts, dim=0), histogram_data)
             else:
                 # 生成直方图数据
@@ -117,6 +119,8 @@ class PhotoshopCurveNode:
                     image, curve_points, interpolation, channel, curve_strength,
                     mask, mask_blur, invert_mask, show_histogram, histogram_channel
                 )
+                
+                # 返回处理后的图像、曲线图和直方图数据
                 return (result.unsqueeze(0), curve_chart.unsqueeze(0), histogram_data)  # 添加批次维度
                 
         except Exception as e:
@@ -157,7 +161,8 @@ class PhotoshopCurveNode:
         if mask is not None:
             result = self._apply_mask(image, result, mask, mask_blur, invert_mask)
         
-        # 生成曲线图像 - 使用处理后的图像
+        # 生成曲线图像 - 从原始图像生成，但显示应用后的直方图
+        # 这样可以在曲线预览中直接看到效果
         curve_chart = self._generate_curve_chart(result, show_histogram, histogram_channel, control_points, interpolation, curve_strength)
         
         return result, curve_chart
@@ -360,10 +365,10 @@ class PhotoshopCurveNode:
         return blurred
 
     def _generate_curve_chart(self, image, show_histogram, histogram_channel, control_points=None, interpolation='cubic', curve_strength=1.0):
-        """生成曲线图像 - 统一风格的版本"""
+        """生成曲线图像 - 统一风格的版本，集成直方图显示"""
         try:
             # 创建图表
-            fig, ax = plt.subplots(figsize=(4, 4), dpi=100)
+            fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
             
             # 设置背景和网格风格（与曲线编辑器一致）
             fig.patch.set_facecolor('#2a2a2a')  # 外部背景
@@ -387,20 +392,23 @@ class PhotoshopCurveNode:
             
             # 添加色调标签（模仿曲线编辑器的标签）
             tone_points = [
-                (0, 0, "白色"), 
-                (64, 64, "高光"), 
+                (0, 0, "暗部"), 
+                (64, 64, "阴影"), 
                 (128, 128, "中间调"), 
-                (192, 192, "阴影"), 
-                (255, 255, "黑色")
+                (192, 192, "高光"), 
+                (255, 255, "亮部")
             ]
             
             for x, y, label in tone_points:
                 ax.text(x, 255-y, label, color='#888', fontsize=8, 
                        ha='center', va='center', alpha=0.7)
             
+            # 添加渐变背景效果
+            self._add_gradient_background(ax, histogram_channel)
+            
             # 如果启用了直方图显示，直接从当前图像生成直方图
             if show_histogram:
-                    self._draw_histogram_background(ax, image, histogram_channel)
+                self._draw_histogram_background(ax, image, histogram_channel)
             
             # 绘制对角线（线性曲线参考）
             ax.plot([0, 255], [0, 255], color='#555555', linestyle='--', alpha=0.5, linewidth=1)
@@ -453,9 +461,39 @@ class PhotoshopCurveNode:
         except Exception as e:
             print(f"Error generating curve chart: {e}")
             return self._create_fallback_curve_chart()
-        
+            
+    def _add_gradient_background(self, ax, channel_name):
+        """添加与前端一致的渐变背景"""
+        try:
+            # 创建渐变背景
+            import matplotlib.colors as mcolors
+            import matplotlib.patches as mpatches
+            
+            # 渐变颜色设置 - 不透明度提高到0.15
+            gradient_colors = {
+                'RGB': [(1.0, 1.0, 1.0, 0.15), (0.0, 0.0, 0.0, 0.15)],
+                'R': [(1.0, 0.0, 0.0, 0.15), (0.0, 1.0, 1.0, 0.15)],
+                'G': [(0.0, 1.0, 0.0, 0.15), (1.0, 0.0, 1.0, 0.15)],
+                'B': [(0.0, 0.0, 1.0, 0.15), (1.0, 1.0, 0.0, 0.15)],
+                'Luminance': [(1.0, 1.0, 1.0, 0.15), (0.0, 0.0, 0.0, 0.15)]
+            }
+            
+            colors = gradient_colors.get(channel_name, gradient_colors['RGB'])
+            
+            # 创建渐变填充
+            gradient = mcolors.LinearSegmentedColormap.from_list('channel_gradient', colors, N=256)
+            rect = mpatches.Rectangle((0, 0), 255, 255, facecolor='none', edgecolor='none', transform=ax.transData)
+            rect.set_zorder(1)  # 确保在网格之上，直方图和曲线之下
+            
+            # 应用渐变
+            rect.set_facecolor(gradient(np.linspace(0, 1, 2)))
+            ax.add_patch(rect)
+            
+        except Exception as e:
+            print(f"Error adding gradient background: {e}")
+    
     def _draw_histogram_background(self, ax, image, histogram_channel):
-        """在曲线图背景绘制直方图 - 统一风格的版本"""
+        """在曲线图背景绘制直方图 - 增强版，与前端直方图显示一致"""
         try:
             # 将图像转换为0-255范围
             img_255 = (image * 255.0).clamp(0, 255)
@@ -465,12 +503,27 @@ class PhotoshopCurveNode:
                 # 根据当前处理的通道自动选择
                 histogram_channel = 'RGB'  # 默认显示RGB
             
+            # 颜色映射 - 与前端保持一致
+            colors = {
+                'R': '#ff5555',
+                'G': '#55ff55', 
+                'B': '#5555ff',
+                'RGB': '#aaaaaa',
+                'Luminance': '#aaaaaa'
+            }
+            
+            # 透明度设置 - 与前端保持一致
+            alphas = {
+                'R': 0.5,
+                'G': 0.5,
+                'B': 0.5,
+                'RGB': 0.3,
+                'Luminance': 0.5
+            }
+            
             if histogram_channel == 'RGB':
                 # 显示RGB三个通道的直方图
-                colors = ['#ff5555', '#55ff55', '#5555ff']  # 更鲜明的RGB颜色
-                alphas = [0.3, 0.3, 0.3]
-                
-                for c, (color, alpha) in enumerate(zip(colors, alphas)):
+                for c, channel_name in enumerate(['R', 'G', 'B']):
                     if c < img_255.shape[2]:
                         channel_data = img_255[..., c].cpu().numpy().flatten()
                         hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
@@ -481,7 +534,7 @@ class PhotoshopCurveNode:
                         
                         # 绘制直方图作为背景
                         ax.fill_between(bins[:-1], 0, hist_normalized, 
-                                      alpha=alpha, color=color, step='pre')
+                                      alpha=alphas[channel_name], color=colors[channel_name], step='pre')
                         
             elif histogram_channel == 'Luminance':
                 # 显示亮度直方图
@@ -498,13 +551,13 @@ class PhotoshopCurveNode:
                     
                     # 绘制灰色直方图
                     ax.fill_between(bins[:-1], 0, hist_normalized, 
-                                  alpha=0.3, color='#aaaaaa', step='pre')
+                                  alpha=alphas['Luminance'], color=colors['Luminance'], step='pre')
                     
             else:
                 # 单通道直方图
                 channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(histogram_channel, 0)
-                colors = {'R': '#ff5555', 'G': '#55ff55', 'B': '#5555ff'}
                 color = colors.get(histogram_channel, '#aaaaaa')
+                alpha = alphas.get(histogram_channel, 0.5)
                 
                 if channel_idx < img_255.shape[2]:
                     channel_data = img_255[..., channel_idx].cpu().numpy().flatten()
@@ -516,7 +569,7 @@ class PhotoshopCurveNode:
                     
                     # 绘制单通道直方图
                     ax.fill_between(bins[:-1], 0, hist_normalized, 
-                                  alpha=0.4, color=color, step='pre')
+                                  alpha=alpha, color=color, step='pre')
                     
         except Exception as e:
             print(f"Error drawing histogram background: {e}")
@@ -1408,17 +1461,40 @@ class PhotoshopHistogramNode:
         
         return result
 
+# 添加一个新的曲线预览节点类
+class CurvePreviewNode:
+    """用于PS曲线节点的专用预览节点，支持右键菜单打开曲线编辑器"""
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+            },
+        }
+    
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "preview_image"
+    CATEGORY = "Image/Adjustments"
+    OUTPUT_NODE = True
+    
+    def preview_image(self, image):
+        # 简单地返回输入图像，实际的交互功能在前端实现
+        return (image,)
+
 # 导出节点映射
 NODE_CLASS_MAPPINGS = {
     "PhotoshopCurveNode": PhotoshopCurveNode,
     "PhotoshopHistogramNode": PhotoshopHistogramNode,
     "CurvePresetNode": CurvePresetNode,
+    "CurvePreviewNode": CurvePreviewNode,  # 添加新节点
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PhotoshopCurveNode": "🎨 PS Curve (Professional)",
     "PhotoshopHistogramNode": "📊 PS Histogram & Levels",
     "CurvePresetNode": "🎨 PS Curve Preset",
+    "CurvePreviewNode": "🎨 PS Curve Preview",  # 添加新节点显示名称
 }
 
 # Web目录设置
