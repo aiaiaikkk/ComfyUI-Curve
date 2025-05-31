@@ -76,6 +76,9 @@ class PhotoshopCurveNodeWidget {
             padding: 10px; 
             box-sizing: border-box;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         `;
         
         // 创建通道选择器
@@ -85,30 +88,50 @@ class PhotoshopCurveNodeWidget {
         this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         this.svg.setAttribute('viewBox', '0 0 384 384');
         this.svg.style.cssText = `
+<<<<<<< HEAD
+            width: 384px;
+            height: 384px;
+=======
             width: 100%; 
             height: 354px; 
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
             cursor: crosshair;
             background: #1a1a1a;
             border-radius: 2px;
+            display: block;
         `;
         
         // 创建输入范围滑块容器
         this.sliderContainer = document.createElement('div');
         this.sliderContainer.style.cssText = `
+<<<<<<< HEAD
+            width: 384px;
+            height: 30px;
+=======
             width: 100%; 
             height: 30px; 
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
             position: relative;
             background: #1a1a1a;
             border-radius: 2px;
             margin-top: 4px;
+<<<<<<< HEAD
+            display: block;
+=======
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
         `;
         
         // 创建滑块轨道
         this.sliderTrack = document.createElement('div');
         this.sliderTrack.style.cssText = `
             position: absolute;
+<<<<<<< HEAD
+            left: 0px;
+            right: 0px;
+=======
             left: 10px;
             right: 10px;
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
             top: 15px;
             height: 2px;
             background: #555;
@@ -119,7 +142,11 @@ class PhotoshopCurveNodeWidget {
         this.blackPointSlider = document.createElement('div');
         this.blackPointSlider.style.cssText = `
             position: absolute;
+<<<<<<< HEAD
+            left: 0px;
+=======
             left: 10px;
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
             top: 5px;
             width: 0;
             height: 0;
@@ -137,7 +164,11 @@ class PhotoshopCurveNodeWidget {
         this.whitePointSlider = document.createElement('div');
         this.whitePointSlider.style.cssText = `
             position: absolute;
+<<<<<<< HEAD
+            left: 384px;
+=======
             right: 10px;
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
             top: 5px;
             width: 0;
             height: 0;
@@ -879,6 +910,19 @@ class PhotoshopCurveNodeWidget {
     // 处理黑点滑块拖动
     handleBlackSliderDrag(e) {
         if (!this.isDraggingBlackSlider) return;
+<<<<<<< HEAD
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width; // 现在就是384px
+            const minGap = 20; // 最小间距（像素）
+            let relativeX = (e.clientX - rect.left) / trackWidth;
+            relativeX = Math.max(0, Math.min(relativeX, (this.whitePointX - minGap) / 255));
+            const newLeft = relativeX * trackWidth;
+            this.blackPointSlider.style.left = `${newLeft}px`;
+            this.blackPointX = Math.round(relativeX * 255);
+            if (this.controlPoints.length >= 2) {
+                this.controlPoints[0].x = this.blackPointX;
+=======
         
         try {
             const rect = this.sliderContainer.getBoundingClientRect();
@@ -901,6 +945,7 @@ class PhotoshopCurveNodeWidget {
                 this.controlPoints[0].x = this.blackPointX;
                 
                 // 更新曲线点和重绘
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
                 this.updatePointsWidget();
                 this.drawCurve();
             }
@@ -912,6 +957,20 @@ class PhotoshopCurveNodeWidget {
     // 处理白点滑块拖动
     handleWhiteSliderDrag(e) {
         if (!this.isDraggingWhiteSlider) return;
+<<<<<<< HEAD
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width;
+            const minGap = 20;
+            let relativeX = (e.clientX - rect.left) / trackWidth;
+            relativeX = Math.max((this.blackPointX + minGap) / 255, Math.min(relativeX, 1));
+            const newLeft = relativeX * trackWidth;
+            this.whitePointSlider.style.left = `${newLeft}px`;
+            this.whitePointSlider.style.right = 'auto';
+            this.whitePointX = Math.round(relativeX * 255);
+            if (this.controlPoints.length >= 2) {
+                this.controlPoints[this.controlPoints.length - 1].x = this.whitePointX;
+=======
         
         try {
             const rect = this.sliderContainer.getBoundingClientRect();
@@ -935,6 +994,7 @@ class PhotoshopCurveNodeWidget {
                 this.controlPoints[this.controlPoints.length - 1].x = this.whitePointX;
                 
                 // 更新曲线点和重绘
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
                 this.updatePointsWidget();
                 this.drawCurve();
             }
@@ -961,6 +1021,18 @@ class PhotoshopCurveNodeWidget {
             if (this.controlPoints.length >= 2 && this.sliderContainer) {
                 const startPoint = this.controlPoints[0];
                 const endPoint = this.controlPoints[this.controlPoints.length - 1];
+<<<<<<< HEAD
+                const trackWidth = this.sliderContainer.offsetWidth;
+                if (startPoint && this.blackPointSlider) {
+                    const blackPosPercent = startPoint.x / 255;
+                    const blackPosPixels = blackPosPercent * trackWidth;
+                    this.blackPointSlider.style.left = `${blackPosPixels}px`;
+                    this.blackPointX = startPoint.x;
+                }
+                if (endPoint && this.whitePointSlider) {
+                    const whitePosPercent = endPoint.x / 255;
+                    const whitePosPixels = whitePosPercent * trackWidth;
+=======
                 const trackWidth = this.sliderContainer.offsetWidth - 20;
                 
                 if (startPoint && this.blackPointSlider) {
@@ -975,6 +1047,7 @@ class PhotoshopCurveNodeWidget {
                     // 更新白点滑块位置
                     const whitePosPercent = endPoint.x / 255;
                     const whitePosPixels = 10 + (whitePosPercent * trackWidth);
+>>>>>>> ee61dc74c9be2b0cee1ac61c02e5c286ef5eb646
                     this.whitePointSlider.style.left = `${whitePosPixels}px`;
                     this.whitePointSlider.style.right = 'auto';
                     this.whitePointX = endPoint.x;
