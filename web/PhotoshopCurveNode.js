@@ -187,6 +187,7 @@ class PhotoshopCurveNodeWidget {
             margin-bottom: 8px;
             padding: 4px;
             justify-content: center;
+            align-items: center;
             width: 100%;
         `;
         
@@ -240,6 +241,48 @@ class PhotoshopCurveNodeWidget {
             this.channelButtons[channelData.id] = button;
             this.channelSelector.appendChild(button);
         });
+
+        // 添加分隔线
+        const separator = document.createElement('div');
+        separator.style.cssText = `
+            width: 1px;
+            height: 24px;
+            background: #444;
+            margin: 0 8px;
+        `;
+        this.channelSelector.appendChild(separator);
+        
+        // 创建清除按钮
+        this.resetButton = document.createElement('button');
+        this.resetButton.textContent = '清除';
+        this.resetButton.style.cssText = `
+            height: 24px;
+            padding: 0 12px;
+            background: #4ecdc4;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        this.resetButton.addEventListener('mouseenter', () => {
+            this.resetButton.style.background = '#3dbeb6';
+        });
+        
+        this.resetButton.addEventListener('mouseleave', () => {
+            this.resetButton.style.background = '#4ecdc4';
+        });
+        
+        this.resetButton.addEventListener('click', () => {
+            this.resetCurve();
+        });
+        
+        this.channelSelector.appendChild(this.resetButton);
         
         this.updateChannelButtons();
     }
@@ -962,6 +1005,46 @@ class PhotoshopCurveNodeWidget {
         } catch (error) {
             console.error("🎨 更新滑块位置失败:", error);
         }
+    }
+    
+    createResetButton() {
+        this.resetButton = document.createElement('button');
+        this.resetButton.textContent = '清除曲线';
+        this.resetButton.style.cssText = `
+            margin: 8px 0;
+            padding: 6px 12px;
+            background: #4ecdc4;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        `;
+        
+        this.resetButton.addEventListener('mouseenter', () => {
+            this.resetButton.style.background = '#3dbeb6';
+        });
+        
+        this.resetButton.addEventListener('mouseleave', () => {
+            this.resetButton.style.background = '#4ecdc4';
+        });
+        
+        this.resetButton.addEventListener('click', () => {
+            this.resetCurve();
+        });
+        
+        this.container.appendChild(this.resetButton);
+    }
+    
+    resetCurve() {
+        // 重置为默认的对角线
+        this.controlPoints = [
+            { x: 0, y: 0 },
+            { x: 255, y: 255 }
+        ];
+        this.updatePointsWidget();
+        this.drawCurve();
     }
     
     cleanup() {
