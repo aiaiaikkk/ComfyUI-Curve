@@ -27,6 +27,10 @@ class PhotoshopCurveNodeWidget {
         this.isDraggingBlackSlider = false;
         this.isDraggingWhiteSlider = false;
         
+        // 初始化历史记录
+        this.history = [];
+        this.historyIndex = -1;
+        
         // 确保widgets已初始化
         if (node && node.widgets && Array.isArray(node.widgets)) {
             this.points = node.widgets.find(w => w.name === 'curve_points');
@@ -65,8 +69,11 @@ class PhotoshopCurveNodeWidget {
     }
     
     createWidget() {
+        console.log("🎨 开始创建编辑器UI组件");
+        
         // 创建容器
         this.container = document.createElement('div');
+        this.container.id = `curve-editor-${this.node.id || Date.now()}`;
         this.container.style.cssText = `
             width: 100%; 
             height: 444px; 
@@ -81,8 +88,12 @@ class PhotoshopCurveNodeWidget {
             align-items: center;
         `;
         
-        // 创建通道选择器
+        console.log("🎨 容器创建完成, ID:", this.container.id);
+        
+        // 创建通道选择器 (包含重置按钮)
         this.createChannelSelector();
+        console.log("🎨 通道选择器创建完成，ID:", this.channelSelector.id);
+        console.log("🎨 重置按钮创建完成，ID:", this.resetButton.id);
         
         // 创建SVG
         this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -94,75 +105,35 @@ class PhotoshopCurveNodeWidget {
             background: #1a1a1a;
             border-radius: 2px;
             display: block;
+            margin: 8px 0;
         `;
+        console.log("🎨 SVG元素创建完成");
         
-        // 创建输入范围滑块容器
-        this.sliderContainer = document.createElement('div');
-        this.sliderContainer.style.cssText = `
-            width: 384px;
-            height: 30px;
-            position: relative;
-            background: #1a1a1a;
-            border-radius: 2px;
-            margin-top: 4px;
-            display: block;
-        `;
+        // 创建滑块容器和滑块
+        this.createSliders();
+        console.log("🎨 滑块创建完成");
         
-        // 创建滑块轨道
-        this.sliderTrack = document.createElement('div');
-        this.sliderTrack.style.cssText = `
-            position: absolute;
-            left: 0px;
-            right: 0px;
-            top: 15px;
-            height: 2px;
-            background: #555;
-        `;
-        this.sliderContainer.appendChild(this.sliderTrack);
-        
-        // 创建左侧三角形滑块(黑点)
-        this.blackPointSlider = document.createElement('div');
-        this.blackPointSlider.style.cssText = `
-            position: absolute;
-            left: 0px;
-            top: 5px;
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 16px solid #4ecdc4;
-            transform: translateX(-8px);
-            cursor: ew-resize;
-            filter: drop-shadow(0px 0px 2px rgba(0,0,0,0.5));
-            transition: border-bottom-color 0.2s;
-        `;
-        this.sliderContainer.appendChild(this.blackPointSlider);
-        
-        // 创建右侧三角形滑块(白点)
-        this.whitePointSlider = document.createElement('div');
-        this.whitePointSlider.style.cssText = `
-            position: absolute;
-            left: 384px;
-            top: 5px;
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 16px solid #4ecdc4;
-            transform: translateX(8px);
-            cursor: ew-resize;
-            filter: drop-shadow(0px 0px 2px rgba(0,0,0,0.5));
-            transition: border-bottom-color 0.2s;
-        `;
-        this.sliderContainer.appendChild(this.whitePointSlider);
-        
-        // 添加组件到容器
-        this.container.appendChild(this.channelSelector);
-        this.container.appendChild(this.svg);
-        this.container.appendChild(this.sliderContainer);
+        // 创建状态栏
+        this.createStatusBar();
+        console.log("🎨 状态栏创建完成");
         
         // 添加到ComfyUI节点
         try {
+            console.log("🎨 开始将组件添加到容器, 当前子元素数量:", this.container.childNodes.length);
+            
+            // 按顺序添加组件到容器
+            this.container.appendChild(this.channelSelector);
+            console.log("🎨 通道选择器已添加, 当前子元素数量:", this.container.childNodes.length);
+            
+            this.container.appendChild(this.svg);
+            console.log("🎨 SVG已添加, 当前子元素数量:", this.container.childNodes.length);
+            
+            this.container.appendChild(this.sliderContainer);
+            console.log("🎨 滑块容器已添加, 当前子元素数量:", this.container.childNodes.length);
+            
+            this.container.appendChild(this.statusBar);
+            console.log("🎨 状态栏已添加, 当前子元素数量:", this.container.childNodes.length);
+            
             console.log("🎨 正在添加DOM widget到节点:", this.node);
             if (!this.node || !this.node.addDOMWidget) {
                 console.error("🎨 节点对象无效或缺少addDOMWidget方法");
@@ -171,16 +142,17 @@ class PhotoshopCurveNodeWidget {
             
             this.node.addDOMWidget('curve_editor', 'div', this.container);
             console.log("🎨 DOM widget 添加成功");
-            
-            // 设置滑块事件
-            this.setupSliderEvents();
         } catch (error) {
             console.error("🎨 DOM widget 添加失败", error);
         }
+        
+        console.log("�� UI组件创建完成");
     }
     
     createChannelSelector() {
+        // 确保通道选择器DOM元素被创建
         this.channelSelector = document.createElement('div');
+        this.channelSelector.id = `channel-selector-${this.node.id || Date.now()}`;
         this.channelSelector.style.cssText = `
             display: flex;
             gap: 8px;
@@ -252,37 +224,44 @@ class PhotoshopCurveNodeWidget {
         `;
         this.channelSelector.appendChild(separator);
         
-        // 创建清除按钮
-        this.resetButton = document.createElement('button');
-        this.resetButton.textContent = '清除';
-        this.resetButton.style.cssText = `
-            height: 24px;
-            padding: 0 12px;
+        // 创建重置按钮 - 使用更明显的样式
+        const resetButton = document.createElement('button');
+        resetButton.id = `reset-button-${this.node.id || Date.now()}`;
+        resetButton.textContent = '重置';
+        resetButton.style.cssText = `
+            height: 28px;
+            padding: 0 16px;
             background: #4ecdc4;
             border: none;
-            border-radius: 12px;
+            border-radius: 4px;
             color: white;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 12px;
+            font-weight: bold;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         `;
         
-        this.resetButton.addEventListener('mouseenter', () => {
-            this.resetButton.style.background = '#3dbeb6';
+        resetButton.addEventListener('mouseenter', () => {
+            resetButton.style.background = '#3dbeb6';
+            resetButton.style.transform = 'scale(1.05)';
         });
         
-        this.resetButton.addEventListener('mouseleave', () => {
-            this.resetButton.style.background = '#4ecdc4';
+        resetButton.addEventListener('mouseleave', () => {
+            resetButton.style.background = '#4ecdc4';
+            resetButton.style.transform = 'scale(1)';
         });
         
-        this.resetButton.addEventListener('click', () => {
+        resetButton.addEventListener('click', () => {
+            console.log("🎨 重置按钮被点击");
             this.resetCurve();
         });
         
-        this.channelSelector.appendChild(this.resetButton);
+        this.channelSelector.appendChild(resetButton);
+        this.resetButton = resetButton; // 保存引用以便以后使用
         
         this.updateChannelButtons();
     }
@@ -444,6 +423,7 @@ class PhotoshopCurveNodeWidget {
             const pos = this.getSVGPoint(e);
             const pointIndex = this.findNearestPoint(pos);
             this.svg.style.cursor = pointIndex >= 0 ? 'pointer' : 'crosshair';
+            this.updateCoordinates(pos.x, pos.y);
             return;
         }
         
@@ -451,18 +431,14 @@ class PhotoshopCurveNodeWidget {
         const point = this.controlPoints[this.selectedPoint];
         
         if (this.selectedPoint === 0) {
-            // 允许起点在X轴上移动，但受黑点滑块的限制
             point.x = Math.max(this.blackPointX, Math.min(this.controlPoints[1].x - 1, pos.x));
             point.y = pos.y;
-            // 同步更新黑点滑块位置
             this.blackPointX = point.x;
             this.updateSliderPositions();
         } else if (this.selectedPoint === this.controlPoints.length - 1) {
-            // 允许终点在X轴上移动，但受白点滑块的限制
             point.x = Math.max(this.controlPoints[this.controlPoints.length - 2].x + 1, 
                 Math.min(this.whitePointX, pos.x));
             point.y = pos.y;
-            // 同步更新白点滑块位置
             this.whitePointX = point.x;
             this.updateSliderPositions();
         } else {
@@ -472,6 +448,7 @@ class PhotoshopCurveNodeWidget {
             point.y = pos.y;
         }
         
+        this.updateCoordinates(point.x, point.y);
         this.updatePointsWidget();
         this.drawCurve();
     }
@@ -508,15 +485,19 @@ class PhotoshopCurveNodeWidget {
         }
         
         this.controlPoints.splice(insertIndex, 0, { x: pos.x, y: pos.y });
+        this.saveHistory();
         this.updatePointsWidget();
         this.drawCurve();
+        this.updateStatus('添加控制点');
     }
     
     removePoint(index) {
         if (index > 0 && index < this.controlPoints.length - 1) {
             this.controlPoints.splice(index, 1);
+            this.saveHistory();
             this.updatePointsWidget();
             this.drawCurve();
+            this.updateStatus('删除控制点');
         }
     }
     
@@ -872,169 +853,23 @@ class PhotoshopCurveNodeWidget {
         return a + b * dx + c * dx * dx + d * dx * dx * dx;
     }
     
-    // 设置滑块事件
-    setupSliderEvents() {
-        try {
-            // 黑点滑块拖动
-            this.blackPointX = 0;
-            this.whitePointX = 255;
-            
-            this._boundBlackSliderDrag = this.handleBlackSliderDrag.bind(this);
-            this._boundWhiteSliderDrag = this.handleWhiteSliderDrag.bind(this);
-            this._boundStopSliderDrag = this.stopSliderDrag.bind(this);
-            
-            // 滑块鼠标进入/离开效果
-            this.blackPointSlider.addEventListener('mouseenter', () => {
-                this.blackPointSlider.style.borderBottomColor = '#7befe6';
-            });
-            
-            this.blackPointSlider.addEventListener('mouseleave', () => {
-                if (!this.isDraggingBlackSlider) {
-                    this.blackPointSlider.style.borderBottomColor = '#4ecdc4';
-                }
-            });
-            
-            this.whitePointSlider.addEventListener('mouseenter', () => {
-                this.whitePointSlider.style.borderBottomColor = '#7befe6';
-            });
-            
-            this.whitePointSlider.addEventListener('mouseleave', () => {
-                if (!this.isDraggingWhiteSlider) {
-                    this.whitePointSlider.style.borderBottomColor = '#4ecdc4';
-                }
-            });
-            
-            this.blackPointSlider.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                this.isDraggingBlackSlider = true;
-                this.blackPointSlider.style.borderBottomColor = '#aaffe9';
-                document.addEventListener('mousemove', this._boundBlackSliderDrag);
-                document.addEventListener('mouseup', this._boundStopSliderDrag);
-            });
-            
-            this.whitePointSlider.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                this.isDraggingWhiteSlider = true;
-                this.whitePointSlider.style.borderBottomColor = '#aaffe9';
-                document.addEventListener('mousemove', this._boundWhiteSliderDrag);
-                document.addEventListener('mouseup', this._boundStopSliderDrag);
-            });
-        } catch (error) {
-            console.error("🎨 设置滑块事件失败:", error);
-        }
-    }
-    
-    // 处理黑点滑块拖动
-    handleBlackSliderDrag(e) {
-        if (!this.isDraggingBlackSlider) return;
-        try {
-            const rect = this.sliderContainer.getBoundingClientRect();
-            const trackWidth = rect.width; // 现在就是384px
-            const minGap = 20; // 最小间距（像素）
-            let relativeX = (e.clientX - rect.left) / trackWidth;
-            relativeX = Math.max(0, Math.min(relativeX, (this.whitePointX - minGap) / 255));
-            const newLeft = relativeX * trackWidth;
-            this.blackPointSlider.style.left = `${newLeft}px`;
-            this.blackPointX = Math.round(relativeX * 255);
-            if (this.controlPoints.length >= 2) {
-                this.controlPoints[0].x = this.blackPointX;
-                this.updatePointsWidget();
-                this.drawCurve();
-            }
-        } catch (error) {
-            console.error("🎨 处理黑点滑块拖动失败:", error);
-        }
-    }
-    
-    // 处理白点滑块拖动
-    handleWhiteSliderDrag(e) {
-        if (!this.isDraggingWhiteSlider) return;
-        try {
-            const rect = this.sliderContainer.getBoundingClientRect();
-            const trackWidth = rect.width;
-            const minGap = 20;
-            let relativeX = (e.clientX - rect.left) / trackWidth;
-            relativeX = Math.max((this.blackPointX + minGap) / 255, Math.min(relativeX, 1));
-            const newLeft = relativeX * trackWidth;
-            this.whitePointSlider.style.left = `${newLeft}px`;
-            this.whitePointSlider.style.right = 'auto';
-            this.whitePointX = Math.round(relativeX * 255);
-            if (this.controlPoints.length >= 2) {
-                this.controlPoints[this.controlPoints.length - 1].x = this.whitePointX;
-                this.updatePointsWidget();
-                this.drawCurve();
-            }
-        } catch (error) {
-            console.error("🎨 处理白点滑块拖动失败:", error);
-        }
-    }
-    
-    // 停止滑块拖动
-    stopSliderDrag() {
-        this.isDraggingBlackSlider = false;
-        this.isDraggingWhiteSlider = false;
-        // 恢复滑块颜色
-        this.blackPointSlider.style.borderBottomColor = '#4ecdc4';
-        this.whitePointSlider.style.borderBottomColor = '#4ecdc4';
-        document.removeEventListener('mousemove', this._boundBlackSliderDrag);
-        document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
-        document.removeEventListener('mouseup', this._boundStopSliderDrag);
-    }
-    
     // 更新滑块位置
     updateSliderPositions() {
-        try {
-            if (this.controlPoints.length >= 2 && this.sliderContainer) {
-                const startPoint = this.controlPoints[0];
-                const endPoint = this.controlPoints[this.controlPoints.length - 1];
-                const trackWidth = this.sliderContainer.offsetWidth;
-                if (startPoint && this.blackPointSlider) {
-                    const blackPosPercent = startPoint.x / 255;
-                    const blackPosPixels = blackPosPercent * trackWidth;
-                    this.blackPointSlider.style.left = `${blackPosPixels}px`;
-                    this.blackPointX = startPoint.x;
-                }
-                if (endPoint && this.whitePointSlider) {
-                    const whitePosPercent = endPoint.x / 255;
-                    const whitePosPixels = whitePosPercent * trackWidth;
-                    this.whitePointSlider.style.left = `${whitePosPixels}px`;
-                    this.whitePointSlider.style.right = 'auto';
-                    this.whitePointX = endPoint.x;
-                }
-            }
-        } catch (error) {
-            console.error("🎨 更新滑块位置失败:", error);
+        if (!this.sliderContainer || !this.blackSlider || !this.whiteSlider) return;
+
+        const trackWidth = this.sliderContainer.offsetWidth;
+        const blackPoint = this.controlPoints[0];
+        const whitePoint = this.controlPoints[this.controlPoints.length - 1];
+
+        if (blackPoint) {
+            const blackX = (blackPoint.x / 255) * trackWidth;
+            this.blackSlider.style.left = `${blackX}px`;
         }
-    }
-    
-    createResetButton() {
-        this.resetButton = document.createElement('button');
-        this.resetButton.textContent = '清除曲线';
-        this.resetButton.style.cssText = `
-            margin: 8px 0;
-            padding: 6px 12px;
-            background: #4ecdc4;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-        `;
-        
-        this.resetButton.addEventListener('mouseenter', () => {
-            this.resetButton.style.background = '#3dbeb6';
-        });
-        
-        this.resetButton.addEventListener('mouseleave', () => {
-            this.resetButton.style.background = '#4ecdc4';
-        });
-        
-        this.resetButton.addEventListener('click', () => {
-            this.resetCurve();
-        });
-        
-        this.container.appendChild(this.resetButton);
+
+        if (whitePoint) {
+            const whiteX = (whitePoint.x / 255) * trackWidth;
+            this.whiteSlider.style.left = `${whiteX}px`;
+        }
     }
     
     resetCurve() {
@@ -1043,8 +878,10 @@ class PhotoshopCurveNodeWidget {
             { x: 0, y: 0 },
             { x: 255, y: 255 }
         ];
+        this.saveHistory();
         this.updatePointsWidget();
         this.drawCurve();
+        this.updateStatus('重置曲线');
     }
     
     cleanup() {
@@ -1061,15 +898,15 @@ class PhotoshopCurveNodeWidget {
             }
             
             // 移除滑块事件监听器
-            if (this.blackPointSlider) {
-                this.blackPointSlider.removeEventListener('mousedown', this._boundBlackSliderDrag);
-                this.blackPointSlider.removeEventListener('mouseenter', null);
-                this.blackPointSlider.removeEventListener('mouseleave', null);
+            if (this.blackSlider) {
+                this.blackSlider.removeEventListener('mousedown', this._boundBlackSliderDrag);
+                this.blackSlider.removeEventListener('mouseenter', null);
+                this.blackSlider.removeEventListener('mouseleave', null);
             }
-            if (this.whitePointSlider) {
-                this.whitePointSlider.removeEventListener('mousedown', this._boundWhiteSliderDrag);
-                this.whitePointSlider.removeEventListener('mouseenter', null);
-                this.whitePointSlider.removeEventListener('mouseleave', null);
+            if (this.whiteSlider) {
+                this.whiteSlider.removeEventListener('mousedown', this._boundWhiteSliderDrag);
+                this.whiteSlider.removeEventListener('mouseenter', null);
+                this.whiteSlider.removeEventListener('mouseleave', null);
             }
             document.removeEventListener('mousemove', this._boundBlackSliderDrag);
             document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
@@ -1096,12 +933,225 @@ class PhotoshopCurveNodeWidget {
             this.svg = null;
             this.sliderContainer = null;
             this.sliderTrack = null;
-            this.blackPointSlider = null;
-            this.whitePointSlider = null;
+            this.blackSlider = null;
+            this.whiteSlider = null;
             
             console.log("🎨 曲线编辑器已清理");
         } catch (error) {
             console.error("🎨 清理曲线编辑器失败:", error);
+        }
+    }
+    
+    // 处理黑点滑块拖动
+    handleBlackSliderDrag(e) {
+        if (!this.isDraggingBlackSlider) return;
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width; // 现在就是384px
+            const minGap = 20; // 最小间距（像素）
+            let relativeX = (e.clientX - rect.left) / trackWidth;
+            relativeX = Math.max(0, Math.min(relativeX, (this.whitePointX - minGap) / 255));
+            const newLeft = relativeX * trackWidth;
+            this.blackSlider.style.left = `${newLeft}px`;
+            this.blackPointX = Math.round(relativeX * 255);
+            if (this.controlPoints.length >= 2) {
+                this.controlPoints[0].x = this.blackPointX;
+                this.updatePointsWidget();
+                this.drawCurve();
+            }
+        } catch (error) {
+            console.error("🎨 处理黑点滑块拖动失败:", error);
+        }
+    }
+    
+    // 处理白点滑块拖动
+    handleWhiteSliderDrag(e) {
+        if (!this.isDraggingWhiteSlider) return;
+        try {
+            const rect = this.sliderContainer.getBoundingClientRect();
+            const trackWidth = rect.width;
+            const minGap = 20;
+            let relativeX = (e.clientX - rect.left) / trackWidth;
+            relativeX = Math.max((this.blackPointX + minGap) / 255, Math.min(relativeX, 1));
+            const newLeft = relativeX * trackWidth;
+            this.whiteSlider.style.left = `${newLeft}px`;
+            this.whiteSlider.style.right = 'auto';
+            this.whitePointX = Math.round(relativeX * 255);
+            if (this.controlPoints.length >= 2) {
+                this.controlPoints[this.controlPoints.length - 1].x = this.whitePointX;
+                this.updatePointsWidget();
+                this.drawCurve();
+            }
+        } catch (error) {
+            console.error("🎨 处理白点滑块拖动失败:", error);
+        }
+    }
+    
+    // 停止滑块拖动
+    stopSliderDrag() {
+        this.isDraggingBlackSlider = false;
+        this.isDraggingWhiteSlider = false;
+        // 恢复滑块颜色
+        this.blackSlider.style.borderBottomColor = '#4ecdc4';
+        this.whiteSlider.style.borderBottomColor = '#4ecdc4';
+        document.removeEventListener('mousemove', this._boundBlackSliderDrag);
+        document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
+        document.removeEventListener('mouseup', this._boundStopSliderDrag);
+    }
+
+    // 创建滑块容器和滑块
+    createSliders() {
+        console.log("🎨 创建滑块组件");
+        
+        // 创建输入范围滑块容器
+        this.sliderContainer = document.createElement('div');
+        this.sliderContainer.style.cssText = `
+            width: 384px;
+            height: 30px;
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 2px;
+            margin-top: 4px;
+            display: block;
+        `;
+
+        // 创建黑色滑块
+        this.blackSlider = document.createElement('div');
+        this.blackSlider.style.cssText = `
+            position: absolute;
+            width: 12px;
+            height: 20px;
+            background: #000;
+            border: 1px solid #666;
+            border-radius: 2px;
+            cursor: ew-resize;
+            top: 5px;
+            left: 0;
+        `;
+
+        // 创建白色滑块
+        this.whiteSlider = document.createElement('div');
+        this.whiteSlider.style.cssText = `
+            position: absolute;
+            width: 12px;
+            height: 20px;
+            background: #fff;
+            border: 1px solid #666;
+            border-radius: 2px;
+            cursor: ew-resize;
+            top: 5px;
+            right: 0;
+        `;
+
+        // 添加滑块到容器
+        this.sliderContainer.appendChild(this.blackSlider);
+        this.sliderContainer.appendChild(this.whiteSlider);
+        
+        // 设置滑块事件
+        this.setupSliderEvents();
+        
+        console.log("🎨 滑块组件创建完成");
+    }
+    
+    // 设置滑块事件
+    setupSliderEvents() {
+        console.log("🎨 设置滑块事件");
+        
+        if (!this.blackSlider || !this.whiteSlider) {
+            console.error("🎨 滑块元素未初始化");
+            return;
+        }
+        
+        // 绑定事件处理函数
+        this._boundBlackSliderDrag = this.handleBlackSliderDrag.bind(this);
+        this._boundWhiteSliderDrag = this.handleWhiteSliderDrag.bind(this);
+        this._boundStopSliderDrag = this.stopSliderDrag.bind(this);
+
+        // 黑色滑块事件
+        this.blackSlider.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.isDraggingBlackSlider = true;
+            document.addEventListener('mousemove', this._boundBlackSliderDrag);
+            document.addEventListener('mouseup', this._boundStopSliderDrag);
+            console.log("🎨 黑色滑块开始拖动");
+        });
+
+        // 白色滑块事件
+        this.whiteSlider.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.isDraggingWhiteSlider = true;
+            document.addEventListener('mousemove', this._boundWhiteSliderDrag);
+            document.addEventListener('mouseup', this._boundStopSliderDrag);
+            console.log("🎨 白色滑块开始拖动");
+        });
+
+        // 初始化滑块位置
+        this.updateSliderPositions();
+        
+        console.log("🎨 滑块事件设置完成");
+    }
+    
+    createStatusBar() {
+        this.statusBar = document.createElement('div');
+        this.statusBar.style.cssText = `
+            width: 100%;
+            height: 20px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            margin-top: 8px;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
+        `;
+
+        // 添加状态信息
+        this.statusInfo = document.createElement('div');
+        this.statusInfo.textContent = '就绪';
+        this.statusBar.appendChild(this.statusInfo);
+
+        // 添加坐标信息
+        this.coordInfo = document.createElement('div');
+        this.coordInfo.textContent = 'X: 0, Y: 0';
+        this.statusBar.appendChild(this.coordInfo);
+    }
+
+    // 更新状态栏信息
+    updateStatus(message) {
+        if (this.statusInfo) {
+            this.statusInfo.textContent = message;
+        }
+    }
+
+    // 更新坐标信息
+    updateCoordinates(x, y) {
+        if (this.coordInfo) {
+            this.coordInfo.textContent = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
+        }
+    }
+
+    // 保存历史记录
+    saveHistory() {
+        if (!this.history) {
+            this.history = [];
+            this.historyIndex = -1;
+        }
+        
+        // 如果当前不是最新状态，删除后面的历史
+        if (this.historyIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.historyIndex + 1);
+        }
+        
+        // 保存当前状态
+        this.history.push(JSON.parse(JSON.stringify(this.controlPoints)));
+        this.historyIndex = this.history.length - 1;
+        
+        // 限制历史记录数量
+        if (this.history.length > 20) {
+            this.history.shift();
+            this.historyIndex--;
         }
     }
 }
@@ -1173,6 +1223,13 @@ app.registerExtension({
                     if (!this.curveEditor) {
                         this.curveEditor = new PhotoshopCurveNodeWidget(this);
                         console.log("🎨 曲线编辑器创建成功");
+                        
+                        // 检查DOM结构
+                        if (this.curveEditor.container) {
+                            console.log("🎨 编辑器容器子元素数量:", this.curveEditor.container.childNodes.length);
+                            console.log("🎨 通道选择器是否在容器中:", this.curveEditor.container.contains(this.curveEditor.channelSelector));
+                            console.log("🎨 重置按钮是否在通道选择器中:", this.curveEditor.channelSelector && this.curveEditor.channelSelector.contains(this.curveEditor.resetButton));
+                        }
                     }
                 } catch (error) {
                     console.error("🎨 创建曲线编辑器失败:", error);
