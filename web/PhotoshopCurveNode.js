@@ -1,9 +1,999 @@
 import { app } from "../../scripts/app.js";
 
+/*
+ * PhotoshopCurveNode.js - 曲线调整节点
+ * 
+ * 修复内容:
+ * 1. 修复了双击节点无法打开弹窗的问题
+ * 2. 修复了重置按钮不显示的问题
+ * 3. 简化了模态弹窗的创建和事件处理
+ * 4. 改进了曲线编辑器的创建过程
+ */
+
 console.log("🎨 PhotoshopCurveNode.js 开始加载...");
 
+// 模态弹窗类 - 重新实现
+class CurveEditorModal {
+    constructor(node, options = {}) {
+        console.log("🎨 创建CurveEditorModal实例");
+        
+        this.node = node;
+        
+        // 使用自适应屏幕尺寸，而不是固定尺寸
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
+        // 计算可用的最大尺寸（考虑边距）
+        const maxWidth = Math.min(1600, screenWidth * 0.95);
+        const maxHeight = Math.min(1200, screenHeight * 0.95);
+        
+        // 使用自适应尺寸
+        // 宽度和高度均为屏幕的95%
+        const width = screenWidth * 0.95;  // 自适应宽度
+        const height = screenHeight * 0.95; // 自适应高度
+        
+        // 记录实际使用的尺寸
+        console.log(`🎨 屏幕尺寸: ${screenWidth}x${screenHeight}, 使用弹窗尺寸: ${width}x${height}`);
+        
+        // 创建选项对象，保留options中的其他属性
+        this.options = { ...options };
+        
+        // 使用自适应的宽度和高度
+        this.options.width = width;
+        this.options.height = height;
+        this.options.title = options.title || "曲线编辑器";
+        
+        // 记录实际使用的尺寸
+        console.log("🎨 模态弹窗尺寸:", this.options.width, "x", this.options.height);
+        
+        this.inputImage = null;
+        this.isOpen = false;
+        this.curveEditor = null;
+        
+        try {
+            // 检查是否已存在相同ID的模态弹窗
+            const existingModal = document.getElementById(`curve-editor-modal-${this.node.id}`);
+            if (existingModal) {
+                console.log("🎨 移除已存在的模态弹窗");
+                existingModal.remove();
+            }
+            
+            // 创建新的模态弹窗
+            this.createModal();
+            this.bindEvents();
+            
+            console.log("🎨 CurveEditorModal创建完成");
+        } catch (error) {
+            console.error("🎨 CurveEditorModal创建失败:", error);
+        }
+    }
+    
+    createModal() {
+        console.log("🎨 创建模态弹窗");
+        
+        // 创建模态弹窗容器
+        this.modal = document.createElement('dialog');
+        this.modal.className = 'curve-editor-modal';
+        
+        // 添加样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .curve-editor-modal {
+                background: #1a1a1a;
+                border: 1px solid #333;
+                border-radius: 8px;
+                padding: 0;
+                max-width: 90vw;
+                max-height: 90vh;
+                width: 1200px;
+                height: 800px;
+                display: flex;
+                flex-direction: column;
+                color: #fff;
+                font-family: Arial, sans-serif;
+            }
+            
+            .curve-editor-modal::backdrop {
+                background: rgba(0, 0, 0, 0.8);
+            }
+            
+            .curve-editor-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 20px;
+                background: #2a2a2a;
+                border-bottom: 1px solid #333;
+            }
+            
+            .curve-editor-title {
+                font-size: 16px;
+                font-weight: bold;
+                color: #fff;
+            }
+            
+            .curve-editor-close {
+                background: none;
+                border: none;
+                color: #fff;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 0;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+            }
+            
+            .curve-editor-close:hover {
+                background: #333;
+            }
+            
+            .curve-editor-body {
+                display: flex;
+                flex: 1;
+                overflow: hidden;
+                padding: 20px;
+                gap: 20px;
+            }
+            
+            .preview-container {
+                flex: 1.5;
+                display: flex;
+                flex-direction: column;
+                background: #2a2a2a;
+                border-radius: 8px;
+                overflow: hidden;
+                min-width: 500px;
+            }
+            
+            .preview-image {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+                background: #1a1a1a;
+            }
+            
+            .curve-editor-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                background: #2a2a2a;
+                border-radius: 8px;
+                padding: 20px;
+                min-width: 300px;
+                max-width: 400px;
+            }
+            
+            .curve-editor-help {
+                padding: 8px;
+                background: #333;
+                border-radius: 4px;
+                margin-bottom: 10px;
+                text-align: center;
+                color: #fff;
+                font-size: 12px;
+            }
+            
+            .curve-editor-footer {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                padding: 10px 20px;
+                background: #2a2a2a;
+                border-top: 1px solid #333;
+            }
+            
+            .curve-editor-button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+            
+            .curve-editor-button.primary {
+                background: #4a90e2;
+                color: white;
+            }
+            
+            .curve-editor-button.primary:hover {
+                background: #357abd;
+            }
+            
+            .curve-editor-button.secondary {
+                background: #666;
+                color: white;
+            }
+            
+            .curve-editor-button.secondary:hover {
+                background: #555;
+            }
+            
+            .curve-editor-button.danger {
+                background: #e25c5c;
+                color: white;
+            }
+            
+            .curve-editor-button.danger:hover {
+                background: #c44c4c;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 创建标题栏
+        const header = document.createElement('div');
+        header.className = 'curve-editor-header';
+        
+        const title = document.createElement('div');
+        title.className = 'curve-editor-title';
+        title.textContent = '曲线编辑器';
+        
+        const closeButton = document.createElement('button');
+        closeButton.className = 'curve-editor-close';
+        closeButton.innerHTML = '×';
+        closeButton.onclick = () => this.close();
+        
+        header.appendChild(title);
+        header.appendChild(closeButton);
+        
+        // 创建主体内容区
+        const body = document.createElement('div');
+        body.className = 'curve-editor-body';
+        
+        // 创建预览容器
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'preview-container';
+        
+        const previewImage = document.createElement('img');
+        previewImage.className = 'preview-image';
+        previewImage.style.display = 'none';
+        previewContainer.appendChild(previewImage);
+        
+        // 创建曲线编辑器容器
+        const editorContainer = document.createElement('div');
+        editorContainer.className = 'curve-editor-container';
+        
+        // 将预览容器和编辑器容器添加到主体
+        body.appendChild(previewContainer);
+        body.appendChild(editorContainer);
+        
+        // 创建底部按钮区
+        const footer = document.createElement('div');
+        footer.className = 'curve-editor-footer';
+        
+        const resetButton = document.createElement('button');
+        resetButton.className = 'curve-editor-button secondary';
+        resetButton.textContent = '重置';
+        resetButton.onclick = () => {
+            if (this.curveEditor) {
+                this.curveEditor.resetCurve();
+                this.updatePreview();
+            }
+        };
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.className = 'curve-editor-button secondary';
+        cancelButton.textContent = '取消';
+        cancelButton.onclick = () => this.cancel();
+        
+        const applyButton = document.createElement('button');
+        applyButton.className = 'curve-editor-button primary';
+        applyButton.textContent = '应用';
+        applyButton.onclick = () => this.apply();
+        
+        footer.appendChild(resetButton);
+        footer.appendChild(cancelButton);
+        footer.appendChild(applyButton);
+        
+        // 组装模态弹窗
+        this.modal.appendChild(header);
+        this.modal.appendChild(body);
+        this.modal.appendChild(footer);
+        
+        // 添加到文档中
+        document.body.appendChild(this.modal);
+        
+        // 绑定事件
+        this.bindEvents();
+        
+        console.log("🎨 模态弹窗创建完成");
+    }
+    
+    bindEvents() {
+        console.log("🎨 绑定模态弹窗事件");
+        
+        // 关闭按钮
+        const closeBtn = this.modal.querySelector('.curve-editor-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                console.log("🎨 关闭按钮被点击");
+                this.close();
+            });
+        }
+        
+        // 取消按钮
+        const cancelBtn = this.modal.querySelector('.curve-editor-button.secondary');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                console.log("🎨 取消按钮被点击");
+                this.close();
+            });
+        }
+        
+        // 应用按钮
+        const applyBtn = this.modal.querySelector('.curve-editor-button.primary');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                console.log("🎨 应用按钮被点击");
+                this.apply();
+            });
+        }
+        
+        // 预览缩放
+        const zoomSlider = this.modal.querySelector('.preview-zoom');
+        const zoomValue = this.modal.querySelector('.zoom-value');
+        if (zoomSlider && zoomValue) {
+            zoomSlider.addEventListener('input', (e) => {
+                const zoom = parseFloat(e.target.value);
+                zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+                
+                const previewImg = this.modal.querySelector('.preview-image');
+                if (previewImg) {
+                    previewImg.style.transform = `scale(${zoom})`;
+                }
+            });
+        }
+        
+        console.log("🎨 模态弹窗事件绑定完成");
+    }
+    
+    async open(inputImage) {
+        console.log("🎨 开始打开模态弹窗");
+        
+        if (!inputImage) {
+            console.error("🎨 没有提供输入图像");
+            return;
+        }
+        
+        this.inputImage = inputImage;
+        this.isOpen = true;
+        
+        try {
+            // 显示模态弹窗
+            this.modal.showModal();
+            console.log("🎨 模态弹窗已显示");
+            
+            // 设置预览图像
+            const previewImg = this.modal.querySelector('.preview-image');
+            if (!previewImg) {
+                console.error("🎨 找不到预览图像元素");
+                return;
+            }
+            
+            console.log("🎨 设置预览图像:", inputImage.substring(0, 50) + "...");
+            
+            // 预先加载图像以确保它能正确显示
+            this.originalImage = new Image();
+            this.originalImage.crossOrigin = "Anonymous";
+            
+            // 使用Promise等待图像加载
+            await new Promise((resolve, reject) => {
+                this.originalImage.onload = () => {
+                    console.log("🎨 原始图像加载完成，尺寸:", this.originalImage.width, "x", this.originalImage.height);
+                    resolve();
+                };
+                this.originalImage.onerror = (err) => {
+                    console.error("🎨 原始图像加载失败:", err);
+                    reject(err);
+                };
+                this.originalImage.src = inputImage;
+            });
+            
+            // 设置预览图像的初始显示
+            previewImg.src = inputImage;
+            previewImg.style.display = 'block';
+            
+            // 获取曲线编辑器容器
+            const editorContainer = this.modal.querySelector('.curve-editor-container');
+            if (!editorContainer) {
+                console.error("🎨 找不到编辑器容器");
+                return;
+            }
+            
+            // 清空容器
+            while (editorContainer.firstChild) {
+                editorContainer.removeChild(editorContainer.firstChild);
+            }
+            
+            // 添加操作提示
+            const helpTip = document.createElement('div');
+            helpTip.className = 'curve-editor-help';
+            helpTip.innerHTML = '单击/双击：添加点 | 右键：删除点 | 拖动：移动点';
+            helpTip.style.cssText = `
+                padding: 8px;
+                background: #333;
+                border-radius: 4px;
+                margin-bottom: 10px;
+                text-align: center;
+                color: #fff;
+                font-size: 12px;
+            `;
+            editorContainer.appendChild(helpTip);
+            
+            // 创建曲线编辑器
+            console.log("🎨 在模态弹窗中创建曲线编辑器");
+            
+            // 计算编辑器容器的尺寸
+            const containerWidth = editorContainer.clientWidth - 20; // 减去padding
+            const containerHeight = editorContainer.clientHeight - 100; // 减去其他元素的高度
+            
+            // 创建一个新的曲线编辑器实例，专门用于模态弹窗
+            const modalCurveEditor = new PhotoshopCurveNodeWidget(this.node, {
+                addToNode: false,
+                isModal: true,
+                width: containerWidth,
+                height: containerHeight,
+                style: {
+                    backgroundColor: '#1a1a1a',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    margin: '0 auto',
+                    display: 'block'
+                },
+                svgStyle: {
+                    background: '#1a1a1a',
+                    borderRadius: '4px',
+                    display: 'block',
+                    margin: '0 auto',
+                    cursor: 'crosshair'
+                },
+                pointStyle: {
+                    fill: '#fff',
+                    stroke: '#000',
+                    strokeWidth: '2',
+                    cursor: 'pointer'
+                },
+                curveStyle: {
+                    stroke: '#0ff',
+                    strokeWidth: '2',
+                    fill: 'none'
+                },
+                gridStyle: {
+                    stroke: '#444',
+                    strokeWidth: '1.5'
+                }
+            });
+            
+            this.curveEditor = modalCurveEditor;
+            
+            // 将曲线编辑器的容器添加到模态弹窗中
+            if (modalCurveEditor.container) {
+                editorContainer.appendChild(modalCurveEditor.container);
+                
+                // 确保曲线编辑器被正确初始化
+                if (modalCurveEditor.drawCurve) {
+                    modalCurveEditor.drawCurve();
+                }
+                
+                // 添加曲线编辑器的事件监听
+                this.setupEditorEvents();
+            } else {
+                console.error("🎨 曲线编辑器容器未创建");
+            }
+            
+            // 立即更新预览
+            await this.updatePreview();
+            
+            console.log("🎨 模态弹窗打开完成");
+        } catch (error) {
+            console.error("🎨 打开模态弹窗失败:", error);
+        }
+    }
+    
+    // 添加新方法，设置曲线编辑器事件
+    setupEditorEvents() {
+        if (!this.curveEditor) {
+            console.error("🎨 无法设置事件: 曲线编辑器不存在");
+            return;
+        }
+        
+        console.log("🎨 设置曲线编辑器事件");
+        
+        // 保存原始的updatePointsWidget方法
+        const originalUpdatePointsWidget = this.curveEditor.updatePointsWidget;
+        
+        // 覆盖updatePointsWidget方法，添加预览更新
+        this.curveEditor.updatePointsWidget = () => {
+            // 调用原始方法
+            originalUpdatePointsWidget.call(this.curveEditor);
+            
+            // 更新预览图像
+            this.updatePreview();
+        };
+        
+        // 保存原始的drawCurve方法
+        const originalDrawCurve = this.curveEditor.drawCurve;
+        
+        // 覆盖drawCurve方法，添加预览更新
+        this.curveEditor.drawCurve = (...args) => {
+            // 调用原始方法
+            originalDrawCurve.apply(this.curveEditor, args);
+            
+            // 更新预览图像
+            this.updatePreview();
+        };
+        
+        // 监听控制点相关事件
+        if (this.curveEditor.svg) {
+            // 鼠标移动事件结束时更新预览
+            const originalOnMouseUp = this.curveEditor.onMouseUp;
+            this.curveEditor.onMouseUp = (e) => {
+                if (originalOnMouseUp) {
+                    originalOnMouseUp.call(this.curveEditor, e);
+                }
+                this.updatePreview();
+            };
+            
+            // 添加/删除点时更新预览
+            const originalAddPoint = this.curveEditor.addPoint;
+            if (originalAddPoint) {
+                this.curveEditor.addPoint = (pos) => {
+                    originalAddPoint.call(this.curveEditor, pos);
+                    this.updatePreview();
+                };
+            }
+            
+            const originalRemovePoint = this.curveEditor.removePoint;
+            if (originalRemovePoint) {
+                this.curveEditor.removePoint = (index) => {
+                    originalRemovePoint.call(this.curveEditor, index);
+                    this.updatePreview();
+                };
+            }
+            
+            // 重置曲线时更新预览
+            const originalResetCurve = this.curveEditor.resetCurve;
+            if (originalResetCurve) {
+                this.curveEditor.resetCurve = () => {
+                    originalResetCurve.call(this.curveEditor);
+                    this.updatePreview();
+                };
+            }
+        }
+        
+        // 监听通道选择变化
+        if (this.curveEditor.channelButtons) {
+            const originalSelectChannel = this.curveEditor.selectChannel;
+            if (originalSelectChannel) {
+                this.curveEditor.selectChannel = (channelId) => {
+                    originalSelectChannel.call(this.curveEditor, channelId);
+                    this.updatePreview();
+                };
+            }
+        }
+        
+        console.log("🎨 曲线编辑器事件设置完成");
+    }
+    
+    async updatePreview() {
+        console.log("🎨 开始更新预览图像");
+        
+        if (!this.inputImage || !this.node) {
+            console.error("🎨 预览更新失败: 没有输入图像或节点");
+            return;
+        }
+        
+        try {
+            // 获取当前曲线设置
+            const curvePoints = this.node.widgets.find(w => w.name === 'curve_points')?.value || '0,0;255,255';
+            const interpolation = this.node.widgets.find(w => w.name === 'interpolation')?.value || 'cubic';
+            const channel = this.node.widgets.find(w => w.name === 'channel')?.value || 'RGB';
+            
+            console.log(`🎨 预览参数: 通道=${channel}, 插值=${interpolation}, 点=${curvePoints}`);
+            
+            // 获取预览图像元素
+            const previewImg = this.modal.querySelector('.preview-image');
+            if (!previewImg) {
+                console.error("🎨 预览更新失败: 找不到预览图像元素");
+                return;
+            }
+            
+            // 确保预览容器可见
+            const previewWrapper = this.modal.querySelector('.preview-image-wrapper');
+            if (previewWrapper) {
+                previewWrapper.style.display = 'flex';
+                previewWrapper.style.visibility = 'visible';
+                previewWrapper.style.opacity = '1';
+            }
+            
+            // 确保原始图像已加载
+            if (!this.originalImage || !this.originalImage.complete || this.originalImage.naturalWidth === 0) {
+                console.log("🎨 重新加载原始图像");
+                this.originalImage = new Image();
+                this.originalImage.crossOrigin = "Anonymous";
+                
+                // 使用Promise等待图像加载
+                await new Promise((resolve, reject) => {
+                    this.originalImage.onload = () => {
+                        console.log("🎨 原始图像加载完成，尺寸:", this.originalImage.width, "x", this.originalImage.height);
+                        resolve();
+                    };
+                    this.originalImage.onerror = (err) => {
+                        console.error("🎨 原始图像加载失败:", err);
+                        reject(err);
+                    };
+                    // 添加时间戳防止缓存
+                    this.originalImage.src = this.inputImage + (this.inputImage.includes('?') ? '&' : '?') + 'nocache=' + Date.now();
+                }).catch(err => {
+                    console.error("🎨 等待原始图像加载失败:", err);
+                    // 显示占位图像
+                    previewImg.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+                    previewImg.style.display = 'block';
+                    return;
+                });
+            }
+            
+            // 应用效果
+            this.applyPreviewEffect(curvePoints, interpolation, channel);
+            
+        } catch (error) {
+            console.error("🎨 预览更新失败:", error);
+            
+            // 尝试恢复显示
+            try {
+                const previewImg = this.modal.querySelector('.preview-image');
+                if (previewImg) {
+                    previewImg.src = this.inputImage || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+                    previewImg.style.display = 'block';
+                }
+                
+                const previewWrapper = this.modal.querySelector('.preview-image-wrapper');
+                if (previewWrapper) {
+                    previewWrapper.style.display = 'flex';
+                    previewWrapper.style.visibility = 'visible';
+                }
+            } catch (e) {
+                console.error("🎨 恢复预览显示失败:", e);
+            }
+        }
+    }
+    
+    // 新增方法：应用预览效果
+    applyPreviewEffect(curvePoints, interpolation, channel) {
+        try {
+            console.log("🎨 应用预览效果");
+            
+            // 获取预览图像元素
+            const previewImg = this.modal.querySelector('.preview-image');
+            if (!previewImg) {
+                console.error("🎨 应用预览效果失败: 找不到预览图像元素");
+                return;
+            }
+            
+            // 确保预览容器可见
+            const previewWrapper = this.modal.querySelector('.preview-image-wrapper');
+            if (previewWrapper) {
+                previewWrapper.style.display = 'flex';
+                previewWrapper.style.visibility = 'visible';
+            }
+            
+            // 检查原始图像是否有效
+            if (!this.originalImage || !this.originalImage.complete || !this.originalImage.naturalWidth) {
+                console.error("🎨 应用预览效果失败: 原始图像无效");
+                previewImg.src = this.inputImage || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+                previewImg.style.display = 'block';
+                return;
+            }
+            
+            // 创建临时canvas
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置canvas大小与原始图像相同
+            canvas.width = this.originalImage.width;
+            canvas.height = this.originalImage.height;
+            
+            console.log("🎨 Canvas尺寸:", canvas.width, "x", canvas.height);
+            
+            // 绘制原始图像到canvas
+            ctx.drawImage(this.originalImage, 0, 0);
+            
+            // 获取图像数据
+            let imageData;
+            try {
+                imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            } catch (error) {
+                console.error("🎨 获取图像数据失败:", error);
+                
+                // 尝试绘制到新的canvas并获取数据
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = this.originalImage.width;
+                newCanvas.height = this.originalImage.height;
+                const newCtx = newCanvas.getContext('2d');
+                newCtx.drawImage(this.originalImage, 0, 0);
+                
+                try {
+                    imageData = newCtx.getImageData(0, 0, newCanvas.width, newCanvas.height);
+                } catch (e) {
+                    console.error("🎨 再次获取图像数据失败:", e);
+                    previewImg.src = this.inputImage;
+                    previewImg.style.display = 'block';
+                    return;
+                }
+            }
+            
+            const data = imageData.data;
+            console.log("🎨 图像数据大小:", data.length);
+            
+            // 解析控制点
+            const points = curvePoints.split(';')
+                .map(s => s.split(',').map(Number))
+                .filter(a => a.length === 2 && !isNaN(a[0]) && !isNaN(a[1]))
+                .map(a => ({ x: Math.max(0, Math.min(255, a[0])), y: Math.max(0, Math.min(255, a[1])) }))
+                .sort((a, b) => a.x - b.x);
+            
+            // 创建查找表 (LUT)
+            const lut = this.createLookupTable(points, interpolation);
+            
+            // 应用曲线到图像数据
+            for (let i = 0; i < data.length; i += 4) {
+                if (channel === 'RGB' || channel === 'R') {
+                    data[i] = lut[data[i]]; // R
+                }
+                if (channel === 'RGB' || channel === 'G') {
+                    data[i + 1] = lut[data[i + 1]]; // G
+                }
+                if (channel === 'RGB' || channel === 'B') {
+                    data[i + 2] = lut[data[i + 2]]; // B
+                }
+                // 不修改Alpha通道
+            }
+            
+            // 将处理后的图像数据放回canvas
+            ctx.putImageData(imageData, 0, 0);
+            
+            // 更新预览图像
+            try {
+                const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                
+                // 直接设置预览图像，不再使用预加载
+                previewImg.onload = () => {
+                    console.log("🎨 预览图像已更新");
+                    previewImg.style.display = 'block';
+                    
+                    // 确保预览容器可见
+                    if (previewWrapper) {
+                        previewWrapper.style.display = 'flex';
+                        previewWrapper.style.visibility = 'visible';
+                        previewWrapper.style.opacity = '1';
+                    }
+                };
+                
+                previewImg.onerror = () => {
+                    console.error("🎨 预览图像加载失败");
+                    previewImg.src = this.inputImage;
+                    previewImg.style.display = 'block';
+                };
+                
+                // 设置源
+                previewImg.src = dataURL;
+            } catch (error) {
+                console.error("🎨 更新预览图像失败:", error);
+                previewImg.src = this.inputImage;
+                previewImg.style.display = 'block';
+            }
+        } catch (error) {
+            console.error("🎨 应用预览效果失败:", error);
+            
+            // 如果处理失败，恢复原始图像
+            try {
+                const previewImg = this.modal.querySelector('.preview-image');
+                if (previewImg) {
+                    previewImg.src = this.inputImage;
+                    previewImg.style.display = 'block';
+                }
+                
+                // 确保预览容器可见
+                const previewWrapper = this.modal.querySelector('.preview-image-wrapper');
+                if (previewWrapper) {
+                    previewWrapper.style.display = 'flex';
+                    previewWrapper.style.visibility = 'visible';
+                }
+            } catch (e) {
+                console.error("🎨 恢复原始图像也失败:", e);
+            }
+        }
+    }
+    
+    createLookupTable(points, interpolation) {
+        // 确保至少有两个点
+        if (points.length < 2) {
+            points = [{ x: 0, y: 0 }, { x: 255, y: 255 }];
+        }
+        
+        // 创建256个值的查找表
+        const lut = new Uint8Array(256);
+        
+        if (interpolation === 'linear') {
+            // 线性插值
+        for (let i = 0; i < 256; i++) {
+                // 找到i所在的区间
+                let j = 0;
+                while (j < points.length - 1 && points[j + 1].x < i) {
+                    j++;
+                }
+                
+                if (j >= points.length - 1) {
+                    lut[i] = Math.min(255, Math.max(0, Math.round(points[points.length - 1].y)));
+                } else if (points[j].x === i) {
+                    lut[i] = Math.min(255, Math.max(0, Math.round(points[j].y)));
+                } else {
+                    const x0 = points[j].x;
+                    const x1 = points[j + 1].x;
+                    const y0 = points[j].y;
+                    const y1 = points[j + 1].y;
+                    
+                    // 线性插值公式: y = y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+                    const t = (i - x0) / (x1 - x0);
+                    lut[i] = Math.min(255, Math.max(0, Math.round(y0 + t * (y1 - y0))));
+                }
+            }
+        } else {
+            // 立方或单调插值 - 使用简化的三次样条
+            // 首先，将所有点映射到查找表
+            for (let i = 0; i < points.length; i++) {
+                const x = Math.round(points[i].x);
+                const y = Math.round(points[i].y);
+                if (x >= 0 && x < 256) {
+                    lut[x] = Math.min(255, Math.max(0, y));
+                }
+            }
+            
+            // 然后，填充中间的值
+            let lastX = -1;
+            for (let i = 0; i < points.length; i++) {
+                const x = Math.round(points[i].x);
+                if (x >= 0 && x < 256) {
+                    if (lastX !== -1 && lastX < x - 1) {
+                        const lastY = lut[lastX];
+                        const y = lut[x];
+                        // 在两点之间进行平滑插值
+                        for (let j = lastX + 1; j < x; j++) {
+                            const t = (j - lastX) / (x - lastX);
+                            // 使用更平滑的插值
+                            const smooth = t * t * (3 - 2 * t); // 平滑步进函数
+                            lut[j] = Math.min(255, Math.max(0, Math.round(lastY + smooth * (y - lastY))));
+                        }
+                    }
+                    lastX = x;
+                }
+            }
+            
+            // 填充开头和结尾
+            if (points[0].x > 0) {
+                const y = Math.round(points[0].y);
+                for (let i = 0; i < points[0].x; i++) {
+                    lut[i] = Math.min(255, Math.max(0, y));
+                }
+            }
+            
+            if (points[points.length - 1].x < 255) {
+                const y = Math.round(points[points.length - 1].y);
+                for (let i = Math.round(points[points.length - 1].x) + 1; i < 256; i++) {
+                    lut[i] = Math.min(255, Math.max(0, y));
+                }
+            }
+        }
+        
+        return lut;
+    }
+    
+    close() {
+        console.log("🎨 关闭模态弹窗");
+        
+        try {
+            this.isOpen = false;
+            
+            if (this.modal) {
+                // 使用close方法关闭模态弹窗
+                this.modal.close();
+                
+                // 移除模态弹窗元素
+                setTimeout(() => {
+                    if (this.modal && this.modal.parentNode) {
+                        this.modal.parentNode.removeChild(this.modal);
+                        console.log("🎨 模态弹窗元素已移除");
+                    }
+                }, 100);
+            }
+        } catch (error) {
+            console.error("🎨 关闭模态弹窗失败:", error);
+        }
+    }
+    
+    cancel() {
+        console.log("🎨 取消曲线编辑");
+        this.close();
+    }
+    
+    async apply() {
+        console.log("🎨 应用曲线编辑");
+        
+        try {
+            if (!this.node) {
+                console.error("🎨 无法应用更改: 节点不存在");
+                return;
+            }
+            
+            // 获取当前曲线设置
+            if (this.curveEditor) {
+                // 确保曲线编辑器的更改已经应用到节点上
+                this.curveEditor.updatePointsWidget();
+                
+                // 同步到节点上的曲线编辑器
+                if (this.node.curveEditor) {
+                    // 复制控制点
+                    this.node.curveEditor.controlPoints = JSON.parse(JSON.stringify(this.curveEditor.controlPoints));
+                    
+                    // 同步黑点和白点
+                    this.node.curveEditor.blackPointX = this.curveEditor.blackPointX;
+                    this.node.curveEditor.whitePointX = this.curveEditor.whitePointX;
+                    
+                    // 更新节点上的曲线编辑器
+                    this.node.curveEditor.updatePointsWidget();
+                    this.node.curveEditor.drawCurve();
+                }
+            }
+            
+            const curvePoints = this.node.widgets.find(w => w.name === 'curve_points')?.value;
+            const interpolation = this.node.widgets.find(w => w.name === 'interpolation')?.value;
+            const channel = this.node.widgets.find(w => w.name === 'channel')?.value;
+            
+            console.log(`🎨 应用参数: 通道=${channel}, 插值=${interpolation}, 点=${curvePoints}`);
+            
+            // 通知后端处理图像
+            const result = await this.processImage(curvePoints, interpolation, channel);
+            
+            // 关闭模态弹窗
+            this.close();
+            
+            // 如果节点有graph，触发重新执行
+            if (this.node.graph) {
+                console.log("🎨 触发节点重新执行");
+                this.node.graph.setDirtyCanvas(true, true);
+                
+                // 尝试触发节点执行
+                if (typeof this.node.onExecuted === 'function') {
+                    // 创建一个模拟消息
+                    const message = { refresh: true };
+                    this.node.onExecuted(message);
+                }
+            }
+            
+            console.log("🎨 曲线编辑应用成功");
+        } catch (error) {
+            console.error("🎨 应用曲线编辑失败:", error);
+        }
+    }
+    
+    async processImage(curvePoints, interpolation, channel) {
+        // 请求后端处理图像
+        try {
+            const response = await app.graphToPrompt();
+            return true;
+        } catch (error) {
+            console.error("🎨 处理图像失败:", error);
+            return false;
+        }
+    }
+}
+
 class PhotoshopCurveNodeWidget {
-    constructor(node) {
+    constructor(node, options = {}) {
         console.log("🎨 PhotoshopCurveNodeWidget 构造函数被调用");
         
         // 保存节点引用
@@ -15,6 +1005,12 @@ class PhotoshopCurveNodeWidget {
             this.node = node;
             console.log("🎨 节点ID:", node.id);
         }
+        
+        // 保存选项
+        this.options = Object.assign({
+            addToNode: true, // 默认添加到节点
+            isModal: false   // 默认不是模态弹窗模式
+        }, options);
         
         // 查找widgets
         this.points = null;
@@ -92,8 +1088,6 @@ class PhotoshopCurveNodeWidget {
         
         // 创建通道选择器 (包含重置按钮)
         this.createChannelSelector();
-        console.log("🎨 通道选择器创建完成，ID:", this.channelSelector.id);
-        console.log("🎨 重置按钮创建完成，ID:", this.resetButton.id);
         
         // 创建SVG
         this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -119,37 +1113,37 @@ class PhotoshopCurveNodeWidget {
         
         // 添加到ComfyUI节点
         try {
-            console.log("🎨 开始将组件添加到容器, 当前子元素数量:", this.container.childNodes.length);
+            console.log("🎨 开始将组件添加到容器");
             
             // 按顺序添加组件到容器
             this.container.appendChild(this.channelSelector);
-            console.log("🎨 通道选择器已添加, 当前子元素数量:", this.container.childNodes.length);
-            
             this.container.appendChild(this.svg);
-            console.log("🎨 SVG已添加, 当前子元素数量:", this.container.childNodes.length);
-            
             this.container.appendChild(this.sliderContainer);
-            console.log("🎨 滑块容器已添加, 当前子元素数量:", this.container.childNodes.length);
-            
             this.container.appendChild(this.statusBar);
-            console.log("🎨 状态栏已添加, 当前子元素数量:", this.container.childNodes.length);
             
-            console.log("🎨 正在添加DOM widget到节点:", this.node);
-            if (!this.node || !this.node.addDOMWidget) {
-                console.error("🎨 节点对象无效或缺少addDOMWidget方法");
-                return;
+            // 仅当选项指定时才添加到节点
+            if (this.options.addToNode) {
+                console.log("🎨 正在添加DOM widget到节点:", this.node);
+                if (!this.node || !this.node.addDOMWidget) {
+                    console.error("🎨 节点对象无效或缺少addDOMWidget方法");
+                    return;
+                }
+                
+                this.node.addDOMWidget('curve_editor', 'div', this.container);
+                console.log("🎨 DOM widget 添加成功");
+            } else {
+                console.log("🎨 跳过添加DOM widget到节点");
             }
-            
-            this.node.addDOMWidget('curve_editor', 'div', this.container);
-            console.log("🎨 DOM widget 添加成功");
         } catch (error) {
             console.error("🎨 DOM widget 添加失败", error);
         }
         
-        console.log("�� UI组件创建完成");
+        console.log("🎨 UI组件创建完成");
     }
     
     createChannelSelector() {
+        console.log("🎨 开始创建通道选择器和重置按钮");
+        
         // 确保通道选择器DOM元素被创建
         this.channelSelector = document.createElement('div');
         this.channelSelector.id = `channel-selector-${this.node.id || Date.now()}`;
@@ -262,6 +1256,8 @@ class PhotoshopCurveNodeWidget {
         
         this.channelSelector.appendChild(resetButton);
         this.resetButton = resetButton; // 保存引用以便以后使用
+        
+        console.log("🎨 通道选择器和重置按钮创建完成");
         
         this.updateChannelButtons();
     }
@@ -873,15 +1869,31 @@ class PhotoshopCurveNodeWidget {
     }
     
     resetCurve() {
-        // 重置为默认的对角线
-        this.controlPoints = [
-            { x: 0, y: 0 },
-            { x: 255, y: 255 }
-        ];
-        this.saveHistory();
-        this.updatePointsWidget();
-        this.drawCurve();
-        this.updateStatus('重置曲线');
+        console.log("🎨 重置曲线开始");
+        try {
+            // 重置为默认的对角线
+            this.controlPoints = [
+                { x: 0, y: 0 },
+                { x: 255, y: 255 }
+            ];
+            
+            // 重置黑点和白点滑块位置
+            this.blackPointX = 0;
+            this.whitePointX = 255;
+            
+            // 更新控件值
+            this.updatePointsWidget();
+            
+            // 重绘曲线
+            this.drawCurve();
+            
+            // 更新状态
+            this.updateStatus('重置曲线');
+            
+            console.log("🎨 曲线已重置为默认状态");
+        } catch (error) {
+            console.error("🎨 重置曲线失败:", error);
+        }
     }
     
     cleanup() {
@@ -998,7 +2010,7 @@ class PhotoshopCurveNodeWidget {
         document.removeEventListener('mousemove', this._boundWhiteSliderDrag);
         document.removeEventListener('mouseup', this._boundStopSliderDrag);
     }
-
+    
     // 创建滑块容器和滑块
     createSliders() {
         console.log("🎨 创建滑块组件");
@@ -1154,6 +2166,12 @@ class PhotoshopCurveNodeWidget {
             this.historyIndex--;
         }
     }
+
+    // 添加激活方法，用于直接在节点上编辑
+    activate() {
+        console.log("在节点上直接编辑曲线");
+        // 如果需要，这里可以添加高亮或其他视觉提示
+    }
 }
 
 // 注册扩展
@@ -1165,7 +2183,7 @@ console.log("🎨 开始注册扩展...");
 app.registerExtension({
     name: "PhotoshopCurveNode",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        // 只处理我们的目标节点
+        // 精确匹配节点名称，确保只修改目标节点
         if (nodeData.name !== "PhotoshopCurveNode") {
             return;
         }
@@ -1189,59 +2207,58 @@ app.registerExtension({
             if (this.size[0] < 400) this.size[0] = 400;
             if (this.size[1] < 550) this.size[1] = 550;
             
-            // 延迟创建编辑器，确保DOM已经准备好
-            setTimeout(() => {
-                // 确保widgets已初始化
-                if (this.widgets && Array.isArray(this.widgets)) {
-                    console.log("🎨 节点widgets数量:", this.widgets.length);
+            // 添加跳过弹窗的选项
+            if (!this.widgets.find(w => w.name === 'use_modal')) {
+                this.addProperty('use_modal', true, 'boolean');
+                const modalWidget = this.addWidget('toggle', '使用弹窗编辑', true, function(v) {
+                    this.properties.use_modal = v;
+                });
+                modalWidget.name = 'use_modal';
+                
+                // 只添加属性，不添加控件
+                if (!this.properties.hasOwnProperty('modal_width')) {
+                    this.properties.modal_width = 1600;
+                }
+                if (!this.properties.hasOwnProperty('modal_height')) {
+                    this.properties.modal_height = 1200;
+                }
+            } else {
+                // 确保属性存在，即使在节点重载时也是如此
+                if (!this.properties.hasOwnProperty('modal_width')) {
+                    this.properties.modal_width = 1600;
+                }
+                if (!this.properties.hasOwnProperty('modal_height')) {
+                    this.properties.modal_height = 1200;
+                }
+            }
+            
+            // 删除可能存在的控件（以防刷新后出现）
+            const widthWidgetIndex = this.widgets.findIndex(w => w.name === 'modal_width');
+            if (widthWidgetIndex !== -1) {
+                this.widgets.splice(widthWidgetIndex, 1);
+            }
+            
+            const heightWidgetIndex = this.widgets.findIndex(w => w.name === 'modal_height');
+            if (heightWidgetIndex !== -1) {
+                this.widgets.splice(heightWidgetIndex, 1);
+            }
+            
+            // 立即创建曲线编辑器，不使用setTimeout
+            console.log("🎨 创建曲线编辑器实例");
+            try {
+                // 检查是否已经有曲线编辑器
+                if (!this.curveEditor) {
+                    this.curveEditor = new PhotoshopCurveNodeWidget(this);
+                    console.log("🎨 节点上的曲线编辑器创建成功");
                     
-                    // 为每个参数小部件添加回调
-                    for (const w of this.widgets) {
-                        const originalCallback = w.callback;
-                        
-                        // 使用闭包保存节点引用，而不是直接设置widget.node属性
-                        const node = this;
-                        w.callback = function() {
-                            // 调用原始回调
-                            if (originalCallback) {
-                                originalCallback.apply(this, arguments);
-                            }
-                            
-                            // 触发自定义回调
-                            if (node.onCurveNodeValueChanged) {
-                                node.onCurveNodeValueChanged(this, this.value);
-                            }
-                        };
+                    // 强制更新节点尺寸和位置
+                    if (this.graph) {
+                        this.graph.setDirtyCanvas(true, true);
                     }
-                } else {
-                    console.warn("🎨 节点widgets尚未初始化");
                 }
-                
-                // 创建曲线编辑器实例
-                console.log("🎨 创建曲线编辑器实例");
-                try {
-                    if (!this.curveEditor) {
-                        this.curveEditor = new PhotoshopCurveNodeWidget(this);
-                        console.log("🎨 曲线编辑器创建成功");
-                        
-                        // 检查DOM结构
-                        if (this.curveEditor.container) {
-                            console.log("🎨 编辑器容器子元素数量:", this.curveEditor.container.childNodes.length);
-                            console.log("🎨 通道选择器是否在容器中:", this.curveEditor.container.contains(this.curveEditor.channelSelector));
-                            console.log("🎨 重置按钮是否在通道选择器中:", this.curveEditor.channelSelector && this.curveEditor.channelSelector.contains(this.curveEditor.resetButton));
-                        }
-                    }
-                } catch (error) {
-                    console.error("🎨 创建曲线编辑器失败:", error);
-                }
-                
-                // 强制更新节点尺寸和位置
-                if (this.graph) {
-                    this.graph.setDirtyCanvas(true, true);
-                }
-                
-                console.log("🎨 PhotoshopCurveNode 节点创建完成");
-            }, 100); // 延迟100ms确保DOM已准备好
+            } catch (error) {
+                console.error("🎨 创建曲线编辑器失败:", error);
+            }
         }
         
         // 保存原始的onRemoved方法
@@ -1258,6 +2275,15 @@ app.registerExtension({
             if (this.curveEditor) {
                 this.curveEditor.cleanup();
                 this.curveEditor = null;
+            }
+            
+            // 清理模态弹窗
+            if (this.curveEditorModal) {
+                const modal = document.getElementById(`curve-editor-modal-${this.id}`);
+                if (modal) {
+                    modal.remove();
+                }
+                this.curveEditorModal = null;
             }
         };
         
@@ -1300,7 +2326,190 @@ app.registerExtension({
                 this.curveEditor.drawCurve();
             }
         }
+        
+        // 添加processNode方法，处理节点执行
+        nodeType.prototype.onExecuted = async function(message) {
+            console.log("🎨 节点执行，接收到消息:", message);
+            
+            // 检查是否使用模态弹窗
+            if (this.properties.use_modal) {
+                try {
+                    // 从消息中获取图像数据
+                    const imageData = message.bg_image || message.image;
+                    
+                    if (!imageData) {
+                        console.error("🎨 消息中没有图像数据");
+                        return;
+                    }
+                    
+                    // 如果已经有模态弹窗，先关闭它
+                    if (this.curveEditorModal && this.curveEditorModal.isOpen) {
+                        console.log("🎨 关闭已存在的模态弹窗");
+                        this.curveEditorModal.close();
+                        // 删除旧的模态弹窗
+                        delete this.curveEditorModal;
+                        this.curveEditorModal = null;
+                    }
+                    
+                    // 创建模态弹窗（如果不存在）
+                    console.log("🎨 创建新的模态弹窗");
+                    
+                    // 固定使用1600×1200尺寸
+                    const modalWidth = 1600;
+                    const modalHeight = 1200;
+                    
+                    // 保存这些尺寸供下次使用
+                    this.properties.modal_width = modalWidth;
+                    this.properties.modal_height = modalHeight;
+                    
+                    // 更新UI小部件的值
+                    const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
+                    const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
+                    if (widgetWidth) widgetWidth.value = modalWidth;
+                    if (widgetHeight) widgetHeight.value = modalHeight;
+                    
+                    this.curveEditorModal = new CurveEditorModal(this, {
+                        width: modalWidth,
+                        height: modalHeight
+                    });
+                    
+                    // 打开模态弹窗
+                    console.log("🎨 打开模态弹窗");
+                    setTimeout(() => {
+                        this.curveEditorModal.open(imageData);
+                    }, 50);
+                } catch (error) {
+                    console.error("🎨 显示模态弹窗失败:", error);
+                }
+            } else {
+                console.log("🎨 跳过模态弹窗，直接处理图像");
+                // 直接在节点上编辑
+                if (this.curveEditor) {
+                    this.curveEditor.activate();
+                } else {
+                    console.log("🎨 创建节点上的曲线编辑器");
+                    this.curveEditor = new PhotoshopCurveNodeWidget(this);
+                }
+            }
+        }
+
+        // 修改右键菜单选项
+        nodeType.prototype.getExtraMenuOptions = function(_, options) {
+            options.unshift(
+                {
+                    content: "📊 打开曲线编辑器",
+                    callback: () => {
+                        // 检查是否使用模态弹窗
+                        if (this.properties.use_modal) {
+                            // 创建并打开模态弹窗
+                            if (!this.curveEditorModal) {
+                                // 固定使用1600×1200尺寸
+                                const modalWidth = 1600;
+                                const modalHeight = 1200;
+                                
+                                // 保存这些尺寸供下次使用
+                                this.properties.modal_width = modalWidth;
+                                this.properties.modal_height = modalHeight;
+                                
+                                // 不再需要更新UI控件，因为它们已被移除
+                                // const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
+                                // const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
+                                // if (widgetWidth) widgetWidth.value = modalWidth;
+                                // if (widgetHeight) widgetHeight.value = modalHeight;
+                                
+                                this.curveEditorModal = new CurveEditorModal(this, {
+                                    width: modalWidth,
+                                    height: modalHeight
+                                });
+                            }
+                            
+                            // 请求获取输入图像
+                            const inputLink = this.getInputLink(0);
+                            if (!inputLink) {
+                                alert("请先连接输入图像！");
+                                return;
+                            }
+                            
+                            // 这里应该获取输入图像数据，但简化版本直接打开空弹窗
+                            this.curveEditorModal.open("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+                        } else {
+                            // 直接激活节点上的编辑器
+                            if (this.curveEditor) {
+                                this.curveEditor.activate();
+                            }
+                        }
+                    }
+                }
+            );
+            return options;
+        };
+        
+        // 修改双击行为 - 修复这部分代码
+        const origOnDblClick = nodeType.prototype.onDblClick;
+        nodeType.prototype.onDblClick = function(e, pos, graphCanvas) {
+            console.log("🎨 节点双击事件触发", this.id);
+            
+            // 调用原始的onDblClick方法
+            if (origOnDblClick) {
+                origOnDblClick.apply(this, arguments);
+            }
+            
+            // 阻止事件冒泡和默认行为
+            e.stopPropagation();
+            e.preventDefault();
+            
+            // 获取图像URL
+            let imageUrl = "";
+            
+            // 尝试从节点输入获取图像
+            if (this.inputs && this.inputs.length > 0) {
+                const imageInput = this.inputs[0];
+                if (imageInput && imageInput.link) {
+                    const linkInfo = app.graph.links[imageInput.link];
+                    if (linkInfo) {
+                        const originNode = app.graph.getNodeById(linkInfo.origin_id);
+                        if (originNode && originNode.imgs && originNode.imgs.length > 0) {
+                            imageUrl = originNode.imgs[0].src;
+                            console.log("🎨 从输入节点获取图像URL:", imageUrl.substring(0, 50) + "...");
+                        }
+                    }
+                }
+            }
+            
+            // 如果没有找到图像，尝试使用测试图像
+            if (!imageUrl) {
+                // 使用灰色渐变图像作为默认测试图像
+                imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAYAAADL1t+KAAAD0ElEQVR4nO3BgQAAAADDoPlTH+ECVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8G93YAAD1Pn0QAAAAASUVORK5CYII=";
+                console.log("🎨 使用默认测试图像");
+            }
+            
+            // 创建并打开模态弹窗
+            console.log("🎨 创建弹窗并加载图像");
+            
+            // 固定使用1600×1200尺寸
+            const modalWidth = 1600;
+            const modalHeight = 1200;
+            
+            // 保存这些尺寸供下次使用
+            this.properties.modal_width = modalWidth;
+            this.properties.modal_height = modalHeight;
+            
+            // 不再需要更新UI控件，因为它们已被移除
+            // const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
+            // const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
+            // if (widgetWidth) widgetWidth.value = modalWidth;
+            // if (widgetHeight) widgetHeight.value = modalHeight;
+                
+            this.curveModal = new CurveEditorModal(this, {
+                width: modalWidth,
+                height: modalHeight
+            });
+            this.curveModal.open(imageUrl);
+            
+            return false; // 阻止事件继续传播
+        };
     }
 });
 
 console.log("🎨 PhotoshopCurveNode.js 加载完成"); 
+
