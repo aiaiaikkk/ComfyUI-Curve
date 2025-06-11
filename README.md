@@ -10,13 +10,13 @@
 ## 中文
 
 ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格和高级遮罩。
-![image](https://github.com/user-attachments/assets/3bdd4d7d-8e9a-492a-87d2-9d05576d1f0b)
+![image](https://github.com/user-attachments/assets/a7e3477f-72b2-4bac-9e9e-5d05a8e9670d)
 
 
 ### 🌟 主要功能
 
 #### 🎨 曲线调整 (PS Curve)
-![image](https://github.com/user-attachments/assets/1bb16903-78fd-470d-8e84-f4ad84e4e6c4)
+![image](https://github.com/user-attachments/assets/262e6a0a-69dd-4b32-8a7b-c2752e412afb)
 
 - 类似Photoshop的专业曲线调整，支持多种插值方式
 - 实时曲线图表，可选直方图背景显示
@@ -24,7 +24,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 可调曲线效果强度（0-200%）
 
 #### 🎭 HSL调整 (PS HSL)
-![image](https://github.com/user-attachments/assets/e7389828-c37c-423d-be45-32a572b86d4b)
+![image](https://github.com/user-attachments/assets/3e9e86be-c09c-476f-a23c-03c7eb0ce339)
 
 - 精准控制8个颜色通道：红、橙、黄、绿、浅绿、蓝、紫、品红
 - 每个颜色可独立调整色相、饱和度、明度
