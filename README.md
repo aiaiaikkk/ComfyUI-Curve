@@ -185,6 +185,8 @@ MIT License - See [LICENSE](LICENSE) file.
 <div align="center">
 
 **如果这个项目对你有帮助，请给个Star支持！**
+![image](https://github.com/user-attachments/assets/3226737e-ae78-4a18-96de-bf8a1c135c18)
+                    Buy Me a Coffe
 
 </div> 
 
