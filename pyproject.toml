@@ -1,0 +1,15 @@
+[project]
+name = "curve"
+description = "A professional ComfyUI curve adjustment node that offers Photoshop-like curve functionality, over 70 preset styles, advanced mask support, and histogram analysis."
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["# ComfyUI-Curve 项目依赖", "# 核心依赖", "torch>=1.9.0", "numpy>=1.21.0", "scipy>=1.7.0"]
+
+[project.urls]
+Repository = "https://github.com/aiaiaikkk/ComfyUI-Curve"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-Curve"
+Icon = ""
