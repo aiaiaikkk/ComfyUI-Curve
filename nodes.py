@@ -7,6 +7,8 @@ from scipy.interpolate import CubicSpline
 from comfy.model_management import get_torch_device
 import matplotlib
 matplotlib.use('Agg')  # 使用非交互式后端
+import base64
+from server import PromptServer
 
 # 获取当前设备
 def get_torch_device():
@@ -73,6 +75,51 @@ class PhotoshopCurveNode:
             # 确保输入图像格式正确
             if image is None:
                 raise ValueError("Input image is None")
+            
+            # 在处理前，先发送输入图像到前端（仅当有unique_id时）
+            if unique_id is not None:
+                try:
+                    # 使用第一张图像进行预览
+                    preview_image = image[0] if image.dim() == 4 else image
+                    
+                    # 转换为PIL图像
+                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+                    if img_np.shape[-1] == 3:
+                        pil_img = Image.fromarray(img_np, mode='RGB')
+                    elif img_np.shape[-1] == 4:
+                        pil_img = Image.fromarray(img_np, mode='RGBA')
+                    else:
+                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+                    
+                    # 转换为base64
+                    buffer = io.BytesIO()
+                    pil_img.save(buffer, format='PNG')
+                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    # 发送图像数据事件
+                    send_data = {
+                        "node_id": str(unique_id),
+                        "image": f"data:image/png;base64,{img_base64}"
+                    }
+                    
+                    # 如果有遮罩，也发送遮罩数据
+                    if mask is not None:
+                        mask_preview = mask[0] if mask.dim() == 3 else mask
+                        mask_np = (mask_preview.cpu().numpy() * 255).astype(np.uint8)
+                        if mask_np.ndim == 2:
+                            mask_pil = Image.fromarray(mask_np, mode='L')
+                        else:
+                            mask_pil = Image.fromarray(mask_np[:,:,0], mode='L')
+                        
+                        mask_buffer = io.BytesIO()
+                        mask_pil.save(mask_buffer, format='PNG')
+                        mask_base64 = base64.b64encode(mask_buffer.getvalue()).decode('utf-8')
+                        send_data["mask"] = f"data:image/png;base64,{mask_base64}"
+                    
+                    # 使用PromptServer发送数据
+                    PromptServer.instance.send_sync("photoshop_curve_preview", send_data)
+                except Exception as e:
+                    pass  # 静默失败，不影响正常处理
             
             # 处理批次维度
             if image.dim() == 4:  # Batch dimension exists
@@ -1406,26 +1453,7 @@ class PhotoshopHistogramNode:
         
         return result
 
-# 添加一个新的曲线预览节点类
-class CurvePreviewNode:
-    """用于PS曲线节点的专用预览节点，支持右键菜单打开曲线编辑器"""
-    
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-            },
-        }
-    
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "preview_image"
-    CATEGORY = "Image/Adjustments"
-    OUTPUT_NODE = True
-    
-    def preview_image(self, image):
-        # 简单地返回输入图像，实际的交互功能在前端实现
-        return (image,)
+
 
 class PhotoshopHSLNode:
     """PS风格的色相/饱和度/明度调整节点"""
@@ -2009,7 +2037,6 @@ NODE_CLASS_MAPPINGS = {
     "PhotoshopCurveNode": PhotoshopCurveNode,
     "PhotoshopHistogramNode": PhotoshopHistogramNode,
     "CurvePresetNode": CurvePresetNode,
-    "CurvePreviewNode": CurvePreviewNode,
     "PhotoshopHSLNode": PhotoshopHSLNode,  # 添加新节点
 }
 
@@ -2017,7 +2044,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PhotoshopCurveNode": "🎨 PS Curve (Professional)",
     "PhotoshopHistogramNode": "📊 PS Histogram & Levels",
     "CurvePresetNode": "🎨 PS Curve Preset",
-    "CurvePreviewNode": "🎨 PS Curve Preview",
     "PhotoshopHSLNode": "🎨 PS HSL Adjustment",  # 添加新节点显示名称
 }
 
