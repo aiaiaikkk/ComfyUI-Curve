@@ -2088,18 +2088,592 @@ class PhotoshopHSLNode:
         
         return blurred
 
+class ColorGradingNode:
+    """
+    Color Grading节点 - 实现Lightroom风格的色彩分级功能
+    支持阴影、中间调、高光的独立色彩调整
+    """
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'image': ('IMAGE',),
+                # 阴影控制
+                'shadows_hue': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -180.0,
+                    'max': 180.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '阴影区域色相偏移（-180到180度）'
+                }),
+                'shadows_saturation': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '阴影区域饱和度调整（-100到100%）'
+                }),
+                'shadows_luminance': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '阴影区域明度调整（-100到100%）'
+                }),
+                # 中间调控制
+                'midtones_hue': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -180.0,
+                    'max': 180.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '中间调区域色相偏移（-180到180度）'
+                }),
+                'midtones_saturation': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '中间调区域饱和度调整（-100到100%）'
+                }),
+                'midtones_luminance': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '中间调区域明度调整（-100到100%）'
+                }),
+                # 高光控制
+                'highlights_hue': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -180.0,
+                    'max': 180.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '高光区域色相偏移（-180到180度）'
+                }),
+                'highlights_saturation': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '高光区域饱和度调整（-100到100%）'
+                }),
+                'highlights_luminance': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'slider',
+                    'tooltip': '高光区域明度调整（-100到100%）'
+                }),
+                # 混合模式
+                'blend_mode': (['normal', 'multiply', 'screen', 'overlay', 'soft_light', 'hard_light', 'color_dodge', 'color_burn'], {
+                    'default': 'normal',
+                    'tooltip': '色彩分级的混合模式'
+                }),
+                # 整体强度
+                'overall_strength': ('FLOAT', {
+                    'default': 1.0,
+                    'min': 0.0,
+                    'max': 2.0,
+                    'step': 0.1,
+                    'display': 'slider',
+                    'tooltip': '色彩分级的整体强度'
+                }),
+            },
+            'optional': {
+                'mask': ('MASK', {
+                    'default': None,
+                    'tooltip': '可选遮罩，色彩分级仅对遮罩区域有效'
+                }),
+                'mask_blur': ('FLOAT', {
+                    'default': 0.0,
+                    'min': 0.0,
+                    'max': 20.0,
+                    'step': 0.1,
+                    'display': 'slider',
+                    'tooltip': '遮罩边缘羽化程度'
+                }),
+                'invert_mask': ('BOOLEAN', {
+                    'default': False,
+                    'tooltip': '反转遮罩区域'
+                }),
+            },
+            'hidden': {'unique_id': 'UNIQUE_ID'}
+        }
+    
+    RETURN_TYPES = ('IMAGE',)
+    RETURN_NAMES = ('image',)
+    FUNCTION = 'apply_color_grading'
+    CATEGORY = 'Image/Adjustments'
+    OUTPUT_NODE = False
+    
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # 创建所有参数的缓存键
+        cache_params = []
+        for key, value in kwargs.items():
+            if key != 'unique_id':
+                if hasattr(value, 'data'):
+                    cache_params.append(f"{key}:{hash(value.data.tobytes())}")
+                else:
+                    cache_params.append(f"{key}:{value}")
+        return "_".join(cache_params)
+    
+    def apply_color_grading(self, image, 
+                           shadows_hue=0.0, shadows_saturation=0.0, shadows_luminance=0.0,
+                           midtones_hue=0.0, midtones_saturation=0.0, midtones_luminance=0.0,
+                           highlights_hue=0.0, highlights_saturation=0.0, highlights_luminance=0.0,
+                           blend_mode='normal', overall_strength=1.0,
+                           mask=None, mask_blur=0.0, invert_mask=False, unique_id=None):
+        """
+        应用色彩分级效果
+        """
+        try:
+            if image is None:
+                raise ValueError("Input image is None")
+            
+            # 发送预览数据到前端（仅当有unique_id时）
+            if unique_id is not None:
+                try:
+                    # 使用第一张图像进行预览
+                    preview_image = image[0] if image.dim() == 4 else image
+                    
+                    # 转换为PIL图像
+                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+                    if img_np.shape[-1] == 3:
+                        pil_img = Image.fromarray(img_np, mode='RGB')
+                    elif img_np.shape[-1] == 4:
+                        pil_img = Image.fromarray(img_np, mode='RGBA')
+                    else:
+                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+                    
+                    # 转换为base64
+                    buffer = io.BytesIO()
+                    pil_img.save(buffer, format='PNG')
+                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    # 准备发送数据
+                    send_data = {
+                        "node_id": str(unique_id),
+                        "image": f"data:image/png;base64,{img_base64}",
+                        "grading_data": {
+                            "shadows": {"hue": shadows_hue, "saturation": shadows_saturation, "luminance": shadows_luminance},
+                            "midtones": {"hue": midtones_hue, "saturation": midtones_saturation, "luminance": midtones_luminance},
+                            "highlights": {"hue": highlights_hue, "saturation": highlights_saturation, "luminance": highlights_luminance},
+                            "blend_mode": blend_mode,
+                            "overall_strength": overall_strength
+                        }
+                    }
+                    
+                    # 处理遮罩
+                    if mask is not None:
+                        try:
+                            # 获取第一个遮罩用于预览
+                            preview_mask = mask[0] if mask.dim() == 3 else mask
+                            
+                            # 确保遮罩是2D的
+                            if preview_mask.dim() > 2:
+                                preview_mask = preview_mask.squeeze()
+                            
+                            # 转换遮罩为PIL图像
+                            mask_np = (preview_mask.cpu().numpy() * 255).astype(np.uint8)
+                            pil_mask = Image.fromarray(mask_np, mode='L')
+                            
+                            # 转换为base64
+                            mask_buffer = io.BytesIO()
+                            pil_mask.save(mask_buffer, format='PNG')
+                            mask_base64 = base64.b64encode(mask_buffer.getvalue()).decode('utf-8')
+                            
+                            send_data["mask"] = f"data:image/png;base64,{mask_base64}"
+                        except Exception as mask_error:
+                            print(f"处理色彩分级遮罩时出错: {mask_error}")
+                    
+                    # 发送事件到前端
+                    PromptServer.instance.send_sync("color_grading_preview", send_data)
+                    print(f"✅ 已发送色彩分级预览数据到前端，节点ID: {unique_id}")
+                    
+                except Exception as preview_error:
+                    print(f"发送色彩分级预览时出错: {preview_error}")
+            
+            # 处理图像
+            if len(image.shape) == 4:
+                # 批处理
+                batch_size = image.shape[0]
+                result = torch.zeros_like(image)
+                
+                for i in range(batch_size):
+                    batch_mask = mask[i].unsqueeze(0) if mask is not None and mask.dim() > 2 else mask
+                    
+                    result[i] = self._process_single_image(
+                        image[i],
+                        shadows_hue, shadows_saturation, shadows_luminance,
+                        midtones_hue, midtones_saturation, midtones_luminance,
+                        highlights_hue, highlights_saturation, highlights_luminance,
+                        blend_mode, overall_strength,
+                        batch_mask, mask_blur, invert_mask
+                    )
+                
+                return (result,)
+            else:
+                # 单张图像
+                result = self._process_single_image(
+                    image,
+                    shadows_hue, shadows_saturation, shadows_luminance,
+                    midtones_hue, midtones_saturation, midtones_luminance,
+                    highlights_hue, highlights_saturation, highlights_luminance,
+                    blend_mode, overall_strength,
+                    mask, mask_blur, invert_mask
+                )
+                return (result,)
+                
+        except Exception as e:
+            print(f"ColorGradingNode error: {e}")
+            import traceback
+            traceback.print_exc()
+            return (image,)
+    
+    def _process_single_image(self, image,
+                             shadows_hue, shadows_saturation, shadows_luminance,
+                             midtones_hue, midtones_saturation, midtones_luminance,
+                             highlights_hue, highlights_saturation, highlights_luminance,
+                             blend_mode, overall_strength,
+                             mask, mask_blur, invert_mask):
+        """处理单张图像的色彩分级 - 使用更接近Lightroom的算法"""
+        import cv2
+        
+        device = image.device
+        
+        # 将图像转换为numpy数组，范围0-1（保持精度）
+        img_np = image.detach().cpu().numpy()
+        
+        # 处理Alpha通道
+        has_alpha = False
+        alpha_channel = None
+        
+        if img_np.shape[2] == 4:  # RGBA图像
+            has_alpha = True
+            alpha_channel = img_np[:,:,3]
+            img_np = img_np[:,:,:3]  # 只保留RGB通道
+        
+        # 转换为Lab色彩空间（更接近人眼感知，Lightroom使用的色彩空间）
+        img_lab = cv2.cvtColor((img_np * 255).astype(np.uint8), cv2.COLOR_RGB2LAB).astype(np.float32)
+        
+        # 归一化Lab值
+        img_lab[:,:,0] = img_lab[:,:,0] / 100.0  # L: 0-100 -> 0-1
+        img_lab[:,:,1] = (img_lab[:,:,1] + 128.0) / 255.0  # a: -128-127 -> 0-1
+        img_lab[:,:,2] = (img_lab[:,:,2] + 128.0) / 255.0  # b: -128-127 -> 0-1
+        
+        # 使用L通道（亮度）创建更精确的遮罩
+        luminance = img_lab[:,:,0]
+        
+        # 创建改进的亮度遮罩（使用更平滑的过渡）
+        shadows_mask = self._create_improved_luminance_mask(luminance, 'shadows')
+        midtones_mask = self._create_improved_luminance_mask(luminance, 'midtones')
+        highlights_mask = self._create_improved_luminance_mask(luminance, 'highlights')
+        
+        # 保存原始亮度（重要：保持亮度不变）
+        original_luminance = img_lab[:,:,0].copy()
+        
+        # 应用色彩分级到Lab空间的a和b通道
+        result_lab = img_lab.copy()
+        
+        # 处理每个区域的色彩调整
+        for region, region_mask, hue, sat, lum in [
+            ('shadows', shadows_mask, shadows_hue, shadows_saturation, shadows_luminance),
+            ('midtones', midtones_mask, midtones_hue, midtones_saturation, midtones_luminance),
+            ('highlights', highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
+        ]:
+            if hue != 0 or sat != 0:
+                # 将色相和饱和度转换为Lab空间的偏移
+                color_offset_a, color_offset_b = self._hue_sat_to_lab_offset(hue, sat)
+                
+                # 应用颜色偏移（只影响a和b通道）
+                result_lab[:,:,1] = result_lab[:,:,1] + color_offset_a * region_mask * overall_strength
+                result_lab[:,:,2] = result_lab[:,:,2] + color_offset_b * region_mask * overall_strength
+            
+            # 亮度调整（保留更多细节）
+            if lum != 0:
+                lum_factor = lum / 100.0 * overall_strength
+                result_lab[:,:,0] = result_lab[:,:,0] + lum_factor * region_mask
+        
+        # 如果不是亮度调整，恢复原始亮度（保持对比度）
+        if shadows_luminance == 0 and midtones_luminance == 0 and highlights_luminance == 0:
+            result_lab[:,:,0] = original_luminance
+        
+        # 限制Lab值在有效范围内
+        result_lab[:,:,0] = np.clip(result_lab[:,:,0], 0, 1)
+        result_lab[:,:,1] = np.clip(result_lab[:,:,1], 0, 1)
+        result_lab[:,:,2] = np.clip(result_lab[:,:,2], 0, 1)
+        
+        # 反归一化Lab值
+        result_lab[:,:,0] = result_lab[:,:,0] * 100.0
+        result_lab[:,:,1] = result_lab[:,:,1] * 255.0 - 128.0
+        result_lab[:,:,2] = result_lab[:,:,2] * 255.0 - 128.0
+        
+        # 转换回RGB
+        img_rgb = cv2.cvtColor(result_lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
+        
+        # 应用混合模式（使用浮点精度）
+        img_rgb_float = img_rgb.astype(np.float32) / 255.0
+        img_np_uint8 = (img_np * 255).astype(np.uint8)
+        img_rgb = self._apply_blend_mode(img_np_uint8, img_rgb, blend_mode, overall_strength)
+        
+        # 恢复Alpha通道
+        if has_alpha:
+            img_rgba = np.dstack([img_rgb / 255.0, alpha_channel])
+            result = torch.from_numpy(img_rgba.astype(np.float32)).to(device)
+        else:
+            result = torch.from_numpy(img_rgb.astype(np.float32) / 255.0).to(device)
+        
+        # 应用遮罩
+        if mask is not None:
+            result = self._apply_mask(image, result, mask, mask_blur, invert_mask)
+        
+        return result
+    
+    def _create_luminance_mask(self, luminance, region_type):
+        """创建亮度区域遮罩"""
+        if region_type == 'shadows':
+            # 阴影：低亮度区域，使用反向S曲线
+            mask = np.power(1.0 - luminance, 2.0)
+        elif region_type == 'highlights':
+            # 高光：高亮度区域，使用正向S曲线
+            mask = np.power(luminance, 2.0)
+        else:  # midtones
+            # 中间调：中等亮度区域，使用钟形曲线
+            mask = 4.0 * luminance * (1.0 - luminance)
+        
+        # 平滑遮罩以避免硬边缘
+        mask = np.clip(mask, 0.0, 1.0)
+        return mask
+    
+    def _create_improved_luminance_mask(self, luminance, region_type):
+        """创建改进的亮度区域遮罩 - 更接近Lightroom的算法"""
+        import scipy.ndimage as ndimage
+        
+        if region_type == 'shadows':
+            # 阴影：使用更平滑的过渡曲线
+            # Lightroom使用的是更渐进的过渡，避免硬边缘
+            threshold = 0.25  # 阴影的亮度阈值
+            transition = 0.15  # 过渡区域的宽度
+            
+            # 使用sigmoid函数创建平滑过渡
+            mask = 1.0 / (1.0 + np.exp(-(threshold - luminance) / transition))
+            
+        elif region_type == 'highlights':
+            # 高光：使用反向的sigmoid函数
+            threshold = 0.75  # 高光的亮度阈值
+            transition = 0.15
+            
+            mask = 1.0 / (1.0 + np.exp(-(luminance - threshold) / transition))
+            
+        else:  # midtones
+            # 中间调：使用高斯分布创建钟形曲线
+            center = 0.5  # 中间调的中心点
+            width = 0.35  # 分布宽度
+            
+            # 使用高斯函数
+            mask = np.exp(-0.5 * ((luminance - center) / width) ** 2)
+            
+            # 归一化到合理范围
+            mask = mask * 1.2  # 略微增强中间调的影响
+        
+        # 应用额外的平滑处理，避免色彩断层
+        mask = ndimage.gaussian_filter(mask, sigma=1.0)
+        
+        # 确保遮罩在有效范围内
+        mask = np.clip(mask, 0.0, 1.0)
+        
+        return mask
+    
+    def _hue_sat_to_lab_offset(self, hue, saturation):
+        """将色相和饱和度转换为Lab色彩空间的偏移量"""
+        # 将角度转换为弧度
+        hue_rad = np.radians(hue)
+        
+        # 饱和度归一化到0-1范围
+        sat_normalized = abs(saturation) / 100.0
+        
+        # 在Lab空间中，a和b通道的范围大约是-128到127
+        # 但为了获得更自然的效果，我们使用较小的偏移范围
+        max_offset = 0.3  # 最大偏移量（归一化后）
+        
+        # 计算Lab空间的偏移
+        # a通道：红-绿轴
+        # b通道：黄-蓝轴
+        offset_a = np.cos(hue_rad) * sat_normalized * max_offset
+        offset_b = np.sin(hue_rad) * sat_normalized * max_offset
+        
+        # 考虑人眼对不同颜色的敏感度差异
+        # 对某些颜色区域进行微调
+        if -30 <= hue <= 30:  # 红色区域
+            offset_a *= 1.1
+        elif 150 <= hue <= 210:  # 青色区域
+            offset_a *= 0.9
+        elif 60 <= hue <= 120:  # 绿色区域
+            offset_b *= 0.95
+        elif 240 <= hue <= 300:  # 蓝色区域
+            offset_b *= 1.05
+        
+        return offset_a, offset_b
+    
+    def _apply_grading_to_region(self, img_hsv, region_mask, hue_shift, sat_shift, lum_shift):
+        """对特定区域应用色彩分级"""
+        h, w, _ = img_hsv.shape
+        
+        # 扩展遮罩维度
+        mask_3d = np.expand_dims(region_mask, axis=2)
+        
+        # 应用色相偏移
+        if hue_shift != 0:
+            hue_offset = hue_shift * 0.5  # 将-180~180映射到-90~90（OpenCV H范围）
+            new_hue = (img_hsv[:,:,0] + hue_offset) % 180
+            img_hsv[:,:,0] = img_hsv[:,:,0] * (1 - mask_3d[:,:,0]) + new_hue * mask_3d[:,:,0]
+        
+        # 应用饱和度调整
+        if sat_shift != 0:
+            sat_factor = 1.0 + (sat_shift / 100.0)
+            new_sat = img_hsv[:,:,1] * sat_factor
+            img_hsv[:,:,1] = img_hsv[:,:,1] * (1 - mask_3d[:,:,0]) + new_sat * mask_3d[:,:,0]
+        
+        # 应用明度调整
+        if lum_shift != 0:
+            lum_factor = 1.0 + (lum_shift / 100.0)
+            new_lum = img_hsv[:,:,2] * lum_factor
+            img_hsv[:,:,2] = img_hsv[:,:,2] * (1 - mask_3d[:,:,0]) + new_lum * mask_3d[:,:,0]
+        
+        return img_hsv
+    
+    def _apply_blend_mode(self, base, overlay, blend_mode, strength):
+        """应用混合模式"""
+        base_f = base.astype(np.float32) / 255.0
+        overlay_f = overlay.astype(np.float32) / 255.0
+        
+        if blend_mode == 'normal':
+            result = overlay_f
+        elif blend_mode == 'multiply':
+            result = base_f * overlay_f
+        elif blend_mode == 'screen':
+            result = 1.0 - (1.0 - base_f) * (1.0 - overlay_f)
+        elif blend_mode == 'overlay':
+            result = np.where(base_f < 0.5, 
+                            2.0 * base_f * overlay_f,
+                            1.0 - 2.0 * (1.0 - base_f) * (1.0 - overlay_f))
+        elif blend_mode == 'soft_light':
+            result = np.where(overlay_f < 0.5,
+                            base_f - (1.0 - 2.0 * overlay_f) * base_f * (1.0 - base_f),
+                            base_f + (2.0 * overlay_f - 1.0) * (np.sqrt(base_f) - base_f))
+        elif blend_mode == 'hard_light':
+            result = np.where(overlay_f < 0.5,
+                            2.0 * base_f * overlay_f,
+                            1.0 - 2.0 * (1.0 - base_f) * (1.0 - overlay_f))
+        elif blend_mode == 'color_dodge':
+            result = np.where(overlay_f >= 1.0, overlay_f, base_f / (1.0 - overlay_f + 1e-10))
+        elif blend_mode == 'color_burn':
+            result = np.where(overlay_f <= 0.0, overlay_f, 1.0 - (1.0 - base_f) / (overlay_f + 1e-10))
+        else:
+            result = overlay_f
+        
+        # 应用强度混合
+        result = base_f * (1.0 - strength) + result * strength
+        
+        # 限制范围并转换回uint8
+        result = np.clip(result * 255.0, 0, 255).astype(np.uint8)
+        return result
+    
+    def _apply_mask(self, original_image, processed_image, mask, mask_blur, invert_mask):
+        """应用遮罩混合原始图像和处理后的图像"""
+        # 获取图像尺寸
+        if original_image.dim() == 3:
+            h, w, c = original_image.shape
+        else:
+            raise ValueError(f"Unexpected image dimensions: {original_image.shape}")
+        
+        # 处理遮罩尺寸
+        if mask.dim() == 2:
+            # 如果遮罩是2D的，调整其尺寸以匹配图像
+            if mask.shape[0] != h or mask.shape[1] != w:
+                mask = torch.nn.functional.interpolate(
+                    mask.unsqueeze(0).unsqueeze(0), 
+                    size=(h, w), 
+                    mode='bilinear', 
+                    align_corners=False
+                ).squeeze(0).squeeze(0)
+        
+        # 确保遮罩值在 [0, 1] 范围内
+        mask = torch.clamp(mask, 0.0, 1.0)
+        
+        # 反转遮罩（如果需要）
+        if invert_mask:
+            mask = 1.0 - mask
+        
+        # 应用高斯模糊羽化效果
+        if mask_blur > 0.0:
+            mask = self._apply_gaussian_blur(mask, mask_blur)
+        
+        # 扩展遮罩维度以匹配图像通道 (H, W) -> (H, W, C)
+        if original_image.dim() == 3:
+            mask = mask.unsqueeze(-1).expand(-1, -1, original_image.shape[2])
+        
+        # 混合原图和处理后的图像
+        result = original_image * (1.0 - mask) + processed_image * mask
+        
+        return result
+    
+    def _apply_gaussian_blur(self, tensor, blur_radius):
+        """对tensor应用高斯模糊"""
+        if blur_radius <= 0:
+            return tensor
+        
+        device = tensor.device
+        
+        # 计算高斯核大小（奇数）
+        kernel_size = int(blur_radius * 2) * 2 + 1
+        sigma = blur_radius / 3.0
+        
+        # 创建1D高斯核
+        x = torch.arange(kernel_size, dtype=torch.float32, device=device) - kernel_size // 2
+        gauss_1d = torch.exp(-0.5 * (x / sigma) ** 2)
+        gauss_1d = gauss_1d / gauss_1d.sum()
+        
+        # 创建2D高斯核
+        gauss_2d = gauss_1d.unsqueeze(0) * gauss_1d.unsqueeze(1)
+        gauss_2d = gauss_2d.unsqueeze(0).unsqueeze(0)  # (1, 1, kernel_size, kernel_size)
+        
+        # 添加padding以保持尺寸
+        padding = kernel_size // 2
+        
+        # 应用卷积
+        blurred = torch.nn.functional.conv2d(
+            tensor.unsqueeze(0).unsqueeze(0),  # (1, 1, H, W)
+            gauss_2d,
+            padding=padding
+        ).squeeze(0).squeeze(0)  # (H, W)
+        
+        return blurred
+
 # 更新NODE_CLASS_MAPPINGS和NODE_DISPLAY_NAME_MAPPINGS，添加新的HSL调整节点
 NODE_CLASS_MAPPINGS = {
     "PhotoshopCurveNode": PhotoshopCurveNode,
     "PhotoshopHistogramNode": PhotoshopHistogramNode,
     "CurvePresetNode": CurvePresetNode,
+    "ColorGradingNode": ColorGradingNode,
     "PhotoshopHSLNode": PhotoshopHSLNode,  # 添加新节点
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PhotoshopCurveNode": "🎨 PS Curve (Professional)",
-    "PhotoshopHistogramNode": "📊 PS Histogram & Levels",
+    "PhotoshopHistogramNode": "📊 PS Histogram & Levels", 
     "CurvePresetNode": "🎨 PS Curve Preset",
+    "ColorGradingNode": "🎨 Color Grading Wheels",
     "PhotoshopHSLNode": "🎨 PS HSL Adjustment",  # 添加新节点显示名称
 }
 
