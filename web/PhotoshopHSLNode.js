@@ -323,6 +323,226 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// 全局节点输出缓存
+if (!window.globalNodeCache) {
+    window.globalNodeCache = new Map();
+}
+
+// 添加全局节点执行监听器
+function setupGlobalNodeOutputCache() {
+    
+    if (app.api) {
+        
+        // 监听executed事件
+        app.api.addEventListener("executed", ({ detail }) => {
+            const nodeId = String(detail.node); // 确保nodeId是字符串
+            const outputData = detail.output;
+            
+            
+            if (nodeId && outputData && outputData.images) {
+                window.globalNodeCache.set(nodeId, outputData);
+                
+                // 同时更新到app.nodeOutputs
+                if (!app.nodeOutputs) {
+                    app.nodeOutputs = {};
+                }
+                app.nodeOutputs[nodeId] = outputData;
+                
+                // 更新节点的imgs属性
+                const node = app.graph.getNodeById(nodeId);
+                if (node && outputData.images && outputData.images.length > 0) {
+                    // 转换图像数据为URL格式
+                    const convertToImageUrl = (imageData) => {
+                        if (typeof imageData === 'string') {
+                            return imageData;
+                        }
+                        if (imageData && typeof imageData === 'object' && imageData.filename) {
+                            const baseUrl = window.location.origin;
+                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                            if (imageData.subfolder) {
+                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                            }
+                            if (imageData.type) {
+                                url += `&type=${encodeURIComponent(imageData.type)}`;
+                            }
+                            return url;
+                        }
+                        return imageData;
+                    };
+                    
+                    // 将转换后的图像URL存储到自定义属性，避免影响原有系统
+                    node._curveNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
+                }
+                
+                // 更新连接的下游节点缓存（支持PS Curve和HSL节点）
+                const graph = app.graph;
+                if (graph && graph.links) {
+                    Object.values(graph.links).forEach(link => {
+                        if (link && String(link.origin_id) === nodeId) {
+                            const targetNode = graph.getNodeById(link.target_id);
+                            // 支持PS Curve和HSL节点
+                            if (targetNode && (targetNode.type === "PhotoshopCurveNode" || targetNode.type === "PhotoshopHSLNode")) {
+                                if (outputData.images && outputData.images.length > 0) {
+                                    const convertToImageUrl = (imageData) => {
+                                        if (typeof imageData === 'string') {
+                                            return imageData;
+                                        }
+                                        if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                            const baseUrl = window.location.origin;
+                                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                                            if (imageData.subfolder) {
+                                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                                            }
+                                            if (imageData.type) {
+                                                url += `&type=${encodeURIComponent(imageData.type)}`;
+                                            }
+                                            return url;
+                                        }
+                                        return imageData;
+                                    };
+                                    
+                                    targetNode._lastInputImage = convertToImageUrl(outputData.images[0]);
+                                    
+                                    // PS Curve节点需要imgs属性
+                                    if (targetNode.type === "PhotoshopCurveNode" && targetNode.imgs) {
+                                        // 只有在节点已经有imgs属性时才更新
+                                        targetNode.imgs = outputData.images.map(imageData => ({ 
+                                            src: convertToImageUrl(imageData)
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+        
+        // 监听execution_cached事件
+        app.api.addEventListener("execution_cached", ({ detail }) => {
+            if (detail && detail.nodes) {
+                detail.nodes.forEach(nodeId => {
+                    const nodeIdStr = String(nodeId);
+                    
+                    const node = app.graph.getNodeById(nodeIdStr);
+                    if (node) {
+                        if (node.imgs && node.imgs.length > 0) {
+                            console.log(`🎨 缓存节点 ${nodeIdStr} 已有imgs数据`);
+                        } else {
+                            console.log(`🎨 缓存节点 ${nodeIdStr} 需要获取输出数据`);
+                            
+                            // 尝试从last_node_outputs获取
+                            if (app.graph.last_node_outputs && app.graph.last_node_outputs[nodeIdStr]) {
+                                const outputs = app.graph.last_node_outputs[nodeIdStr];
+                                if (outputs.images && outputs.images.length > 0) {
+                                    const convertToImageUrl = (imageData) => {
+                                        if (typeof imageData === 'string') {
+                                            return imageData;
+                                        }
+                                        if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                            const baseUrl = window.location.origin;
+                                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                                            if (imageData.subfolder) {
+                                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                                            }
+                                            if (imageData.type) {
+                                                url += `&type=${encodeURIComponent(imageData.type)}`;
+                                            }
+                                            return url;
+                                        }
+                                        return imageData;
+                                    };
+                                    
+                                    // 将转换后的图像URL存储到自定义属性
+                                    node._curveNodeImageUrls = outputs.images.map(img => convertToImageUrl(img));
+                                    console.log(`🎨 已从last_node_outputs为缓存节点 ${nodeIdStr} 设置 _curveNodeImageUrls`);
+                                    
+                                    // 同时更新全局缓存
+                                    window.globalNodeCache.set(nodeIdStr, outputs);
+                                    if (!app.nodeOutputs) {
+                                        app.nodeOutputs = {};
+                                    }
+                                    app.nodeOutputs[nodeIdStr] = outputs;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+// 添加photoshop_hsl_preview事件监听器
+function setupPhotoshopHSLPreviewListener() {
+    if (app.api) {
+        console.log("🎨 设置photoshop_hsl_preview事件监听器...", app.api);
+        
+        // 检查是否已经有同样的监听器
+        if (!app.api._hslPreviewListenerAdded) {
+            console.log("🎨 添加新的photoshop_hsl_preview监听器");
+            app.api._hslPreviewListenerAdded = true;
+            
+            // 监听后端发送的预览图像
+            app.api.addEventListener("photoshop_hsl_preview", ({ detail }) => {
+                console.log("🎨 收到photoshop_hsl_preview原始事件:", detail);
+                if (detail) {
+                    const nodeId = detail.node_id;
+                    const imageData = detail.image;
+                    const maskData = detail.mask;
+                    
+                    console.log(`🎨 收到photoshop_hsl_preview事件 - 节点 ${nodeId}`, {
+                        hasImage: !!imageData,
+                        hasMask: !!maskData,
+                        imageLength: imageData?.length || 0
+                    });
+                    
+                    // 查找对应的节点
+                    const node = app.graph.getNodeById(nodeId);
+                    if (node && node.type === "PhotoshopHSLNode") {
+                        // 存储图像数据到节点
+                        node._previewImageUrl = imageData;
+                        node._previewMaskUrl = maskData;
+                        
+                        console.log(`🎨 已存储预览图像到节点 ${nodeId}`);
+                        
+                        // 如果模态弹窗已打开，立即更新图像
+                        if (node._hslModal && node._hslModal.isOpen) {
+                            console.log("🎨 模态弹窗已打开，立即更新图像");
+                            node._hslModal.setInputImage(imageData);
+                            if (maskData) {
+                                node._hslModal.setMaskData(maskData);
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            console.log("🎨 photoshop_hsl_preview监听器已存在，跳过添加");
+        }
+    } else {
+        console.log("🎨 app.api不可用，无法设置photoshop_hsl_preview监听器");
+    }
+}
+
+// 立即设置监听器
+setupGlobalNodeOutputCache();
+setupPhotoshopHSLPreviewListener();
+
+// 延迟设置（确保API完全初始化）
+setTimeout(() => {
+    console.log("🎨 延迟重新设置全局节点输出缓存监听器...");
+    setupGlobalNodeOutputCache();
+    setupPhotoshopHSLPreviewListener();
+}, 1000);
+
+// 多次延迟设置确保可靠性
+setTimeout(() => {
+    console.log("🎨 再次延迟设置全局节点输出缓存监听器...");
+    setupGlobalNodeOutputCache();
+    setupPhotoshopHSLPreviewListener();
+}, 3000);
+
 // 定义HSL调整参数
 const HSL_PARAMS = {
     hue: { min: -100, max: 100, default: 0 },
@@ -750,30 +970,194 @@ applyButton.onclick = () => {
                 // 获取输入图像并设置预览
                 let inputImage = null;
                 
-                // 尝试获取输入图像
+                // 使用与PS Curve节点相同的图像获取方法
                 const getInputImageFromNode = async () => {
                     try {
-                        // 获取节点的输入连接
-                        const inputLink = this.inputs?.[0]?.link;
-                        if (!inputLink) {
-                            console.log("🎨 没有输入连接");
-                            return null;
+                        console.log("🎨 HSL节点开始获取图像，节点ID:", this.id);
+                        
+                        let imageUrl = "";
+                        let maskUrl = null;
+                        
+                        // 最高优先级：使用后端发送的预览图像
+                        if (this._previewImageUrl && typeof this._previewImageUrl === 'string') {
+                            imageUrl = this._previewImageUrl;
+                            console.log("🎨 使用后端发送的预览图像:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法0: 从我们的自定义属性获取
+                        if (this._curveNodeImageUrls && this._curveNodeImageUrls.length > 0) {
+                            imageUrl = this._curveNodeImageUrls[0];
+                            console.log("🎨 方法0: 从自定义属性获取图像:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法0.1: 从原有的imgs属性获取
+                        else if (this.imgs && this.imgs.length > 0) {
+                            imageUrl = this.imgs[0].src;
+                            console.log("🎨 方法0.1: 从imgs属性获取图像:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法0.5: 从ComfyUI的UI系统获取
+                        else if (app.nodeOutputs && app.nodeOutputs[this.id] && app.nodeOutputs[this.id].images) {
+                            const nodeOutput = app.nodeOutputs[this.id];
+                            const convertToImageUrl = (imageData) => {
+                                if (typeof imageData === 'string') return imageData;
+                                if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                    const baseUrl = window.location.origin;
+                                    return `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}&type=${imageData.type || 'output'}&subfolder=${imageData.subfolder || ''}`;
+                                }
+                                return imageData;
+                            };
+                            imageUrl = convertToImageUrl(nodeOutput.images[0]);
+                            console.log("🎨 方法0.5: 从app.nodeOutputs获取图像:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法1: 从全局缓存获取（适用于所有处理节点）
+                        else if (window.globalNodeCache && window.globalNodeCache.has(String(this.id))) {
+                            const cachedData = window.globalNodeCache.get(String(this.id));
+                            const convertToImageUrl = (imageData) => {
+                                if (typeof imageData === 'string') return imageData;
+                                if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                    const baseUrl = window.location.origin;
+                                    return `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}&type=${imageData.type || 'output'}&subfolder=${imageData.subfolder || ''}`;
+                                }
+                                return imageData;
+                            };
+                            imageUrl = convertToImageUrl(cachedData.images[0]);
+                            console.log("🎨 方法1: 从全局缓存获取图像:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法2: 从缓存的输入图像获取（当前节点的缓存）
+                        else if (this._lastInputImage) {
+                            imageUrl = this._lastInputImage;
+                            console.log("🎨 方法2: 从缓存输入图像获取:", imageUrl.substring(0, 50) + '...');
+                        }
+                        // 方法3: 尝试从连接的源节点获取
+                        else if (this.inputs && this.inputs[0] && this.inputs[0].link) {
+                            const linkInfo = app.graph.links[this.inputs[0].link];
+                            if (linkInfo) {
+                                const sourceNodeId = String(linkInfo.origin_id);
+                                const sourceNode = app.graph.getNodeById(linkInfo.origin_id);
+                                
+                                console.log("🎨 方法3: 查找源节点图像，节点ID:", sourceNodeId, "节点类型:", sourceNode?.type);
+                                console.log("🎨 调试 - 全局缓存状态:", {
+                                    hasGlobalCache: !!window.globalNodeCache,
+                                    cacheKeys: window.globalNodeCache ? Array.from(window.globalNodeCache.keys()) : [],
+                                    hasSourceNodeId: window.globalNodeCache ? window.globalNodeCache.has(sourceNodeId) : false
+                                });
+                                console.log("🎨 调试 - 源节点状态:", {
+                                    hasSourceNode: !!sourceNode,
+                                    hasImgs: sourceNode?.imgs?.length || 0,
+                                    nodeType: sourceNode?.type
+                                });
+                                console.log("🎨 调试 - app.nodeOutputs状态:", {
+                                    hasNodeOutputs: !!app.nodeOutputs,
+                                    outputKeys: app.nodeOutputs ? Object.keys(app.nodeOutputs) : [],
+                                    hasSourceOutput: app.nodeOutputs ? !!app.nodeOutputs[sourceNodeId] : false
+                                });
+                                
+                                // 首先从全局缓存获取源节点数据
+                                if (window.globalNodeCache && window.globalNodeCache.has(sourceNodeId)) {
+                                    const sourceCache = window.globalNodeCache.get(sourceNodeId);
+                                    console.log("🎨 方法3a: 源节点缓存数据:", sourceCache);
+                                    if (sourceCache.images && sourceCache.images.length > 0) {
+                                        const convertToImageUrl = (imageData) => {
+                                            if (typeof imageData === 'string') return imageData;
+                                            if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                                const baseUrl = window.location.origin;
+                                                return `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}&type=${imageData.type || 'output'}&subfolder=${imageData.subfolder || ''}`;
+                                            }
+                                            return imageData;
+                                        };
+                                        imageUrl = convertToImageUrl(sourceCache.images[0]);
+                                        console.log("🎨 方法3a: 从源节点全局缓存获取图像:", imageUrl.substring(0, 50) + '...');
+                                    }
+                                }
+                                // 从源节点的imgs属性获取
+                                else if (sourceNode && sourceNode.imgs && sourceNode.imgs.length > 0) {
+                                    imageUrl = sourceNode.imgs[0].src;
+                                    console.log("🎨 方法3b: 从源节点imgs获取图像:", imageUrl.substring(0, 50) + '...');
+                                }
+                                // 从app.nodeOutputs获取源节点数据
+                                else if (app.nodeOutputs && app.nodeOutputs[sourceNodeId]) {
+                                    const sourceOutput = app.nodeOutputs[sourceNodeId];
+                                    console.log("🎨 方法3c: 源节点输出数据:", sourceOutput);
+                                    if (sourceOutput.images && sourceOutput.images.length > 0) {
+                                        const convertToImageUrl = (imageData) => {
+                                            if (typeof imageData === 'string') return imageData;
+                                            if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                                const baseUrl = window.location.origin;
+                                                return `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}&type=${imageData.type || 'output'}&subfolder=${imageData.subfolder || ''}`;
+                                            }
+                                            return imageData;
+                                        };
+                                        imageUrl = convertToImageUrl(sourceOutput.images[0]);
+                                        console.log("🎨 方法3c: 从源节点nodeOutputs获取图像:", imageUrl.substring(0, 50) + '...');
+                                    }
+                                }
+                            }
                         }
                         
-                        // 获取连接的源节点
-                        const sourceNode = this.graph.getNodeById(app.graph.links[inputLink].origin_id);
-                        if (!sourceNode) {
-                            console.log("🎨 没有源节点");
-                            return null;
+                        // 获取遮罩（如果有）
+                        // 优先使用后端发送的预览遮罩
+                        if (this._previewMaskUrl && typeof this._previewMaskUrl === 'string') {
+                            maskUrl = this._previewMaskUrl;
+                            console.log("🎨 使用后端发送的预览遮罩:", maskUrl.substring(0, 50) + '...');
+                        }
+                        // 其次使用缓存的遮罩
+                        else if (this._lastInputMask) {
+                            maskUrl = this._lastInputMask;
+                            console.log("🎨 找到缓存的遮罩:", maskUrl.substring(0, 50) + '...');
+                        } else if (this.inputs && this.inputs[2] && this.inputs[2].link) {
+                            // 从遮罩输入获取
+                            const maskLinkInfo = app.graph.links[this.inputs[2].link];
+                            if (maskLinkInfo) {
+                                const maskSourceNode = app.graph.getNodeById(maskLinkInfo.origin_id);
+                                if (maskSourceNode && maskSourceNode.imgs && maskSourceNode.imgs.length > 0) {
+                                    maskUrl = maskSourceNode.imgs[0].src;
+                                    console.log("🎨 从遮罩源节点获取遮罩:", maskUrl.substring(0, 50) + '...');
+                                }
+                            }
                         }
                         
-                        // 尝试从源节点获取图像数据
-                        if (sourceNode.imgs && sourceNode.imgs.length > 0) {
-                            return sourceNode.imgs[0].src;
+                        if (!imageUrl) {
+                            console.log("🎨 所有方法都无法获取图像");
+                            
+                            // 检查是否连接了处理节点但未执行
+                            const hasProcessingNodes = this.inputs?.[0]?.link && 
+                                app.graph.getNodeById(app.graph.links[this.inputs[0].link].origin_id)?.type !== 'LoadImage';
+                            
+                            if (hasProcessingNodes) {
+                                // 显示提示用户先执行工作流的图像
+                                const svgContent = `<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#ff9500;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <rect width="500" height="500" fill="url(#grad)" />
+                                    <text x="250" y="220" font-family="Arial" font-size="28" fill="white" text-anchor="middle" dy=".3em">⚠️</text>
+                                    <text x="250" y="260" font-family="Arial" font-size="20" fill="white" text-anchor="middle" dy=".3em">Please run the workflow first</text>
+                                    <text x="250" y="290" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dy=".3em">Processing nodes need to be executed</text>
+                                    <text x="250" y="320" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dy=".3em">to generate images before HSL editing</text>
+                                </svg>`;
+                                imageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgContent);
+                                console.log("🎨 显示提示用户先执行工作流的图像");
+                            } else {
+                                // 使用普通的测试图像
+                                const svgContent = `<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+                                            <stop offset="50%" style="stop-color:#4ecdc4;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#45b7d1;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <rect width="500" height="500" fill="url(#grad)" />
+                                    <text x="250" y="250" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dy=".3em">Test Image</text>
+                                    <text x="250" y="280" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dy=".3em">Please connect a valid image node</text>
+                                </svg>`;
+                                imageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgContent);
+                                console.log("🎨 使用默认测试图像（500x500 SVG）");
+                            }
                         }
                         
-                        console.log("🎨 源节点没有图像数据");
-                        return null;
+                        return { imageUrl, maskUrl };
                     } catch (error) {
                         console.error("🎨 获取输入图像时出错:", error);
                         return null;
@@ -787,7 +1171,7 @@ applyButton.onclick = () => {
                         inputImage = await getInputImageFromNode();
                     }
                     
-                    if (!inputImage) {
+                    if (!inputImage || !inputImage.imageUrl) {
                         console.log("🎨 无法获取输入图像进行预览");
                         return;
                     }
@@ -864,15 +1248,66 @@ applyButton.onclick = () => {
                             }
                         };
                         
-                        // 应用HSL调整 - 模拟CameraRaw算法
-                        for (let i = 0; i < data.length; i += 4) {
-                            const r = data[i];
-                            const g = data[i + 1];
-                            const b = data[i + 2];
+                        // 处理遮罩（如果有）
+                        let maskImageData = null;
+                        let maskData = null;
+                        
+                        if (inputImage.maskUrl) {
+                            console.log("🎨 处理遮罩图像:", inputImage.maskUrl.substring(0, 50) + '...');
                             
-                            // 转换为HSL
-                            const hsl = rgbToHsl(r, g, b);
-                            const originalHue = hsl[0];
+                            // 创建遮罩图像
+                            const maskCanvas = document.createElement('canvas');
+                            const maskCtx = maskCanvas.getContext('2d');
+                            const maskImage = new Image();
+                            maskImage.crossOrigin = "Anonymous";
+                            
+                            maskImage.onload = () => {
+                                // 设置遮罩canvas尺寸
+                                maskCanvas.width = canvas.width;
+                                maskCanvas.height = canvas.height;
+                                
+                                // 绘制遮罩（缩放到与主图像相同尺寸）
+                                maskCtx.drawImage(maskImage, 0, 0, maskCanvas.width, maskCanvas.height);
+                                
+                                // 获取遮罩数据
+                                maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+                                maskData = maskImageData.data;
+                                
+                                console.log("🎨 遮罩数据已准备完成");
+                                
+                                // 重新应用HSL调整（现在有遮罩数据）
+                                applyHSLWithMask();
+                            };
+                            
+                            maskImage.src = inputImage.maskUrl;
+                        } else {
+                            // 没有遮罩，直接应用HSL调整
+                            applyHSLWithMask();
+                        }
+                        
+                        function applyHSLWithMask() {
+                            // 应用HSL调整 - 模拟CameraRaw算法
+                            for (let i = 0; i < data.length; i += 4) {
+                                const r = data[i];
+                                const g = data[i + 1];
+                                const b = data[i + 2];
+                                
+                                // 计算遮罩因子
+                                let maskFactor = 1.0; // 默认完全应用调整
+                                if (maskData) {
+                                    // 获取遮罩亮度（使用红色通道作为遮罩值）
+                                    const maskLuminance = maskData[i] / 255.0;
+                                    maskFactor = maskLuminance; // 直接使用遮罩亮度作为因子
+                                }
+                                
+                                // 如果遮罩因子为0，跳过处理
+                                if (maskFactor === 0) {
+                                    continue;
+                                }
+                                
+                                // 转换为HSL
+                                const hsl = rgbToHsl(r, g, b);
+                                const originalHue = hsl[0];
                             
                             // 获取所有可能影响此像素的通道
                             const influencingChannels = [];
@@ -944,21 +1379,31 @@ applyButton.onclick = () => {
                             // 转回RGB
                             const rgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
                             
-                            data[i] = rgb[0];
-                            data[i + 1] = rgb[1];
-                            data[i + 2] = rgb[2];
+                            // 应用遮罩混合
+                            if (maskFactor < 1.0) {
+                                // 混合原始和调整后的颜色
+                                data[i] = Math.round(r * (1 - maskFactor) + rgb[0] * maskFactor);
+                                data[i + 1] = Math.round(g * (1 - maskFactor) + rgb[1] * maskFactor);
+                                data[i + 2] = Math.round(b * (1 - maskFactor) + rgb[2] * maskFactor);
+                            } else {
+                                // 完全应用调整
+                                data[i] = rgb[0];
+                                data[i + 1] = rgb[1];
+                                data[i + 2] = rgb[2];
+                            }
+                            }
+                            
+                            // 更新图像数据
+                            ctx.putImageData(imageData, 0, 0);
+                            
+                            // 显示处理后的图像
+                            previewImg.src = canvas.toDataURL();
+                            previewImg.style.display = 'block';
                         }
-                        
-                        // 更新图像数据
-                        ctx.putImageData(imageData, 0, 0);
-                        
-                        // 显示处理后的图像
-                        previewImg.src = canvas.toDataURL();
-                        previewImg.style.display = 'block';
                     };
                     
                     // 加载图像
-                    tempImage.src = inputImage;
+                    tempImage.src = inputImage.imageUrl;
                     
                     // 辅助函数：RGB转HSL
                     function rgbToHsl(r, g, b) {

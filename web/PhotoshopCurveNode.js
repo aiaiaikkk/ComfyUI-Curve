@@ -62,13 +62,14 @@ function setupGlobalNodeOutputCache() {
                     node._curveNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
                 }
                 
-                // 更新连接的PS Curve节点缓存
+                // 更新连接的下游节点缓存（支持PS Curve和HSL节点）
                 const graph = app.graph;
                 if (graph && graph.links) {
                     Object.values(graph.links).forEach(link => {
                         if (link && String(link.origin_id) === nodeId) {
                             const targetNode = graph.getNodeById(link.target_id);
-                            if (targetNode && targetNode.type === "PhotoshopCurveNode") {
+                            // 支持PS Curve和HSL节点
+                            if (targetNode && (targetNode.type === "PhotoshopCurveNode" || targetNode.type === "PhotoshopHSLNode")) {
                                 if (outputData.images && outputData.images.length > 0) {
                                     const convertToImageUrl = (imageData) => {
                                         if (typeof imageData === 'string') {
@@ -89,9 +90,16 @@ function setupGlobalNodeOutputCache() {
                                     };
                                     
                                     targetNode._lastInputImage = convertToImageUrl(outputData.images[0]);
-                                    targetNode.imgs = outputData.images.map(imageData => ({ 
-                                        src: convertToImageUrl(imageData)
-                                    }));
+                                    
+                                    // PS Curve节点需要imgs属性
+                                    if (targetNode.type === "PhotoshopCurveNode" && targetNode.imgs) {
+                                        // 只有在节点已经有imgs属性时才更新
+                                        targetNode.imgs = outputData.images.map(imageData => ({ 
+                                            src: convertToImageUrl(imageData)
+                                        }));
+                                    }
+                                    
+                                    console.log(`🎨 PS Curve节点更新了下游${targetNode.type}节点 ${targetNode.id} 的输入图像`);
                                 }
                                 if (outputData.masks && outputData.masks.length > 0) {
                                     targetNode._lastInputMask = outputData.masks[0];
@@ -3162,6 +3170,71 @@ app.registerExtension({
                 console.error("🎨 创建曲线编辑器失败:", error);
             }
         }
+        
+        // 添加onExecuted回调来更新连接的下游节点
+        const originalOnExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function(message) {
+            console.log("🎨 PhotoshopCurveNode.onExecuted 触发", this.id, message);
+            
+            // 调用原始的onExecuted
+            if (originalOnExecuted) {
+                originalOnExecuted.apply(this, arguments);
+            }
+            
+            // 处理输出图像，更新连接的下游节点
+            if (message && message.images && message.images.length > 0) {
+                const convertToImageUrl = (imageData) => {
+                    if (typeof imageData === 'string') {
+                        return imageData;
+                    }
+                    if (imageData && typeof imageData === 'object' && imageData.filename) {
+                        const baseUrl = window.location.origin;
+                        let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                        if (imageData.subfolder) {
+                            url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                        }
+                        if (imageData.type) {
+                            url += `&type=${encodeURIComponent(imageData.type)}`;
+                        }
+                        return url;
+                    }
+                    return imageData;
+                };
+                
+                const imageUrl = convertToImageUrl(message.images[0]);
+                this._lastOutputImage = imageUrl;
+                
+                // 更新连接到此节点的下游节点（包括HSL节点）
+                if (this.outputs && this.outputs[0] && this.outputs[0].links) {
+                    this.outputs[0].links.forEach(linkId => {
+                        const link = app.graph.links[linkId];
+                        if (link) {
+                            const targetNode = app.graph.getNodeById(link.target_id);
+                            if (targetNode) {
+                                console.log(`🎨 PS Curve节点 ${this.id} 更新下游节点 ${targetNode.id} (${targetNode.type})`);
+                                
+                                // 更新目标节点的输入图像缓存
+                                targetNode._lastInputImage = imageUrl;
+                                
+                                // 如果是PS Curve节点，还需要更新imgs属性
+                                if (targetNode.type === "PhotoshopCurveNode" && targetNode.imgs) {
+                                    // 只有在节点已经有imgs属性时才更新
+                                    targetNode.imgs = message.images.map(img => ({
+                                        src: convertToImageUrl(img)
+                                    }));
+                                }
+                                
+                                // 如果目标节点有模态弹窗打开，立即更新图像
+                                if (targetNode.type === "PhotoshopHSLNode" && targetNode._hslModal && targetNode._hslModal.isOpen) {
+                                    console.log("🎨 更新HSL节点的模态弹窗图像");
+                                    targetNode._hslModal.setInputImage(imageUrl);
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        };
         
         // 保存原始的onRemoved方法
         const originalOnRemoved = nodeType.prototype.onRemoved;

@@ -14,6 +14,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 
 ### 🌟 主要功能
+项目介绍视频：https://www.bilibili.com/video/BV1QuMFzRE5i/
 
 #### 🎨 曲线调整 (PS Curve)
 ![image](https://github.com/user-attachments/assets/262e6a0a-69dd-4b32-8a7b-c2752e412afb)

@@ -1738,7 +1738,7 @@ class PhotoshopHSLNode:
                   blue_hue=0.0, blue_saturation=0.0, blue_lightness=0.0,
                   purple_hue=0.0, purple_saturation=0.0, purple_lightness=0.0,
                   magenta_hue=0.0, magenta_saturation=0.0, magenta_lightness=0.0,
-                  **kwargs):
+                  unique_id=None, **kwargs):
         mask = kwargs.get('mask', None)
         mask_blur = kwargs.get('mask_blur', 0.0)
         invert_mask = kwargs.get('invert_mask', False)
@@ -1758,6 +1758,62 @@ class PhotoshopHSLNode:
                              **kwargs):
         """应用PS风格的HSL调整"""
         try:
+            # 获取unique_id用于前端推送
+            unique_id = kwargs.get('unique_id', None)
+            
+            # 在处理前，先发送输入图像到前端（仅当有unique_id时）
+            if unique_id is not None:
+                try:
+                    # 使用第一张图像进行预览
+                    preview_image = image[0] if image.dim() == 4 else image
+                    
+                    # 转换为PIL图像
+                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+                    if img_np.shape[-1] == 3:
+                        pil_img = Image.fromarray(img_np, mode='RGB')
+                    elif img_np.shape[-1] == 4:
+                        pil_img = Image.fromarray(img_np, mode='RGBA')
+                    else:
+                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+                    
+                    # 转换为base64
+                    buffer = io.BytesIO()
+                    pil_img.save(buffer, format='PNG')
+                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    # 发送图像数据事件
+                    send_data = {
+                        "node_id": str(unique_id),
+                        "image": f"data:image/png;base64,{img_base64}"
+                    }
+                    
+                    # 处理遮罩（如果存在）
+                    mask = kwargs.get('mask', None)
+                    if mask is not None:
+                        try:
+                            # 使用第一个遮罩进行预览
+                            preview_mask = mask[0] if mask.dim() == 3 else mask
+                            
+                            # 转换遮罩为PIL图像
+                            mask_np = (preview_mask.cpu().numpy() * 255).astype(np.uint8)
+                            pil_mask = Image.fromarray(mask_np, mode='L')
+                            
+                            # 转换为base64
+                            mask_buffer = io.BytesIO()
+                            pil_mask.save(mask_buffer, format='PNG')
+                            mask_base64 = base64.b64encode(mask_buffer.getvalue()).decode('utf-8')
+                            
+                            send_data["mask"] = f"data:image/png;base64,{mask_base64}"
+                        except Exception as mask_error:
+                            print(f"处理遮罩时出错: {mask_error}")
+                    
+                    # 发送事件到前端
+                    PromptServer.instance.send_sync("photoshop_hsl_preview", send_data)
+                    print(f"✅ 已发送HSL预览数据到前端，节点ID: {unique_id}")
+                    
+                except Exception as preview_error:
+                    print(f"发送HSL预览时出错: {preview_error}")
+                    # 继续处理，不因预览失败而中断主流程
             # 处理可选参数
             mask = kwargs.get('mask', None)
             mask_blur = kwargs.get('mask_blur', 0.0)
