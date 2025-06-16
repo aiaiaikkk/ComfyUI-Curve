@@ -352,6 +352,14 @@ class ColorGradingEditor {
             gap: 10px;
         `;
         
+        // 色相滑块
+        const hueSlider = this.createSlider(`${region.key}_hue`, '色相', -180, 180, 0, '°');
+        slidersContainer.appendChild(hueSlider);
+        
+        // 饱和度滑块
+        const saturationSlider = this.createSlider(`${region.key}_saturation`, '饱和度', -100, 100, 0, '%');
+        slidersContainer.appendChild(saturationSlider);
+        
         // 明度滑块
         const luminanceSlider = this.createSlider(`${region.key}_luminance`, '明度', -100, 100, 0, '%');
         slidersContainer.appendChild(luminanceSlider);
@@ -461,6 +469,9 @@ class ColorGradingEditor {
             this.gradingData[regionKey].hue = hue;
             this.gradingData[regionKey].saturation = saturation;
             
+            // 同步更新对应的滑块值
+            this.updateSliderValues(regionKey);
+            
             // 重绘色轮
             this.drawColorWheel(canvas, regionKey);
             
@@ -549,6 +560,11 @@ class ColorGradingEditor {
                 const [regionKey, property] = id.split('_');
                 if (this.gradingData[regionKey]) {
                     this.gradingData[regionKey][property] = value;
+                    
+                    // 如果是色相或饱和度变化，更新对应的色轮显示
+                    if ((property === 'hue' || property === 'saturation') && this.colorWheels[regionKey]) {
+                        this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
+                    }
                 }
             }
             this.updatePreview();
@@ -731,15 +747,30 @@ class ColorGradingEditor {
                 slider.value = value;
                 const valueDisplay = slider.parentElement.querySelector('span');
                 if (valueDisplay) {
-                    const unit = id.includes('luminance') || id === 'overall_strength' ? '%' : '%';
+                    // 根据滑块类型确定单位
+                    let unit = '%';
+                    if (id.includes('hue')) {
+                        unit = '°';
+                    }
                     valueDisplay.textContent = value + unit;
                 }
             }
         };
         
         // 更新所有滑块值
+        // Shadows区域
+        updateSlider('shadows_hue', this.gradingData.shadows.hue);
+        updateSlider('shadows_saturation', this.gradingData.shadows.saturation);
         updateSlider('shadows_luminance', this.gradingData.shadows.luminance);
+        
+        // Midtones区域
+        updateSlider('midtones_hue', this.gradingData.midtones.hue);
+        updateSlider('midtones_saturation', this.gradingData.midtones.saturation);
         updateSlider('midtones_luminance', this.gradingData.midtones.luminance);
+        
+        // Highlights区域
+        updateSlider('highlights_hue', this.gradingData.highlights.hue);
+        updateSlider('highlights_saturation', this.gradingData.highlights.saturation);
         updateSlider('highlights_luminance', this.gradingData.highlights.luminance);
         
         // 特殊处理overall_strength（需要转换为百分比）
@@ -1032,10 +1063,12 @@ class ColorGradingEditor {
                     // Lab的a通道影响红-绿，b通道影响黄-蓝
                     const strength = region.mask * this.gradingData.overall_strength;
                     
-                    // 更精确的Lab到RGB转换近似
-                    deltaR += (offsetA * 0.5 + offsetB * 0.2) * strength;
-                    deltaG += (-offsetA * 0.4 + offsetB * 0.1) * strength;
-                    deltaB += (-offsetB * 0.7) * strength;
+                    // 更精确的Lab到RGB转换近似（基于Lab色彩空间的特性）
+                    // a轴: 绿色(-) ← → 红色(+)
+                    // b轴: 蓝色(-) ← → 黄色(+)
+                    deltaR += (offsetA * 0.6 + offsetB * 0.3) * strength;
+                    deltaG += (-offsetA * 0.5 + offsetB * 0.2) * strength;
+                    deltaB += (-offsetA * 0.1 - offsetB * 0.8) * strength;
                 }
                 
                 // 亮度调整（与后端保持一致）
@@ -1050,24 +1083,37 @@ class ColorGradingEditor {
             });
             
             // 应用调整
-            let newR = Math.min(255, Math.max(0, (r + deltaR) * 255));
-            let newG = Math.min(255, Math.max(0, (g + deltaG) * 255));
-            let newB = Math.min(255, Math.max(0, (b + deltaB) * 255));
+            let processedR = Math.min(1, Math.max(0, r + deltaR));
+            let processedG = Math.min(1, Math.max(0, g + deltaG));
+            let processedB = Math.min(1, Math.max(0, b + deltaB));
+            
+            // 应用混合模式（匹配后端）
+            // 注意：后端在混合时使用original作为base，processed作为overlay
+            const blendedRGB = this.applyBlendMode(
+                r, g, b,  // 原始颜色作为base
+                processedR, processedG, processedB,  // 处理后颜色作为overlay
+                this.gradingData.blend_mode,
+                this.gradingData.overall_strength
+            );
+            
+            let finalR = blendedRGB[0] * 255;
+            let finalG = blendedRGB[1] * 255;
+            let finalB = blendedRGB[2] * 255;
             
             // 如果有遮罩，根据遮罩值混合原始和处理后的颜色
             if (maskData) {
                 // 获取遮罩亮度（假设遮罩是灰度的）
                 const maskValue = maskData[i] / 255; // 0-1范围
                 
-                // 混合原始和处理后的颜色
-                data[i] = originalData.data[i] * (1 - maskValue) + newR * maskValue;
-                data[i + 1] = originalData.data[i + 1] * (1 - maskValue) + newG * maskValue;
-                data[i + 2] = originalData.data[i + 2] * (1 - maskValue) + newB * maskValue;
+                // 混合原始和处理后的颜色（白色遮罩区域应用效果，黑色区域保持原图）
+                data[i] = originalData.data[i] * (1 - maskValue) + finalR * maskValue;
+                data[i + 1] = originalData.data[i + 1] * (1 - maskValue) + finalG * maskValue;
+                data[i + 2] = originalData.data[i + 2] * (1 - maskValue) + finalB * maskValue;
             } else {
                 // 没有遮罩，直接应用效果
-                data[i] = newR;
-                data[i + 1] = newG;
-                data[i + 2] = newB;
+                data[i] = finalR;
+                data[i + 1] = finalG;
+                data[i + 2] = finalB;
             }
         }
         
@@ -1094,6 +1140,84 @@ class ColorGradingEditor {
         }
     }
     
+    applyBlendMode(baseR, baseG, baseB, overlayR, overlayG, overlayB, blendMode, strength) {
+        // 实现后端的混合模式（匹配nodes.py中的_apply_blend_mode方法）
+        let resultR, resultG, resultB;
+        
+        switch (blendMode) {
+            case 'normal':
+                resultR = overlayR;
+                resultG = overlayG;
+                resultB = overlayB;
+                break;
+                
+            case 'multiply':
+                resultR = baseR * overlayR;
+                resultG = baseG * overlayG;
+                resultB = baseB * overlayB;
+                break;
+                
+            case 'screen':
+                resultR = 1.0 - (1.0 - baseR) * (1.0 - overlayR);
+                resultG = 1.0 - (1.0 - baseG) * (1.0 - overlayG);
+                resultB = 1.0 - (1.0 - baseB) * (1.0 - overlayB);
+                break;
+                
+            case 'overlay':
+                resultR = baseR < 0.5 ? 2.0 * baseR * overlayR : 1.0 - 2.0 * (1.0 - baseR) * (1.0 - overlayR);
+                resultG = baseG < 0.5 ? 2.0 * baseG * overlayG : 1.0 - 2.0 * (1.0 - baseG) * (1.0 - overlayG);
+                resultB = baseB < 0.5 ? 2.0 * baseB * overlayB : 1.0 - 2.0 * (1.0 - baseB) * (1.0 - overlayB);
+                break;
+                
+            case 'soft_light':
+                resultR = overlayR < 0.5 
+                    ? baseR - (1.0 - 2.0 * overlayR) * baseR * (1.0 - baseR)
+                    : baseR + (2.0 * overlayR - 1.0) * (Math.sqrt(baseR) - baseR);
+                resultG = overlayG < 0.5 
+                    ? baseG - (1.0 - 2.0 * overlayG) * baseG * (1.0 - baseG)
+                    : baseG + (2.0 * overlayG - 1.0) * (Math.sqrt(baseG) - baseG);
+                resultB = overlayB < 0.5 
+                    ? baseB - (1.0 - 2.0 * overlayB) * baseB * (1.0 - baseB)
+                    : baseB + (2.0 * overlayB - 1.0) * (Math.sqrt(baseB) - baseB);
+                break;
+                
+            case 'hard_light':
+                resultR = overlayR < 0.5 ? 2.0 * baseR * overlayR : 1.0 - 2.0 * (1.0 - baseR) * (1.0 - overlayR);
+                resultG = overlayG < 0.5 ? 2.0 * baseG * overlayG : 1.0 - 2.0 * (1.0 - baseG) * (1.0 - overlayG);
+                resultB = overlayB < 0.5 ? 2.0 * baseB * overlayB : 1.0 - 2.0 * (1.0 - baseB) * (1.0 - overlayB);
+                break;
+                
+            case 'color_dodge':
+                resultR = overlayR >= 1.0 ? overlayR : baseR / (1.0 - overlayR + 1e-10);
+                resultG = overlayG >= 1.0 ? overlayG : baseG / (1.0 - overlayG + 1e-10);
+                resultB = overlayB >= 1.0 ? overlayB : baseB / (1.0 - overlayB + 1e-10);
+                break;
+                
+            case 'color_burn':
+                resultR = overlayR <= 0.0 ? overlayR : 1.0 - (1.0 - baseR) / (overlayR + 1e-10);
+                resultG = overlayG <= 0.0 ? overlayG : 1.0 - (1.0 - baseG) / (overlayG + 1e-10);
+                resultB = overlayB <= 0.0 ? overlayB : 1.0 - (1.0 - baseB) / (overlayB + 1e-10);
+                break;
+                
+            default:
+                resultR = overlayR;
+                resultG = overlayG;
+                resultB = overlayB;
+        }
+        
+        // 应用强度混合
+        resultR = baseR * (1.0 - strength) + resultR * strength;
+        resultG = baseG * (1.0 - strength) + resultG * strength;
+        resultB = baseB * (1.0 - strength) + resultB * strength;
+        
+        // 限制范围
+        return [
+            Math.max(0, Math.min(1, resultR)),
+            Math.max(0, Math.min(1, resultG)),
+            Math.max(0, Math.min(1, resultB))
+        ];
+    }
+    
     updatePreview() {
         // 更新预览效果
         this.updatePreviewCanvas();
@@ -1102,6 +1226,32 @@ class ColorGradingEditor {
         Object.keys(this.colorWheels).forEach(regionKey => {
             this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
         });
+    }
+    
+    updateSliderValues(regionKey) {
+        // 同步更新指定区域的滑块值，当色轮交互时调用
+        const data = this.gradingData[regionKey];
+        if (!data) return;
+        
+        // 更新色相滑块
+        const hueSlider = this.modal.querySelector(`#${regionKey}_hue`);
+        if (hueSlider) {
+            hueSlider.value = Math.round(data.hue);
+            const valueDisplay = hueSlider.parentElement.querySelector('span');
+            if (valueDisplay) {
+                valueDisplay.textContent = Math.round(data.hue) + '°';
+            }
+        }
+        
+        // 更新饱和度滑块
+        const saturationSlider = this.modal.querySelector(`#${regionKey}_saturation`);
+        if (saturationSlider) {
+            saturationSlider.value = Math.round(data.saturation);
+            const valueDisplay = saturationSlider.parentElement.querySelector('span');
+            if (valueDisplay) {
+                valueDisplay.textContent = Math.round(data.saturation) + '%';
+            }
+        }
     }
     
     showLoadingText(text) {
@@ -1140,7 +1290,11 @@ class ColorGradingEditor {
                 slider.value = 0;
                 const valueDisplay = slider.parentElement.querySelector('span');
                 if (valueDisplay) {
-                    const unit = slider.id.includes('luminance') ? '%' : '%';
+                    // 根据滑块类型确定单位
+                    let unit = '%';
+                    if (slider.id.includes('hue')) {
+                        unit = '°';
+                    }
                     valueDisplay.textContent = '0' + unit;
                 }
             }

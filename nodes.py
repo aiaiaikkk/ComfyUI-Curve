@@ -901,13 +901,13 @@ class PhotoshopHistogramNode:
                     'display': 'slider',
                     'tooltip': '输入白场点 (1-255)'
                 }),
-                'gamma': ('FLOAT', {
+                'input_midtones': ('FLOAT', {
                     'default': 1.0,
                     'min': 0.1,
                     'max': 9.99,
                     'step': 0.01,
                     'display': 'slider',
-                    'tooltip': '伽马值 (0.1-9.99)'
+                    'tooltip': '输入中间调 (0.1-9.99，1.0为中性，<1.0变暗，>1.0变亮)'
                 }),
                 'output_black': ('FLOAT', {
                     'default': 0.0,
@@ -952,18 +952,62 @@ class PhotoshopHistogramNode:
     OUTPUT_NODE = False
     
     @classmethod
-    def IS_CHANGED(cls, image, channel, input_black=0.0, input_white=255.0, gamma=1.0, 
+    def IS_CHANGED(cls, image, channel, input_black=0.0, input_white=255.0, input_midtones=1.0, 
                    output_black=0.0, output_white=255.0, auto_levels=False, auto_contrast=False, 
                    clip_percentage=0.1, unique_id=None):
-        return f"{channel}_{input_black}_{input_white}_{gamma}_{output_black}_{output_white}_{auto_levels}_{auto_contrast}_{clip_percentage}"
+        return f"{channel}_{input_black}_{input_white}_{input_midtones}_{output_black}_{output_white}_{auto_levels}_{auto_contrast}_{clip_percentage}"
 
-    def apply_histogram_adjustment(self, image, channel, input_black=0.0, input_white=255.0, gamma=1.0,
+    def apply_histogram_adjustment(self, image, channel, input_black=0.0, input_white=255.0, input_midtones=1.0,
                                  output_black=0.0, output_white=255.0, auto_levels=False, auto_contrast=False,
                                  clip_percentage=0.1, unique_id=None):
         try:
             # 确保输入图像格式正确
             if image is None:
                 raise ValueError("Input image is None")
+            
+            # 发送预览数据到前端（仅当有unique_id时）
+            if unique_id is not None:
+                try:
+                    # 使用第一张图像进行预览
+                    preview_image = image[0] if image.dim() == 4 else image
+                    
+                    # 转换为PIL图像
+                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+                    if img_np.shape[-1] == 3:
+                        pil_img = Image.fromarray(img_np, mode='RGB')
+                    elif img_np.shape[-1] == 4:
+                        pil_img = Image.fromarray(img_np, mode='RGBA')
+                    else:
+                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+                    
+                    # 转换为base64
+                    buffer = io.BytesIO()
+                    pil_img.save(buffer, format='PNG')
+                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    # 准备发送数据
+                    send_data = {
+                        "node_id": str(unique_id),
+                        "image": f"data:image/png;base64,{img_base64}",
+                        "levels_data": {
+                            "channel": channel,
+                            "input_black": input_black,
+                            "input_white": input_white,
+                            "input_midtones": input_midtones,
+                            "output_black": output_black,
+                            "output_white": output_white,
+                            "auto_levels": auto_levels,
+                            "auto_contrast": auto_contrast,
+                            "clip_percentage": clip_percentage
+                        }
+                    }
+                    
+                    # 发送事件到前端
+                    PromptServer.instance.send_sync("histogram_levels_preview", send_data)
+                    print(f"✅ 已发送直方图和色阶预览数据到前端，节点ID: {unique_id}")
+                    
+                except Exception as preview_error:
+                    print(f"发送直方图预览时出错: {preview_error}")
             
             # 处理批次维度
             if image.dim() == 4:  # Batch dimension exists
@@ -975,7 +1019,7 @@ class PhotoshopHistogramNode:
                 
                 for b in range(batch_size):
                     result, hist_image, hist_data, stats = self._process_single_image(
-                        image[b], channel, input_black, input_white, gamma,
+                        image[b], channel, input_black, input_white, input_midtones,
                         output_black, output_white, auto_levels, auto_contrast, clip_percentage
                     )
                     results.append(result)
@@ -990,7 +1034,7 @@ class PhotoshopHistogramNode:
                 return (torch.stack(results, dim=0), torch.stack(histogram_images, dim=0), combined_hist, combined_stats)
             else:
                 result, hist_image, hist_data, stats = self._process_single_image(
-                    image, channel, input_black, input_white, gamma,
+                    image, channel, input_black, input_white, input_midtones,
                     output_black, output_white, auto_levels, auto_contrast, clip_percentage
                 )
                 return (result.unsqueeze(0), hist_image.unsqueeze(0), hist_data, stats)
@@ -1001,7 +1045,7 @@ class PhotoshopHistogramNode:
             fallback_hist = self._create_fallback_histogram_image()
             return (image, fallback_hist, "Error generating histogram", "Error calculating statistics")
     
-    def _process_single_image(self, image, channel, input_black, input_white, gamma, output_black, output_white, auto_levels, auto_contrast, clip_percentage):
+    def _process_single_image(self, image, channel, input_black, input_white, input_midtones, output_black, output_white, auto_levels, auto_contrast, clip_percentage):
         # 确保图像在正确的设备上
         device = get_torch_device()
         image = image.to(device)
@@ -1017,20 +1061,20 @@ class PhotoshopHistogramNode:
         
         # 生成直方图数据和图像
         histogram_data = self._generate_histogram_data(img_255, channel)
-        histogram_image = self._generate_histogram_image(img_255, channel, input_black, input_white, gamma)
+        histogram_image = self._generate_histogram_image(img_255, channel, input_black, input_white, input_midtones)
         
         # 计算统计信息
         statistics = self._calculate_statistics(img_255, channel)
         
         # 应用自动调整（如果启用）
         if auto_levels or auto_contrast:
-            input_black, input_white, gamma = self._calculate_auto_levels(
+            input_black, input_white, input_midtones = self._calculate_auto_levels(
                 img_255, channel, auto_levels, auto_contrast, clip_percentage
             )
         
         # 应用色阶调整
         result = self._apply_levels_adjustment(
-            image, channel, input_black, input_white, gamma, output_black, output_white
+            image, channel, input_black, input_white, input_midtones, output_black, output_white
         )
         
         return result, histogram_image, histogram_data, statistics
@@ -1095,7 +1139,7 @@ class PhotoshopHistogramNode:
         
         return "\n".join(histogram_info)
     
-    def _generate_histogram_image(self, img_255, channel, input_black=0, input_white=255, gamma=1.0):
+    def _generate_histogram_image(self, img_255, channel, input_black=0, input_white=255, input_midtones=1.0):
         """生成直方图可视化图像 - 统一风格的版本"""
         try:
             # 设置图像大小
@@ -1351,23 +1395,23 @@ class PhotoshopHistogramNode:
         input_black = max(0, min(254, input_black))
         input_white = max(input_black + 1, min(255, input_white))
         
-        # 伽马值保持1.0（除非需要特殊调整）
-        gamma = 1.0
+        # 中间调值保持1.0（除非需要特殊调整）
+        input_midtones = 1.0
         
-        # 如果只是自动对比度，调整伽马值
+        # 如果只是自动对比度，调整中间调值
         if auto_contrast and not auto_levels:
-            # 计算中间调的位置来调整伽马
+            # 计算中间调的位置来调整中间调值
             median_val = np.median(all_data)
             if input_white > input_black:
                 normalized_median = (median_val - input_black) / (input_white - input_black)
                 if normalized_median > 0 and normalized_median < 1:
-                    # 调整伽马使中间调更接近0.5
-                    gamma = np.log(0.5) / np.log(normalized_median)
-                    gamma = max(0.1, min(9.99, gamma))
+                    # 调整中间调值使中间调更接近0.5
+                    input_midtones = np.log(0.5) / np.log(normalized_median)
+                    input_midtones = max(0.1, min(9.99, input_midtones))
         
-        return input_black, input_white, gamma
+        return input_black, input_white, input_midtones
     
-    def _apply_levels_adjustment(self, image, channel, input_black, input_white, gamma, output_black, output_white):
+    def _apply_levels_adjustment(self, image, channel, input_black, input_white, input_midtones, output_black, output_white):
         """应用色阶调整"""
         device = image.device
         
@@ -1379,7 +1423,7 @@ class PhotoshopHistogramNode:
         input_white = max(input_black + 1, min(255, input_white))
         output_black = max(0, min(254, output_black))
         output_white = max(output_black + 1, min(255, output_white))
-        gamma = max(0.1, min(9.99, gamma))
+        input_midtones = max(0.1, min(9.99, input_midtones))
         
         # 应用色阶调整
         if channel == 'RGB':
@@ -1387,7 +1431,7 @@ class PhotoshopHistogramNode:
             result = torch.zeros_like(img_255)
             for c in range(min(3, img_255.shape[2])):
                 result[..., c] = self._apply_levels_to_channel(
-                    img_255[..., c], input_black, input_white, gamma, output_black, output_white
+                    img_255[..., c], input_black, input_white, input_midtones, output_black, output_white
                 )
             # 如果有alpha通道，保持不变
             if img_255.shape[2] > 3:
@@ -1396,10 +1440,10 @@ class PhotoshopHistogramNode:
             # 对亮度应用调整，保持色彩
             if img_255.shape[2] >= 3:
                 # 转换到HSV空间
-                result = self._adjust_luminance_only(img_255, input_black, input_white, gamma, output_black, output_white)
+                result = self._adjust_luminance_only(img_255, input_black, input_white, input_midtones, output_black, output_white)
             else:
                 result = self._apply_levels_to_channel(
-                    img_255[..., 0], input_black, input_white, gamma, output_black, output_white
+                    img_255[..., 0], input_black, input_white, input_midtones, output_black, output_white
                 ).unsqueeze(-1)
         else:
             # 对单个通道应用
@@ -1407,7 +1451,7 @@ class PhotoshopHistogramNode:
             result = img_255.clone()
             if channel_idx < img_255.shape[2]:
                 result[..., channel_idx] = self._apply_levels_to_channel(
-                    img_255[..., channel_idx], input_black, input_white, gamma, output_black, output_white
+                    img_255[..., channel_idx], input_black, input_white, input_midtones, output_black, output_white
                 )
         
         # 转换回0-1范围
@@ -1415,21 +1459,21 @@ class PhotoshopHistogramNode:
         
         return result
     
-    def _apply_levels_to_channel(self, channel_data, input_black, input_white, gamma, output_black, output_white):
+    def _apply_levels_to_channel(self, channel_data, input_black, input_white, input_midtones, output_black, output_white):
         """对单个通道应用色阶调整"""
         # 输入范围调整
         normalized = (channel_data - input_black) / (input_white - input_black)
         normalized = torch.clamp(normalized, 0, 1)
         
-        # 伽马校正
-        gamma_corrected = torch.pow(normalized, 1.0 / gamma)
+        # 中间调校正（伽马校正）
+        midtones_corrected = torch.pow(normalized, 1.0 / input_midtones)
         
         # 输出范围调整
-        result = gamma_corrected * (output_white - output_black) + output_black
+        result = midtones_corrected * (output_white - output_black) + output_black
         
         return torch.clamp(result, 0, 255)
     
-    def _adjust_luminance_only(self, img_255, input_black, input_white, gamma, output_black, output_white):
+    def _adjust_luminance_only(self, img_255, input_black, input_white, input_midtones, output_black, output_white):
         """仅调整亮度，保持色彩"""
         # 转换到HSV空间进行亮度调整
         rgb = img_255 / 255.0
@@ -1440,7 +1484,7 @@ class PhotoshopHistogramNode:
         
         # 调整V通道（亮度）
         v_channel = max_vals.squeeze(-1) * 255.0
-        adjusted_v = self._apply_levels_to_channel(v_channel, input_black, input_white, gamma, output_black, output_white)
+        adjusted_v = self._apply_levels_to_channel(v_channel, input_black, input_white, input_midtones, output_black, output_white)
         adjusted_v = adjusted_v / 255.0
         
         # 计算调整比例
@@ -2289,11 +2333,11 @@ class ColorGradingNode:
         """
         应用色彩分级效果
         """
-        # 性能优化：如果所有参数都是默认值，直接返回原图
+        # 性能优化：如果所有参数都是默认值且没有遮罩，直接返回原图
         if (shadows_hue == 0 and shadows_saturation == 0 and shadows_luminance == 0 and
             midtones_hue == 0 and midtones_saturation == 0 and midtones_luminance == 0 and
             highlights_hue == 0 and highlights_saturation == 0 and highlights_luminance == 0 and
-            blend_mode == 'normal' and overall_strength == 1.0):
+            mask is None):
             return (image,)
         
         try:
@@ -2424,6 +2468,12 @@ class ColorGradingNode:
         """处理单张图像的色彩分级 - 使用更接近Lightroom的算法"""
         import cv2
         
+        print(f"🎨 Color Grading 处理开始:")
+        print(f"  - Shadows: H={shadows_hue}, S={shadows_saturation}, L={shadows_luminance}")
+        print(f"  - Midtones: H={midtones_hue}, S={midtones_saturation}, L={midtones_luminance}")
+        print(f"  - Highlights: H={highlights_hue}, S={highlights_saturation}, L={highlights_luminance}")
+        print(f"  - Blend mode: {blend_mode}, Strength: {overall_strength}")
+        print(f"  - Has mask: {mask is not None}")
         
         device = image.device
         
@@ -2439,15 +2489,48 @@ class ColorGradingNode:
             alpha_channel = img_np[:,:,3]
             img_np = img_np[:,:,:3]  # 只保留RGB通道
         
+        # 检查是否有实际的调整
+        has_adjustment = (shadows_hue != 0 or shadows_saturation != 0 or shadows_luminance != 0 or
+                         midtones_hue != 0 or midtones_saturation != 0 or midtones_luminance != 0 or
+                         highlights_hue != 0 or highlights_saturation != 0 or highlights_luminance != 0)
+        
+        # 如果没有调整且blend_mode是normal，直接返回原图或应用遮罩
+        if not has_adjustment and blend_mode == 'normal':
+            print("  - 没有调整参数，跳过颜色处理")
+            
+            # 如果没有遮罩，直接返回原图
+            if mask is None:
+                print("  - 没有遮罩，直接返回原图")
+                return image
+            
+            # 有遮罩但没有调整，理论上应该返回原图，因为处理前后图像相同
+            print("  - 有遮罩但没有调整，返回原图")
+            return image
+        
         # 转换为Lab色彩空间（更接近人眼感知，Lightroom使用的色彩空间）
         # OpenCV期望BGR格式，所以先转换
         img_bgr = cv2.cvtColor((img_np * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
         img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
         
-        # 归一化Lab值
-        img_lab[:,:,0] = img_lab[:,:,0] / 100.0  # L: 0-100 -> 0-1
-        img_lab[:,:,1] = (img_lab[:,:,1] + 128.0) / 255.0  # a: -128-127 -> 0-1
-        img_lab[:,:,2] = (img_lab[:,:,2] + 128.0) / 255.0  # b: -128-127 -> 0-1
+        print(f"  - 原始Lab范围: L[{np.min(img_lab[:,:,0]):.1f},{np.max(img_lab[:,:,0]):.1f}], a[{np.min(img_lab[:,:,1]):.1f},{np.max(img_lab[:,:,1]):.1f}], b[{np.min(img_lab[:,:,2]):.1f},{np.max(img_lab[:,:,2]):.1f}]")
+        
+        # 修复OpenCV Lab值范围问题
+        # 检测OpenCV返回的Lab格式并正确归一化
+        l_max = np.max(img_lab[:,:,0])
+        if l_max > 100:
+            # OpenCV返回的是0-255范围的L通道，需要除以255而不是100
+            print("  - 检测到OpenCV使用0-255的L通道范围")
+            img_lab[:,:,0] = img_lab[:,:,0] / 255.0  # L: 0-255 -> 0-1
+            img_lab[:,:,1] = img_lab[:,:,1] / 255.0  # a: 0-255 -> 0-1 (已经偏移了128)
+            img_lab[:,:,2] = img_lab[:,:,2] / 255.0  # b: 0-255 -> 0-1 (已经偏移了128)
+        else:
+            # 标准Lab格式：L: 0-100, a/b: -128-127
+            print("  - 检测到OpenCV使用标准Lab范围")
+            img_lab[:,:,0] = img_lab[:,:,0] / 100.0  # L: 0-100 -> 0-1
+            img_lab[:,:,1] = (img_lab[:,:,1] + 128.0) / 255.0  # a: -128-127 -> 0-1
+            img_lab[:,:,2] = (img_lab[:,:,2] + 128.0) / 255.0  # b: -128-127 -> 0-1
+        
+        print(f"  - 归一化后Lab范围: L[{np.min(img_lab[:,:,0]):.3f},{np.max(img_lab[:,:,0]):.3f}], a[{np.min(img_lab[:,:,1]):.3f},{np.max(img_lab[:,:,1]):.3f}], b[{np.min(img_lab[:,:,2]):.3f},{np.max(img_lab[:,:,2]):.3f}]")
         
         # 使用L通道（亮度）创建更精确的遮罩
         luminance = img_lab[:,:,0]
@@ -2482,28 +2565,64 @@ class ColorGradingNode:
                 lum_factor = lum / 100.0 * overall_strength
                 result_lab[:,:,0] = result_lab[:,:,0] + lum_factor * region_mask
         
+        # 添加调试信息
+        print(f"  - Lab值范围检查:")
+        print(f"    L: [{np.min(result_lab[:,:,0]):.3f}, {np.max(result_lab[:,:,0]):.3f}]")
+        print(f"    a: [{np.min(result_lab[:,:,1]):.3f}, {np.max(result_lab[:,:,1]):.3f}]")
+        print(f"    b: [{np.min(result_lab[:,:,2]):.3f}, {np.max(result_lab[:,:,2]):.3f}]")
+        
         # 如果不是亮度调整，恢复原始亮度（保持对比度）
         if shadows_luminance == 0 and midtones_luminance == 0 and highlights_luminance == 0:
             result_lab[:,:,0] = original_luminance
         
-        # 限制Lab值在有效范围内
-        result_lab[:,:,0] = np.clip(result_lab[:,:,0], 0, 1)
-        result_lab[:,:,1] = np.clip(result_lab[:,:,1], 0, 1)
-        result_lab[:,:,2] = np.clip(result_lab[:,:,2], 0, 1)
+        # 限制Lab值在有效范围内（注意：a和b通道可以为负值）
+        result_lab[:,:,0] = np.clip(result_lab[:,:,0], 0, 1)  # L通道：0-1
+        # a和b通道在归一化状态下应该在0-1范围（因为我们加了128再除以255）
+        # 但是应用偏移后可能超出范围，所以不限制，让后续转换处理
         
-        # 反归一化Lab值
-        result_lab[:,:,0] = result_lab[:,:,0] * 100.0
-        result_lab[:,:,1] = result_lab[:,:,1] * 255.0 - 128.0
-        result_lab[:,:,2] = result_lab[:,:,2] * 255.0 - 128.0
+        # 反归一化Lab值（根据检测到的格式）
+        if l_max > 100:
+            # 0-255格式
+            result_lab[:,:,0] = result_lab[:,:,0] * 255.0
+            result_lab[:,:,1] = result_lab[:,:,1] * 255.0
+            result_lab[:,:,2] = result_lab[:,:,2] * 255.0
+            
+            # 确保Lab值在有效范围内
+            result_lab[:,:,0] = np.clip(result_lab[:,:,0], 0, 255)
+            result_lab[:,:,1] = np.clip(result_lab[:,:,1], 0, 255)
+            result_lab[:,:,2] = np.clip(result_lab[:,:,2], 0, 255)
+            
+            # 转换为uint8
+            result_lab_uint8 = result_lab.astype(np.uint8)
+        else:
+            # 标准格式
+            result_lab[:,:,0] = result_lab[:,:,0] * 100.0
+            result_lab[:,:,1] = result_lab[:,:,1] * 255.0 - 128.0
+            result_lab[:,:,2] = result_lab[:,:,2] * 255.0 - 128.0
+            
+            # 确保Lab值在有效范围内
+            result_lab[:,:,0] = np.clip(result_lab[:,:,0], 0, 100)
+            result_lab[:,:,1] = np.clip(result_lab[:,:,1], -128, 127)
+            result_lab[:,:,2] = np.clip(result_lab[:,:,2], -128, 127)
+            
+            # 转换回BGR再转RGB（注意：Lab值需要是uint8类型）
+            result_lab_uint8 = result_lab.copy()
+            result_lab_uint8[:,:,0] = np.clip(result_lab[:,:,0], 0, 100).astype(np.uint8)
+            result_lab_uint8[:,:,1] = np.clip(result_lab[:,:,1] + 128, 0, 255).astype(np.uint8)
+            result_lab_uint8[:,:,2] = np.clip(result_lab[:,:,2] + 128, 0, 255).astype(np.uint8)
         
-        # 转换回BGR再转RGB
-        img_bgr = cv2.cvtColor(result_lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+        img_bgr = cv2.cvtColor(result_lab_uint8.astype(np.uint8), cv2.COLOR_LAB2BGR)
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        
+        # 调试信息：检查转换后的RGB值
+        print(f"  - 转换后RGB范围: [{np.min(img_rgb)}, {np.max(img_rgb)}]")
         
         # 应用混合模式（使用浮点精度）
         img_rgb_float = img_rgb.astype(np.float32) / 255.0
         img_np_uint8 = (img_np * 255).astype(np.uint8)
         img_rgb = self._apply_blend_mode(img_np_uint8, img_rgb, blend_mode, overall_strength)
+        
+        print(f"  - 混合后RGB范围: [{np.min(img_rgb)}, {np.max(img_rgb)}]")
         
         # 恢复Alpha通道
         if has_alpha:
@@ -2512,9 +2631,15 @@ class ColorGradingNode:
         else:
             result = torch.from_numpy(img_rgb.astype(np.float32) / 255.0).to(device)
         
+        print(f"  - 处理后torch tensor范围: [{torch.min(result):.3f}, {torch.max(result):.3f}]")
+        
         # 应用遮罩
         if mask is not None:
+            print(f"  - 应用遮罩，原图范围: [{torch.min(image):.3f}, {torch.max(image):.3f}]")
+            print(f"  - 处理后图像范围: [{torch.min(result):.3f}, {torch.max(result):.3f}]")
+            print(f"  - 遮罩范围: [{torch.min(mask):.3f}, {torch.max(mask):.3f}]")
             result = self._apply_mask(image, result, mask, mask_blur, invert_mask)
+            print(f"  - 最终结果范围: [{torch.min(result):.3f}, {torch.max(result):.3f}]")
         
         return result
     
@@ -2583,7 +2708,8 @@ class ColorGradingNode:
         
         # 在Lab空间中，a和b通道的范围大约是-128到127
         # 但为了获得更自然的效果，我们使用较小的偏移范围
-        max_offset = 0.3  # 最大偏移量（归一化后）
+        # 注意：这个值是归一化后的，实际偏移量会乘以255再减128
+        max_offset = 0.15  # 减小最大偏移量，避免颜色过度饱和
         
         # 计算Lab空间的偏移
         # a通道：红-绿轴
