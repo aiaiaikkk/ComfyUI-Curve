@@ -9,7 +9,7 @@
 
 ## 中文
 
-ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格和高级遮罩。
+ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格、高级遮罩和Lightroom风格的色彩分级功能。
 ![image](https://github.com/user-attachments/assets/a7e3477f-72b2-4bac-9e9e-5d05a8e9670d)
 
 
@@ -35,15 +35,21 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 支持遮罩和羽化效果
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
 
-#### 🎨 色彩分级 (Color Grading Wheels)
-
-![image](https://github.com/user-attachments/assets/ceb57ef2-456c-4993-ad96-f339f12e7f51)
-
 #### 📊 直方图与色阶 (PS Histogram)
 - 完整的直方图分析和PS风格的色阶调整
 - 实时直方图数据和统计信息
 - 自动色阶和自动对比度功能
 - 精确控制：输入/输出黑白场点、伽马
+
+#### 🎨 色彩分级 (Color Grading)
+![image](https://github.com/user-attachments/assets/fb67b936-1ca3-4ac3-b47e-d5c19591f1ad)
+
+- Lightroom风格的色彩分级轮盘
+- 阴影、中间调、高光三区域独立调整
+- 每个区域可独立控制色相、饱和度和亮度
+- 支持多种混合模式
+- 使用改进的Lab色彩空间算法，实现更自然的色彩过渡
+- 精确的色相/饱和度映射，保持色彩准确性
 
 #### 🖼️ 预设风格 (PS Curve Preset)
 - 70+种专业调色预设
@@ -59,7 +65,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **双击节点打开专业调整弹窗**，在弹出界面中实时预览调整效果
 - **弹窗内所有调整参数实时同步**，无需重新运行工作流
 - **零延迟反馈**：在弹出窗口中调整参数时图像实时更新，像使用专业图像编辑软件一样流畅
-- 支持曲线和HSL节点的交互式编辑
+- 支持曲线、HSL和色彩分级节点的交互式编辑
 - 类似Photoshop的专业编辑体验
 
 ### 📥 安装方法
@@ -107,7 +113,18 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - 弹窗内每个滑块调整都会**实时更新**预览图像
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
-3. **弹窗预览界面通用操作**：
+3. **Color Grading调整实时预览**：
+   - 在工作流中添加Color Grading节点
+   - 连接输入图像和遮罩（可选）
+   - **双击节点**打开色彩分级调整弹窗
+   - 在弹出窗口中您将看到三个色轮：阴影、中间调和高光
+   - 在每个色轮中拖动中心点调整该区域的色相和饱和度
+   - 使用每个色轮下方的亮度滑块调整该区域的亮度
+   - 调整混合模式和整体强度以控制效果的应用方式
+   - 预览窗口实时更新，所见即所得
+   - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
+
+4. **弹窗预览界面通用操作**：
    - **放大/缩小预览**：在弹窗内使用鼠标滚轮或+/-按钮
    - **平移预览**：在弹窗内按住中键并拖动
    - **对比原图**：在弹窗内按住空格键查看原始图像，释放返回调整后效果
@@ -130,11 +147,29 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - 日落效果：增强橙色和品红通道
 - **实时预览技巧**：在弹窗中逐个通道调整并观察实时效果，找到理想的颜色平衡点
 
+#### Color Grading技巧
+- 电影风格：阴影区域添加蓝色，高光添加暖色
+- 复古效果：阴影添加青色，高光添加橙黄色
+- 日落效果：阴影添加紫色，高光添加橙色
+- 增强氛围：使用soft_light混合模式，微调阴影和高光色轮
+- 增强对比：使用overlay混合模式，增加阴影区域饱和度
+- 冷暖平衡：阴影区域偏蓝（冷色调），高光区域偏黄（暖色调）
+
 #### 遮罩应用技巧
 - 人像皮肤：建议2-4像素羽化
 - 天空背景：建议5-10像素羽化
 - 物体边缘：建议1-3像素羽化
 - 大面积区域：建议8-15像素羽化
+
+### 🆕 最近更新
+
+#### Color Grading功能改进
+- 优化了色彩分级算法，使其更接近Adobe Lightroom的效果
+- 实现了改进的亮度遮罩算法，使用sigmoid函数创建平滑过渡
+- 使用Lab色彩空间处理，保持感知亮度不变
+- 改进了色相和饱和度到Lab空间的转换算法
+- 添加了多种混合模式支持
+- 优化了实时预览性能
 
 ### 📄 许可证
 
@@ -144,7 +179,7 @@ MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
 
 ## English
 
-Professional color adjustment extension for ComfyUI with Photoshop-like Curve, HSL, and Levels adjustment functionality, 70+ preset styles, and advanced mask support. **The standout feature is the ability to double-click nodes to open popup windows with real-time preview that allows you to color grade with the precision of professional image editing software.**
+Professional color adjustment extension for ComfyUI with Photoshop-like Curve, HSL, and Levels adjustment functionality, 70+ preset styles, advanced mask support, and Lightroom-style Color Grading. **The standout feature is the ability to double-click nodes to open popup windows with real-time preview that allows you to color grade with the precision of professional image editing software.**
 
 ### 🌟 Key Features
 
@@ -169,6 +204,14 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - Auto levels and auto contrast functions
 - Precise control: input/output black/white points, gamma
 
+#### 🎨 Color Grading
+- Lightroom-style color grading wheels
+- Independent adjustment for shadows, midtones, and highlights
+- Control hue, saturation, and luminance for each region
+- Support for multiple blend modes
+- Improved Lab color space algorithm for more natural color transitions
+- Precise hue/saturation mapping for color accuracy
+
 #### 🖼️ Preset Styles (PS Curve Preset)
 - 70+ professional color grading presets
 - Covers portrait, landscape, cinematic, vintage, and more
@@ -183,8 +226,8 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Double-click nodes to open professional adjustment popup** with real-time preview in the window
 - **All adjustment parameters in the popup sync instantly** without re-running the workflow
 - **Zero-delay feedback**: Images update in real-time in the popup window as parameters are adjusted, as smooth as using professional image editing software
-- Supports interactive editing for both Curve and HSL nodes
-- Professional editing experience similar to Photoshop
+- Supports interactive editing for Curve, HSL and Color Grading nodes
+- Professional editing experience similar to Photoshop and Lightroom
 
 ### 📥 Installation
 
@@ -231,7 +274,18 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - Each slider adjustment in the popup will **update the preview image in real-time**
    - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
 
-3. **Popup Preview Interface Common Operations**:
+3. **Color Grading Real-time Preview**:
+   - Add Color Grading node to your workflow
+   - Connect input image and mask (optional)
+   - **Double-click the node** to open the color grading popup window
+   - In the popup, you'll see three color wheels for shadows, midtones, and highlights
+   - Drag the center point in each wheel to adjust hue and saturation for that region
+   - Use the luminance slider below each wheel to adjust brightness for that region
+   - Adjust blend mode and overall strength to control how the effect is applied
+   - The preview window updates in real-time, showing exactly what you'll get
+   - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
+
+4. **Popup Preview Interface Common Operations**:
    - **Zoom in/out preview**: Use mouse wheel or +/- buttons in the popup
    - **Pan preview**: Hold middle mouse button and drag in the popup
    - **Compare with original**: Hold spacebar in the popup to view original image, release to return to adjusted effect
@@ -254,11 +308,29 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - Sunset effect: Enhance Orange and Magenta channels
 - **Real-time preview tip**: In the popup window, adjust channels one by one while observing real-time effects to find the ideal color balance
 
+#### Color Grading Tips
+- Cinematic look: Add blue to shadows and warm tones to highlights
+- Vintage effect: Add cyan to shadows and orange/yellow to highlights
+- Sunset effect: Add purple to shadows and orange to highlights
+- Enhance mood: Use soft_light blend mode with subtle shadow and highlight wheel adjustments
+- Enhance contrast: Use overlay blend mode and increase saturation in shadow region
+- Cool-warm balance: Bluish (cool) shadows with yellowish (warm) highlights
+
 #### Mask Application Tips
 - Portrait skin: Recommended 2-4 pixel feathering
 - Sky background: Recommended 5-10 pixel feathering
 - Object edges: Recommended 1-3 pixel feathering
 - Large areas: Recommended 8-15 pixel feathering
+
+### 🆕 Recent Updates
+
+#### Color Grading Improvements
+- Optimized color grading algorithm to more closely match Adobe Lightroom's effect
+- Implemented improved luminance mask algorithm using sigmoid functions for smooth transitions
+- Using Lab color space processing to maintain perceived luminance
+- Improved hue and saturation to Lab space conversion algorithm
+- Added support for multiple blend modes
+- Optimized real-time preview performance
 
 ### 📄 License
 
