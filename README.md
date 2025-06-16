@@ -35,6 +35,10 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 支持遮罩和羽化效果
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
 
+#### 🎨 色彩分级 (Color Grading Wheels)
+
+![image](https://github.com/user-attachments/assets/ceb57ef2-456c-4993-ad96-f339f12e7f51)
+
 #### 📊 直方图与色阶 (PS Histogram)
 - 完整的直方图分析和PS风格的色阶调整
 - 实时直方图数据和统计信息
