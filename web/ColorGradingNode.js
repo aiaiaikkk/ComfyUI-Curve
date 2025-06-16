@@ -118,6 +118,52 @@ class ColorGradingEditor {
         title.textContent = "🎨 Color Grading Wheels";
         header.appendChild(title);
         
+        // 按钮容器
+        const buttonContainer = document.createElement("div");
+        buttonContainer.style.cssText = `
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        `;
+        
+        // 重置按钮
+        const resetBtn = document.createElement("button");
+        resetBtn.className = "color-grading-reset";
+        resetBtn.style.cssText = `
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        `;
+        resetBtn.textContent = "重置";
+        resetBtn.addEventListener('mouseenter', () => resetBtn.style.backgroundColor = '#2980b9');
+        resetBtn.addEventListener('mouseleave', () => resetBtn.style.backgroundColor = '#3498db');
+        resetBtn.addEventListener('click', () => this.resetAllValues());
+        
+        // 应用按钮
+        const applyBtn = document.createElement("button");
+        applyBtn.className = "color-grading-apply";
+        applyBtn.style.cssText = `
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        `;
+        applyBtn.textContent = "应用";
+        applyBtn.addEventListener('mouseenter', () => applyBtn.style.backgroundColor = '#229954');
+        applyBtn.addEventListener('mouseleave', () => applyBtn.style.backgroundColor = '#27ae60');
+        applyBtn.addEventListener('click', () => this.applyChanges());
+        
         // 关闭按钮
         const closeBtn = document.createElement("button");
         closeBtn.className = "color-grading-close";
@@ -136,7 +182,10 @@ class ColorGradingEditor {
         closeBtn.addEventListener('mouseenter', () => closeBtn.style.backgroundColor = '#ff3838');
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         
-        header.appendChild(closeBtn);
+        buttonContainer.appendChild(resetBtn);
+        buttonContainer.appendChild(applyBtn);
+        buttonContainer.appendChild(closeBtn);
+        header.appendChild(buttonContainer);
         
         return header;
     }
@@ -492,12 +541,17 @@ class ColorGradingEditor {
             const value = parseInt(e.target.value);
             valueDisplay.textContent = value + unit;
             
-            // 解析ID以更新对应数据
-            const [regionKey, property] = id.split('_');
-            if (this.gradingData[regionKey]) {
-                this.gradingData[regionKey][property] = value;
-                this.updatePreview();
+            // 特殊处理overall_strength
+            if (id === 'overall_strength') {
+                this.gradingData.overall_strength = value / 100.0;
+            } else {
+                // 解析ID以更新对应数据
+                const [regionKey, property] = id.split('_');
+                if (this.gradingData[regionKey]) {
+                    this.gradingData[regionKey][property] = value;
+                }
             }
+            this.updatePreview();
         });
         
         container.appendChild(slider);
@@ -572,18 +626,8 @@ class ColorGradingEditor {
         blendModeContainer.appendChild(blendSelect);
         container.appendChild(blendModeContainer);
         
-        // 整体强度滑块
+        // 整体强度滑块（createSlider已经正确处理overall_strength的事件监听）
         const strengthSlider = this.createSlider('overall_strength', '强度', 0, 200, 100, '%');
-        
-        // 修改强度滑块的事件监听
-        const slider = strengthSlider.querySelector('input[type="range"]');
-        slider.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            const valueDisplay = strengthSlider.querySelector('span');
-            valueDisplay.textContent = value + '%';
-            this.gradingData.overall_strength = value / 100.0;
-            this.updatePreview();
-        });
         
         container.appendChild(strengthSlider);
         
@@ -615,8 +659,110 @@ class ColorGradingEditor {
         this.modal.style.display = 'flex';
         this.isOpen = true;
         
+        // 从节点widgets加载当前参数值
+        this.loadCurrentValues();
+        
         // 加载图像
         this.loadImage();
+    }
+    
+    loadCurrentValues() {
+        // 从节点的widgets读取当前值
+        if (!this.node.widgets) return;
+        
+        // 重置gradingData为默认值，确保从节点获取最新数据
+        this.gradingData = {
+            shadows: { hue: 0, saturation: 0, luminance: 0 },
+            midtones: { hue: 0, saturation: 0, luminance: 0 },
+            highlights: { hue: 0, saturation: 0, luminance: 0 },
+            blend_mode: 'normal',
+            overall_strength: 1.0
+        };
+        
+        for (const widget of this.node.widgets) {
+            switch(widget.name) {
+                case 'shadows_hue':
+                    this.gradingData.shadows.hue = widget.value;
+                    break;
+                case 'shadows_saturation':
+                    this.gradingData.shadows.saturation = widget.value;
+                    break;
+                case 'shadows_luminance':
+                    this.gradingData.shadows.luminance = widget.value;
+                    break;
+                case 'midtones_hue':
+                    this.gradingData.midtones.hue = widget.value;
+                    break;
+                case 'midtones_saturation':
+                    this.gradingData.midtones.saturation = widget.value;
+                    break;
+                case 'midtones_luminance':
+                    this.gradingData.midtones.luminance = widget.value;
+                    break;
+                case 'highlights_hue':
+                    this.gradingData.highlights.hue = widget.value;
+                    break;
+                case 'highlights_saturation':
+                    this.gradingData.highlights.saturation = widget.value;
+                    break;
+                case 'highlights_luminance':
+                    this.gradingData.highlights.luminance = widget.value;
+                    break;
+                case 'blend_mode':
+                    this.gradingData.blend_mode = widget.value;
+                    break;
+                case 'overall_strength':
+                    this.gradingData.overall_strength = widget.value;
+                    break;
+            }
+        }
+        
+        console.log("🎨 Color Grading: 加载当前值完成", this.gradingData);
+        
+        // 更新UI组件以反映当前值
+        this.updateUIFromData();
+    }
+    
+    updateUIFromData() {
+        // 更新滑块值
+        const updateSlider = (id, value) => {
+            const slider = this.modal.querySelector(`#${id}`);
+            if (slider) {
+                slider.value = value;
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) {
+                    const unit = id.includes('luminance') || id === 'overall_strength' ? '%' : '%';
+                    valueDisplay.textContent = value + unit;
+                }
+            }
+        };
+        
+        // 更新所有滑块值
+        updateSlider('shadows_luminance', this.gradingData.shadows.luminance);
+        updateSlider('midtones_luminance', this.gradingData.midtones.luminance);
+        updateSlider('highlights_luminance', this.gradingData.highlights.luminance);
+        
+        // 特殊处理overall_strength（需要转换为百分比）
+        const strengthSlider = this.modal.querySelector('#overall_strength');
+        if (strengthSlider) {
+            const strengthValue = this.gradingData.overall_strength * 100;
+            strengthSlider.value = strengthValue;
+            const valueDisplay = strengthSlider.parentElement.querySelector('span');
+            if (valueDisplay) {
+                valueDisplay.textContent = strengthValue + '%';
+            }
+        }
+        
+        // 更新混合模式
+        const blendSelect = this.modal.querySelector('select');
+        if (blendSelect) {
+            blendSelect.value = this.gradingData.blend_mode;
+        }
+        
+        // 重绘所有色轮以显示当前位置
+        Object.keys(this.colorWheels).forEach(regionKey => {
+            this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
+        });
     }
     
     hide() {
@@ -630,6 +776,7 @@ class ColorGradingEditor {
         try {
             // 获取图像的方法（多重备用方案）
             const imageUrl = this.getNodeImage();
+            const maskUrl = this.getNodeMask();
             
             if (imageUrl) {
                 const img = new Image();
@@ -651,9 +798,48 @@ class ColorGradingEditor {
                 console.warn('Color Grading: 未找到图像数据');
                 this.showLoadingText('未找到图像数据');
             }
+            
+            // 加载遮罩（如果有）
+            if (maskUrl) {
+                const maskImg = new Image();
+                maskImg.crossOrigin = 'anonymous';
+                
+                maskImg.onload = () => {
+                    this.currentMask = maskImg;
+                    if (this.currentImage) {
+                        this.updatePreviewCanvas();
+                    }
+                };
+                
+                maskImg.onerror = () => {
+                    console.warn('Color Grading: 遮罩加载失败');
+                    this.currentMask = null;
+                };
+                
+                maskImg.src = maskUrl;
+            } else {
+                this.currentMask = null;
+            }
         } catch (error) {
             console.error('Color Grading: 加载图像时出错:', error);
             this.showLoadingText('加载图像时出错');
+        }
+    }
+    
+    getNodeMask() {
+        try {
+            // 从后端推送的遮罩
+            if (this.node._previewMaskUrl) {
+                console.log('Color Grading: 使用后端推送的遮罩');
+                return this.node._previewMaskUrl;
+            }
+            
+            // 其他获取遮罩的方法可以在这里添加
+            
+            return null;
+        } catch (error) {
+            console.error('Color Grading: 获取遮罩时出错:', error);
+            return null;
         }
     }
     
@@ -768,9 +954,32 @@ class ColorGradingEditor {
         
         if (!this.previewContext || !this.currentImage) return;
         
+        // 获取原始图像数据（用于遮罩混合）
+        this.previewContext.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        this.previewContext.drawImage(
+            this.currentImage, 
+            0, 0, 
+            this.previewCanvas.width, 
+            this.previewCanvas.height
+        );
+        const originalData = this.previewContext.getImageData(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        
         // 获取图像数据
         const imageData = this.previewContext.getImageData(0, 0, this.previewCanvas.width, this.previewCanvas.height);
         const data = imageData.data;
+        
+        // 准备遮罩数据（如果有）
+        let maskData = null;
+        if (this.currentMask) {
+            // 创建临时画布来处理遮罩
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = this.previewCanvas.width;
+            maskCanvas.height = this.previewCanvas.height;
+            const maskCtx = maskCanvas.getContext('2d');
+            maskCtx.drawImage(this.currentMask, 0, 0, maskCanvas.width, maskCanvas.height);
+            const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+            maskData = maskImageData.data;
+        }
         
         // 处理每个像素
         for (let i = 0; i < data.length; i += 4) {
@@ -798,37 +1007,68 @@ class ColorGradingEditor {
             
             regions.forEach(region => {
                 if (region.data.hue !== 0 || region.data.saturation !== 0) {
-                    // 将色相和饱和度转换为RGB偏移（近似Lab空间效果）
+                    // 模拟后端的Lab色彩空间处理
                     const hueRad = region.data.hue * Math.PI / 180;
-                    const satNormalized = region.data.saturation / 100;
+                    const satNormalized = Math.abs(region.data.saturation) / 100;
                     
-                    // 使用色相环计算颜色偏移
-                    const hueR = Math.cos(hueRad);
-                    const hueG = Math.cos(hueRad - 2.094); // 120度
-                    const hueB = Math.cos(hueRad + 2.094); // -120度
+                    // 模拟Lab空间的a和b通道偏移（与后端保持一致）
+                    const maxOffset = 0.3;
+                    let offsetA = Math.cos(hueRad) * satNormalized * maxOffset;
+                    let offsetB = Math.sin(hueRad) * satNormalized * maxOffset;
                     
-                    // 应用饱和度和遮罩
-                    const strength = satNormalized * region.mask * this.gradingData.overall_strength;
+                    // 应用颜色敏感度调整（与后端一致）
+                    const hueDeg = region.data.hue;
+                    if (hueDeg >= -30 && hueDeg <= 30) { // 红色区域
+                        offsetA *= 1.1;
+                    } else if (hueDeg >= 150 && hueDeg <= 210) { // 青色区域
+                        offsetA *= 0.9;
+                    } else if (hueDeg >= 60 && hueDeg <= 120) { // 绿色区域
+                        offsetB *= 0.95;
+                    } else if (hueDeg >= 240 && hueDeg <= 300) { // 蓝色区域
+                        offsetB *= 1.05;
+                    }
                     
-                    deltaR += hueR * strength * 0.15; // 降低强度以获得更自然的效果
-                    deltaG += hueG * strength * 0.15;
-                    deltaB += hueB * strength * 0.15;
+                    // 将Lab偏移转换为RGB调整（近似）
+                    // Lab的a通道影响红-绿，b通道影响黄-蓝
+                    const strength = region.mask * this.gradingData.overall_strength;
+                    
+                    // 更精确的Lab到RGB转换近似
+                    deltaR += (offsetA * 0.5 + offsetB * 0.2) * strength;
+                    deltaG += (-offsetA * 0.4 + offsetB * 0.1) * strength;
+                    deltaB += (-offsetB * 0.7) * strength;
                 }
                 
-                // 亮度调整
+                // 亮度调整（与后端保持一致）
                 if (region.data.luminance !== 0) {
                     const lumFactor = region.data.luminance / 100 * region.mask * this.gradingData.overall_strength;
-                    // 保持颜色比例的亮度调整
-                    deltaR += r * lumFactor * 0.3;
-                    deltaG += g * lumFactor * 0.3;
-                    deltaB += b * lumFactor * 0.3;
+                    // 使用加法调整而不是乘法，更接近Lab空间的L通道调整
+                    const lumAdjust = lumFactor * 0.2; // 降低强度以获得更自然的效果
+                    deltaR += lumAdjust;
+                    deltaG += lumAdjust;
+                    deltaB += lumAdjust;
                 }
             });
             
-            // 应用调整并限制范围
-            data[i] = Math.min(255, Math.max(0, (r + deltaR) * 255));
-            data[i + 1] = Math.min(255, Math.max(0, (g + deltaG) * 255));
-            data[i + 2] = Math.min(255, Math.max(0, (b + deltaB) * 255));
+            // 应用调整
+            let newR = Math.min(255, Math.max(0, (r + deltaR) * 255));
+            let newG = Math.min(255, Math.max(0, (g + deltaG) * 255));
+            let newB = Math.min(255, Math.max(0, (b + deltaB) * 255));
+            
+            // 如果有遮罩，根据遮罩值混合原始和处理后的颜色
+            if (maskData) {
+                // 获取遮罩亮度（假设遮罩是灰度的）
+                const maskValue = maskData[i] / 255; // 0-1范围
+                
+                // 混合原始和处理后的颜色
+                data[i] = originalData.data[i] * (1 - maskValue) + newR * maskValue;
+                data[i + 1] = originalData.data[i + 1] * (1 - maskValue) + newG * maskValue;
+                data[i + 2] = originalData.data[i + 2] * (1 - maskValue) + newB * maskValue;
+            } else {
+                // 没有遮罩，直接应用效果
+                data[i] = newR;
+                data[i + 1] = newG;
+                data[i + 2] = newB;
+            }
         }
         
         // 将处理后的数据绘制回画布
@@ -877,6 +1117,184 @@ class ColorGradingEditor {
         if (loadingText) {
             loadingText.style.display = 'none';
         }
+    }
+    
+    resetAllValues() {
+        // 重置所有色彩分级参数到默认值
+        this.gradingData = {
+            shadows: { hue: 0, saturation: 0, luminance: 0 },
+            midtones: { hue: 0, saturation: 0, luminance: 0 },
+            highlights: { hue: 0, saturation: 0, luminance: 0 },
+            blend_mode: 'normal',
+            overall_strength: 1.0
+        };
+        
+        // 重置所有滑块
+        const sliders = this.modal.querySelectorAll('input[type="range"]');
+        sliders.forEach(slider => {
+            if (slider.id === 'overall_strength') {
+                slider.value = 100; // 强度默认100%
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) valueDisplay.textContent = '100%';
+            } else {
+                slider.value = 0;
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) {
+                    const unit = slider.id.includes('luminance') ? '%' : '%';
+                    valueDisplay.textContent = '0' + unit;
+                }
+            }
+        });
+        
+        // 重置混合模式选择
+        const blendSelect = this.modal.querySelector('select');
+        if (blendSelect) {
+            blendSelect.value = 'normal';
+        }
+        
+        // 重绘所有色轮（清除指示器位置）
+        Object.keys(this.colorWheels).forEach(regionKey => {
+            this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
+        });
+        
+        // 更新预览
+        this.updatePreview();
+        
+        // 显示重置提示
+        this.showResetNotification();
+    }
+    
+    showResetNotification() {
+        // 创建提示元素
+        const notification = document.createElement("div");
+        notification.style.cssText = `
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10001;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            animation: fadeInOut 2s ease-in-out;
+        `;
+        notification.textContent = "✓ 所有参数已重置";
+        
+        // 添加淡入淡出动画
+        const style = document.createElement("style");
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+                20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 添加到模态框
+        this.modal.querySelector('.color-grading-container').appendChild(notification);
+        
+        // 2秒后移除
+        setTimeout(() => {
+            notification.remove();
+            style.remove();
+        }, 2000);
+    }
+    
+    applyChanges() {
+        // 同步参数到节点
+        if (!this.node.widgets) {
+            console.error('Color Grading: 节点没有widgets');
+            return;
+        }
+        
+        // 查找并更新对应的widget值
+        const widgetMap = {
+            'shadows_hue': this.gradingData.shadows.hue,
+            'shadows_saturation': this.gradingData.shadows.saturation,
+            'shadows_luminance': this.gradingData.shadows.luminance,
+            'midtones_hue': this.gradingData.midtones.hue,
+            'midtones_saturation': this.gradingData.midtones.saturation,
+            'midtones_luminance': this.gradingData.midtones.luminance,
+            'highlights_hue': this.gradingData.highlights.hue,
+            'highlights_saturation': this.gradingData.highlights.saturation,
+            'highlights_luminance': this.gradingData.highlights.luminance,
+            'blend_mode': this.gradingData.blend_mode,
+            'overall_strength': this.gradingData.overall_strength
+        };
+        
+        for (const widget of this.node.widgets) {
+            if (widgetMap.hasOwnProperty(widget.name)) {
+                widget.value = widgetMap[widget.name];
+                console.log(`更新 ${widget.name} = ${widget.value}`);
+            }
+        }
+        
+        // 标记节点需要重新执行
+        this.node.setDirtyCanvas(true, true);
+        
+        // 强制标记节点为已修改，确保重新执行
+        if (this.node.graph) {
+            this.node.graph._nodes_dirty = true;
+            this.node.graph._nodes_executable = null;
+        }
+        
+        // 显示应用成功提示
+        this.showApplyNotification();
+        
+        // 触发图形更新
+        if (app.graph) {
+            app.graph.setDirtyCanvas(true, true);
+            // 强制触发onChange事件
+            if (app.canvas) {
+                app.canvas.onNodeChanged(this.node);
+            }
+        }
+    }
+    
+    showApplyNotification() {
+        // 创建提示元素
+        const notification = document.createElement("div");
+        notification.style.cssText = `
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #2ecc71;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10001;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            animation: fadeInOut 2s ease-in-out;
+        `;
+        notification.textContent = "✓ 参数已应用到节点";
+        
+        // 添加淡入淡出动画
+        const style = document.createElement("style");
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+                20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 添加到模态框
+        this.modal.querySelector('.color-grading-container').appendChild(notification);
+        
+        // 2秒后移除
+        setTimeout(() => {
+            notification.remove();
+            style.remove();
+        }, 2000);
     }
 }
 

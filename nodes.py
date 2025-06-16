@@ -1757,6 +1757,17 @@ class PhotoshopHSLNode:
                              magenta_hue=0.0, magenta_saturation=0.0, magenta_lightness=0.0,
                              **kwargs):
         """应用PS风格的HSL调整"""
+        # 性能优化：如果所有参数都是默认值，直接返回原图
+        if (red_hue == 0 and red_saturation == 0 and red_lightness == 0 and
+            orange_hue == 0 and orange_saturation == 0 and orange_lightness == 0 and
+            yellow_hue == 0 and yellow_saturation == 0 and yellow_lightness == 0 and
+            green_hue == 0 and green_saturation == 0 and green_lightness == 0 and
+            cyan_hue == 0 and cyan_saturation == 0 and cyan_lightness == 0 and
+            blue_hue == 0 and blue_saturation == 0 and blue_lightness == 0 and
+            purple_hue == 0 and purple_saturation == 0 and purple_lightness == 0 and
+            magenta_hue == 0 and magenta_saturation == 0 and magenta_lightness == 0):
+            return (image,)
+        
         try:
             # 获取unique_id用于前端推送
             unique_id = kwargs.get('unique_id', None)
@@ -1826,7 +1837,22 @@ class PhotoshopHSLNode:
                 result = torch.zeros_like(image)
                 
                 for i in range(batch_size):
-                    batch_mask = mask[i].unsqueeze(0) if mask is not None and mask.dim() > 2 else mask
+                    # 正确处理遮罩维度（参考PS Curve节点）
+                    batch_mask = None
+                    if mask is not None:
+                        if mask.dim() == 2:
+                            # 遮罩是 (H, W)，所有批次使用相同遮罩
+                            batch_mask = mask
+                        elif mask.dim() == 3:
+                            if mask.shape[0] == 1:
+                                # 遮罩是 (1, H, W)，所有批次使用相同遮罩
+                                batch_mask = mask[0]
+                            elif mask.shape[0] == batch_size:
+                                # 遮罩是 (B, H, W)，每个批次使用对应遮罩
+                                batch_mask = mask[i]
+                            else:
+                                # 其他情况，尝试使用第一个遮罩
+                                batch_mask = mask[0] if mask.shape[0] > 0 else mask
                     
                     result[i] = self._process_single_image(
                         image[i],
@@ -1876,21 +1902,23 @@ class PhotoshopHSLNode:
         """处理单张图像的HSL调整"""
         import cv2
         
+        
         # 确保图像在正确的设备上
         device = image.device
         
         # 将图像转换为numpy数组，范围0-255
         img_np = (image.detach().cpu().numpy() * 255.0).astype(np.uint8)
         
-        # 转换为OpenCV格式 (HWC -> BGR)
-        img_bgr = img_np
+        # 转换为OpenCV格式 (RGB -> BGR)
         has_alpha = False
         alpha_channel = None
         
-        if img_bgr.shape[2] == 4:  # 处理RGBA图像
+        if img_np.shape[2] == 4:  # 处理RGBA图像
             has_alpha = True
-            alpha_channel = img_bgr[:,:,3]
-            img_bgr = cv2.cvtColor(img_bgr, cv2.COLOR_RGBA2BGR)
+            alpha_channel = img_np[:,:,3]
+            img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+        else:  # RGB图像
+            img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
         
         # 转换为HSV空间 (OpenCV使用HSV而不是HSL)
         img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -1942,13 +1970,14 @@ class PhotoshopHSLNode:
         # 转换回BGR
         img_bgr = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
         
-        # 如果原图是RGBA，恢复Alpha通道
+        # 转换回RGB格式
         if has_alpha:
-            img_bgr = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2BGRA)
-            img_bgr[:,:,3] = alpha_channel
-        
-        # 转换回PyTorch张量
-        result = torch.from_numpy(img_bgr.astype(np.float32) / 255.0).to(device)
+            img_rgba = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGBA)
+            img_rgba[:,:,3] = alpha_channel
+            result = torch.from_numpy(img_rgba.astype(np.float32) / 255.0).to(device)
+        else:
+            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+            result = torch.from_numpy(img_rgb.astype(np.float32) / 255.0).to(device)
         
         # 应用遮罩
         if mask is not None:
@@ -2019,15 +2048,39 @@ class PhotoshopHSLNode:
     
     def _apply_mask(self, original_image, processed_image, mask, mask_blur, invert_mask):
         """应用遮罩混合原始图像和处理后的图像"""
+        # 获取设备信息
+        device = original_image.device
+        
         # 获取图像尺寸
         if original_image.dim() == 3:
             h, w, c = original_image.shape
         else:
             raise ValueError(f"Unexpected image dimensions: {original_image.shape}")
         
-        # 处理遮罩尺寸
+        # 确保遮罩在正确的设备上
+        mask = mask.to(device)
+        
+        # 处理遮罩维度，确保与图像匹配（参考PhotoshopCurveNode）
         if mask.dim() == 2:
-            # 如果遮罩是2D的，调整其尺寸以匹配图像
+            # 遮罩是 (H, W)
+            if mask.shape[0] != h or mask.shape[1] != w:
+                # 调整遮罩尺寸以匹配图像
+                mask = torch.nn.functional.interpolate(
+                    mask.unsqueeze(0).unsqueeze(0), 
+                    size=(h, w), 
+                    mode='bilinear', 
+                    align_corners=False
+                ).squeeze(0).squeeze(0)
+        elif mask.dim() == 3:
+            # 遮罩是 (1, H, W) 或 (H, W, 1)
+            if mask.shape[0] == 1:
+                # 遮罩是 (1, H, W)，去掉批次维度
+                mask = mask.squeeze(0)
+            elif mask.shape[2] == 1:
+                # 遮罩是 (H, W, 1)，去掉通道维度
+                mask = mask.squeeze(2)
+            
+            # 调整尺寸
             if mask.shape[0] != h or mask.shape[1] != w:
                 mask = torch.nn.functional.interpolate(
                     mask.unsqueeze(0).unsqueeze(0), 
@@ -2236,6 +2289,13 @@ class ColorGradingNode:
         """
         应用色彩分级效果
         """
+        # 性能优化：如果所有参数都是默认值，直接返回原图
+        if (shadows_hue == 0 and shadows_saturation == 0 and shadows_luminance == 0 and
+            midtones_hue == 0 and midtones_saturation == 0 and midtones_luminance == 0 and
+            highlights_hue == 0 and highlights_saturation == 0 and highlights_luminance == 0 and
+            blend_mode == 'normal' and overall_strength == 1.0):
+            return (image,)
+        
         try:
             if image is None:
                 raise ValueError("Input image is None")
@@ -2310,7 +2370,22 @@ class ColorGradingNode:
                 result = torch.zeros_like(image)
                 
                 for i in range(batch_size):
-                    batch_mask = mask[i].unsqueeze(0) if mask is not None and mask.dim() > 2 else mask
+                    # 正确处理遮罩维度（参考PS Curve节点）
+                    batch_mask = None
+                    if mask is not None:
+                        if mask.dim() == 2:
+                            # 遮罩是 (H, W)，所有批次使用相同遮罩
+                            batch_mask = mask
+                        elif mask.dim() == 3:
+                            if mask.shape[0] == 1:
+                                # 遮罩是 (1, H, W)，所有批次使用相同遮罩
+                                batch_mask = mask[0]
+                            elif mask.shape[0] == batch_size:
+                                # 遮罩是 (B, H, W)，每个批次使用对应遮罩
+                                batch_mask = mask[i]
+                            else:
+                                # 其他情况，尝试使用第一个遮罩
+                                batch_mask = mask[0] if mask.shape[0] > 0 else mask
                     
                     result[i] = self._process_single_image(
                         image[i],
@@ -2349,6 +2424,7 @@ class ColorGradingNode:
         """处理单张图像的色彩分级 - 使用更接近Lightroom的算法"""
         import cv2
         
+        
         device = image.device
         
         # 将图像转换为numpy数组，范围0-1（保持精度）
@@ -2364,7 +2440,9 @@ class ColorGradingNode:
             img_np = img_np[:,:,:3]  # 只保留RGB通道
         
         # 转换为Lab色彩空间（更接近人眼感知，Lightroom使用的色彩空间）
-        img_lab = cv2.cvtColor((img_np * 255).astype(np.uint8), cv2.COLOR_RGB2LAB).astype(np.float32)
+        # OpenCV期望BGR格式，所以先转换
+        img_bgr = cv2.cvtColor((img_np * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
+        img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
         
         # 归一化Lab值
         img_lab[:,:,0] = img_lab[:,:,0] / 100.0  # L: 0-100 -> 0-1
@@ -2418,8 +2496,9 @@ class ColorGradingNode:
         result_lab[:,:,1] = result_lab[:,:,1] * 255.0 - 128.0
         result_lab[:,:,2] = result_lab[:,:,2] * 255.0 - 128.0
         
-        # 转换回RGB
-        img_rgb = cv2.cvtColor(result_lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
+        # 转换回BGR再转RGB
+        img_bgr = cv2.cvtColor(result_lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         
         # 应用混合模式（使用浮点精度）
         img_rgb_float = img_rgb.astype(np.float32) / 255.0
@@ -2591,15 +2670,39 @@ class ColorGradingNode:
     
     def _apply_mask(self, original_image, processed_image, mask, mask_blur, invert_mask):
         """应用遮罩混合原始图像和处理后的图像"""
+        # 获取设备信息
+        device = original_image.device
+        
         # 获取图像尺寸
         if original_image.dim() == 3:
             h, w, c = original_image.shape
         else:
             raise ValueError(f"Unexpected image dimensions: {original_image.shape}")
         
-        # 处理遮罩尺寸
+        # 确保遮罩在正确的设备上
+        mask = mask.to(device)
+        
+        # 处理遮罩维度，确保与图像匹配（参考PhotoshopCurveNode）
         if mask.dim() == 2:
-            # 如果遮罩是2D的，调整其尺寸以匹配图像
+            # 遮罩是 (H, W)
+            if mask.shape[0] != h or mask.shape[1] != w:
+                # 调整遮罩尺寸以匹配图像
+                mask = torch.nn.functional.interpolate(
+                    mask.unsqueeze(0).unsqueeze(0), 
+                    size=(h, w), 
+                    mode='bilinear', 
+                    align_corners=False
+                ).squeeze(0).squeeze(0)
+        elif mask.dim() == 3:
+            # 遮罩是 (1, H, W) 或 (H, W, 1)
+            if mask.shape[0] == 1:
+                # 遮罩是 (1, H, W)，去掉批次维度
+                mask = mask.squeeze(0)
+            elif mask.shape[2] == 1:
+                # 遮罩是 (H, W, 1)，去掉通道维度
+                mask = mask.squeeze(2)
+            
+            # 调整尺寸
             if mask.shape[0] != h or mask.shape[1] != w:
                 mask = torch.nn.functional.interpolate(
                     mask.unsqueeze(0).unsqueeze(0), 
