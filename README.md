@@ -341,7 +341,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 #### Git Clone (Recommended)
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/your-username/ComfyUI-Curve.git
+git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 ```
 
 #### Manual Download
