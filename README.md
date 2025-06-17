@@ -91,7 +91,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 #### Git克隆（推荐）
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/your-username/ComfyUI-Curve.git
+git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 ```
 
 #### 手动下载
