@@ -10,14 +10,16 @@
 ## 中文
 
 ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格、高级遮罩和Lightroom风格的色彩分级功能。
-![image](https://github.com/user-attachments/assets/a7e3477f-72b2-4bac-9e9e-5d05a8e9670d)
+![image](https://github.com/user-attachments/assets/9c8d2d61-7fba-4e49-9f41-d6f650d08bda)
+
 
 
 ### 🌟 主要功能
 项目介绍视频：https://www.bilibili.com/video/BV1QuMFzRE5i/
 
 #### 🎨 曲线调整 (PS Curve)
-![image](https://github.com/user-attachments/assets/262e6a0a-69dd-4b32-8a7b-c2752e412afb)
+![image](https://github.com/user-attachments/assets/969d97ca-70e4-47a4-b451-7d1e4eea6a87)
+
 
 - 类似Photoshop的专业曲线调整，支持多种插值方式
 - **双击节点进入实时调整界面**：在弹出窗口中直接拖动控制点，即刻观察图像变化效果
@@ -26,7 +28,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 可调曲线效果强度（0-200%）
 - **弹窗内调整立即应用**：所有曲线修改无需重新运行工作流即可在弹窗内实时查看效果
 
-#### 🎭 HSL调整 (PS HSL)
+#### 🎭 HSL混色器 (PS HSL)
 ![image](https://github.com/user-attachments/assets/3e9e86be-c09c-476f-a23c-03c7eb0ce339)
 
 - 精准控制8个颜色通道：红、橙、黄、绿、浅绿、蓝、紫、品红
@@ -36,6 +38,8 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
 
 #### 📊 直方图分析 (Histogram Analysis)
+![image](https://github.com/user-attachments/assets/e41a3f24-e37a-4508-8316-2be34858d5c9)
+
 - **双击节点打开专业直方图分析界面**：实时显示RGB和单通道直方图
 - **详细的统计信息**：平均值、中位数、标准差等图像统计数据
 - **像素分布可视化**：清晰显示图像的亮度和颜色分布情况
@@ -43,6 +47,8 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **多通道支持**：可切换查看RGB整体或单独R/G/B通道直方图
 
 #### 🎚️ 色阶调整 (PS Levels)
+![image](https://github.com/user-attachments/assets/66702215-64c1-4356-988f-071098c60852)
+
 - **双击节点打开Photoshop风格色阶调整界面**：专业三点控制（黑场、灰场、白场）
 - **实时预览调整**：拖动滑块即时查看色阶调整效果
 - **自动色阶功能**：一键自动优化图像对比度和色阶分布
