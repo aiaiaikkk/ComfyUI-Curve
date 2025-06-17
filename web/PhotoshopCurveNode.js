@@ -1105,6 +1105,9 @@ class CurveEditorModal {
             // 应用效果
             this.applyPreviewEffect(curvePoints, interpolation, channel);
             
+            // 更新直方图显示（基于处理后的图像）
+            this.updateHistogramAfterCurveChange();
+            
         } catch (error) {
             console.error("🎨 预览更新失败:", error);
             
@@ -2503,6 +2506,9 @@ class PhotoshopCurveNodeWidget {
             diagonal.setAttribute('stroke-dasharray', '4, 4');
             this.svg.appendChild(diagonal);
             
+            // 绘制直方图背景
+            this.drawHistogram();
+            
             // 绘制曲线
             this.drawSmoothCurve();
             
@@ -2694,6 +2700,89 @@ class PhotoshopCurveNodeWidget {
         this.svg.appendChild(histogramPath);
         
         console.log("🎨 直方图绘制完成，通道:", currentChannel);
+    }
+    
+    // 更新直方图（基于处理后的图像进行实时更新）
+    updateHistogramAfterCurveChange() {
+        try {
+            // 获取处理后的预览图像
+            const previewImg = this.modal.querySelector('.preview-image');
+            if (!previewImg || !previewImg.src || previewImg.src.includes('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')) {
+                console.log("🎨 无有效的预览图像，跳过直方图更新");
+                return;
+            }
+            
+            // 获取曲线编辑器
+            const curveEditor = this.curveEditor;
+            if (!curveEditor || !curveEditor.svg) {
+                console.log("🎨 未找到曲线编辑器，跳过直方图更新");
+                return;
+            }
+            
+            // 移除现有的直方图路径
+            const existingHistogram = curveEditor.svg.querySelector('path[fill*="#ff"][opacity="0.3"], path[fill*="#44"][opacity="0.3"], path[fill="#ffffff"][opacity="0.3"]');
+            if (existingHistogram) {
+                existingHistogram.remove();
+            }
+            
+            // 基于预览图像重新计算直方图
+            const imageElement = new Image();
+            imageElement.crossOrigin = 'anonymous';
+            
+            imageElement.onload = () => {
+                try {
+                    // 计算新的直方图
+                    const histogram = this.calculateHistogram(imageElement);
+                    if (!histogram) {
+                        console.log("🎨 无法计算处理后图像的直方图");
+                        return;
+                    }
+                    
+                    // 获取当前通道
+                    const currentChannel = curveEditor.channel ? curveEditor.channel.value : 'RGB';
+                    const histogramData = histogram[currentChannel] || histogram.RGB;
+                    
+                    // 创建新的直方图路径
+                    let pathData = 'M0,384';
+                    for (let i = 0; i < 256; i++) {
+                        const x = (i / 255) * 384;
+                        const y = 384 - (histogramData[i] * 200); // 最大高度200像素
+                        pathData += ` L${x},${y}`;
+                    }
+                    pathData += ' L384,384 Z';
+                    
+                    // 创建新的直方图路径元素
+                    const histogramPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    histogramPath.setAttribute('d', pathData);
+                    histogramPath.setAttribute('fill', curveEditor.getHistogramColor(currentChannel));
+                    histogramPath.setAttribute('opacity', '0.3');
+                    histogramPath.setAttribute('stroke', 'none');
+                    
+                    // 插入到适当位置（在渐变之后，对角线之前）
+                    const diagonal = curveEditor.svg.querySelector('line[stroke-dasharray]');
+                    if (diagonal) {
+                        curveEditor.svg.insertBefore(histogramPath, diagonal);
+                    } else {
+                        curveEditor.svg.appendChild(histogramPath);
+                    }
+                    
+                    console.log("🎨 实时直方图更新完成，通道:", currentChannel);
+                    
+                } catch (error) {
+                    console.error("🎨 计算处理后图像直方图时出错:", error);
+                }
+            };
+            
+            imageElement.onerror = () => {
+                console.error("🎨 加载预览图像失败，无法更新直方图");
+            };
+            
+            // 开始加载预览图像
+            imageElement.src = previewImg.src;
+            
+        } catch (error) {
+            console.error("🎨 更新直方图时出错:", error);
+        }
     }
     
     // 获取直方图颜色
