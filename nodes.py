@@ -874,8 +874,362 @@ class CurvePresetNode:
             print(f"CurvePresetNode error: {e}")
             return ('0,0;255,255',)
 
-class PhotoshopHistogramNode:
-    """PS直方图功能节点 - 提供直方图分析和色阶调整"""
+class HistogramAnalysisNode:
+    """专业直方图分析节点 - 纯分析功能，不修改图像"""
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'image': ('IMAGE',),
+                'channel': (['RGB', 'R', 'G', 'B', 'Luminance'], {'default': 'RGB'}),
+            },
+            'optional': {
+                'histogram_bins': ('INT', {
+                    'default': 256,
+                    'min': 64,
+                    'max': 1024,
+                    'step': 1,
+                    'tooltip': '直方图分组数量'
+                }),
+                'show_statistics': ('BOOLEAN', {
+                    'default': True,
+                    'tooltip': '显示详细统计信息'
+                }),
+                'export_data': ('BOOLEAN', {
+                    'default': False,
+                    'tooltip': '导出原始直方图数据'
+                }),
+            },
+            'hidden': {'unique_id': 'UNIQUE_ID'}
+        }
+    
+    RETURN_TYPES = ('IMAGE', 'STRING', 'STRING', 'STRING')
+    RETURN_NAMES = ('histogram_image', 'histogram_data', 'statistics', 'raw_data')
+    FUNCTION = 'analyze_histogram'
+    CATEGORY = 'Image/Analysis'
+    OUTPUT_NODE = False
+    
+    @classmethod
+    def IS_CHANGED(cls, image, channel, histogram_bins=256, show_statistics=True, export_data=False, unique_id=None):
+        return f"{channel}_{histogram_bins}_{show_statistics}_{export_data}"
+
+    def analyze_histogram(self, image, channel, histogram_bins=256, show_statistics=True, export_data=False, unique_id=None):
+        try:
+            if image is None:
+                raise ValueError("Input image is None")
+            
+            # 发送预览数据到前端（仅当有unique_id时）
+            if unique_id is not None:
+                try:
+                    preview_image = image[0] if image.dim() == 4 else image
+                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+                    
+                    if img_np.shape[-1] == 3:
+                        pil_img = Image.fromarray(img_np, mode='RGB')
+                    elif img_np.shape[-1] == 4:
+                        pil_img = Image.fromarray(img_np, mode='RGBA')
+                    else:
+                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+                    
+                    buffer = io.BytesIO()
+                    pil_img.save(buffer, format='PNG')
+                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    send_data = {
+                        "node_id": str(unique_id),
+                        "image": f"data:image/png;base64,{img_base64}",
+                        "analysis_data": {
+                            "channel": channel,
+                            "histogram_bins": histogram_bins,
+                            "show_statistics": show_statistics,
+                            "export_data": export_data
+                        }
+                    }
+                    
+                    PromptServer.instance.send_sync("histogram_analysis_preview", send_data)
+                    print(f"✅ 已发送直方图分析预览数据到前端，节点ID: {unique_id}")
+                    
+                except Exception as preview_error:
+                    print(f"发送直方图分析预览时出错: {preview_error}")
+            
+            # 处理批次维度
+            if image.dim() == 4:
+                batch_size = image.shape[0]
+                histogram_images = []
+                histogram_data_list = []
+                statistics_list = []
+                raw_data_list = []
+                
+                for b in range(batch_size):
+                    hist_image, hist_data, stats, raw_data = self._analyze_single_image(
+                        image[b], channel, histogram_bins, show_statistics, export_data
+                    )
+                    histogram_images.append(hist_image)
+                    histogram_data_list.append(hist_data)
+                    statistics_list.append(stats)
+                    raw_data_list.append(raw_data)
+                
+                combined_hist = "\n".join([f"Image {i+1}:\n{hist}" for i, hist in enumerate(histogram_data_list)])
+                combined_stats = "\n".join([f"Image {i+1}:\n{stats}" for i, stats in enumerate(statistics_list)])
+                combined_raw = "\n".join([f"Image {i+1}:\n{raw}" for i, raw in enumerate(raw_data_list)])
+                
+                return (torch.stack(histogram_images, dim=0), combined_hist, combined_stats, combined_raw)
+            else:
+                hist_image, hist_data, stats, raw_data = self._analyze_single_image(
+                    image, channel, histogram_bins, show_statistics, export_data
+                )
+                return (hist_image.unsqueeze(0), hist_data, stats, raw_data)
+                
+        except Exception as e:
+            print(f"HistogramAnalysisNode error: {e}")
+            fallback_hist = self._create_fallback_histogram_image()
+            return (fallback_hist, "Error generating histogram", "Error calculating statistics", "Error exporting data")
+    
+    def _analyze_single_image(self, image, channel, histogram_bins, show_statistics, export_data):
+        device = get_torch_device()
+        image = image.to(device)
+        
+        if image.dim() == 3:
+            h, w, c = image.shape
+        else:
+            raise ValueError(f"Unexpected image dimensions: {image.shape}")
+        
+        img_255 = (image * 255.0).clamp(0, 255)
+        
+        # 生成专业直方图可视化
+        histogram_image = self._generate_professional_histogram_image(img_255, channel, histogram_bins)
+        
+        # 生成直方图数据
+        histogram_data = self._generate_detailed_histogram_data(img_255, channel, histogram_bins)
+        
+        # 生成统计信息
+        statistics = self._calculate_comprehensive_statistics(img_255, channel) if show_statistics else "Statistics disabled"
+        
+        # 导出原始数据
+        raw_data = self._export_raw_histogram_data(img_255, channel, histogram_bins) if export_data else "Raw data export disabled"
+        
+        return histogram_image, histogram_data, statistics, raw_data
+    
+    def _generate_professional_histogram_image(self, img_255, channel, bins=256):
+        """生成专业的直方图可视化图像"""
+        img_np = img_255.cpu().numpy()
+        
+        # 创建高质量的直方图图像
+        fig, ax = plt.subplots(figsize=(12, 8), facecolor='#2a2a2a')
+        ax.set_facecolor('#1a1a1a')
+        
+        if channel == 'RGB':
+            # RGB综合直方图
+            colors = ['#ff6b6b', '#51cf66', '#74c0fc']
+            labels = ['Red', 'Green', 'Blue']
+            
+            for i, (color, label) in enumerate(zip(colors, labels)):
+                channel_data = img_np[:, :, i].flatten()
+                hist, bin_edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+                bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                ax.plot(bin_centers, hist, color=color, alpha=0.7, linewidth=2, label=label)
+                ax.fill_between(bin_centers, hist, alpha=0.3, color=color)
+        
+        elif channel in ['R', 'G', 'B']:
+            # 单通道直方图
+            channel_idx = {'R': 0, 'G': 1, 'B': 2}[channel]
+            color = {'R': '#ff6b6b', 'G': '#51cf66', 'B': '#74c0fc'}[channel]
+            
+            channel_data = img_np[:, :, channel_idx].flatten()
+            hist, bin_edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            ax.bar(bin_centers, hist, width=(255/bins)*0.8, color=color, alpha=0.8, edgecolor='none')
+        
+        elif channel == 'Luminance':
+            # 亮度直方图
+            luminance = img_np[:, :, 0] * 0.299 + img_np[:, :, 1] * 0.587 + img_np[:, :, 2] * 0.114
+            luminance_data = luminance.flatten()
+            hist, bin_edges = np.histogram(luminance_data, bins=bins, range=(0, 255))
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            ax.bar(bin_centers, hist, width=(255/bins)*0.8, color='#cccccc', alpha=0.8, edgecolor='none')
+        
+        # 样式设置
+        ax.set_xlim(0, 255)
+        ax.set_xlabel('Pixel Value', color='#cccccc', fontsize=12)
+        ax.set_ylabel('Frequency', color='#cccccc', fontsize=12)
+        ax.set_title(f'Histogram Analysis - {channel} Channel', color='#ffffff', fontsize=14, fontweight='bold')
+        ax.tick_params(colors='#cccccc', labelsize=10)
+        ax.grid(True, alpha=0.3, color='#444444')
+        
+        if channel == 'RGB':
+            ax.legend(facecolor='#2a2a2a', edgecolor='#555555', labelcolor='#cccccc')
+        
+        # 添加统计信息文本
+        stats_text = self._get_histogram_stats_text(img_255, channel)
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                verticalalignment='top', fontsize=10, color='#cccccc',
+                bbox=dict(boxstyle='round', facecolor='#2a2a2a', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # 转换为tensor
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=150, facecolor='#2a2a2a', edgecolor='none')
+        buf.seek(0)
+        
+        pil_image = Image.open(buf)
+        img_array = np.array(pil_image.convert('RGB'))
+        result_tensor = torch.from_numpy(img_array.astype(np.float32) / 255.0)
+        
+        plt.close(fig)
+        buf.close()
+        
+        return result_tensor
+    
+    def _generate_detailed_histogram_data(self, img_255, channel, bins):
+        """生成详细的直方图数据"""
+        img_np = img_255.cpu().numpy()
+        data = {}
+        
+        if channel == 'RGB':
+            for i, ch in enumerate(['R', 'G', 'B']):
+                channel_data = img_np[:, :, i].flatten()
+                hist, bin_edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+                data[ch] = {
+                    'histogram': hist.tolist(),
+                    'bin_edges': bin_edges.tolist(),
+                    'total_pixels': len(channel_data)
+                }
+        else:
+            if channel in ['R', 'G', 'B']:
+                channel_idx = {'R': 0, 'G': 1, 'B': 2}[channel]
+                channel_data = img_np[:, :, channel_idx].flatten()
+            elif channel == 'Luminance':
+                channel_data = (img_np[:, :, 0] * 0.299 + img_np[:, :, 1] * 0.587 + img_np[:, :, 2] * 0.114).flatten()
+            
+            hist, bin_edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+            data[channel] = {
+                'histogram': hist.tolist(),
+                'bin_edges': bin_edges.tolist(),
+                'total_pixels': len(channel_data)
+            }
+        
+        import json
+        return json.dumps(data, indent=2)
+    
+    def _calculate_comprehensive_statistics(self, img_255, channel):
+        """计算全面的图像统计信息"""
+        img_np = img_255.cpu().numpy()
+        stats = {}
+        
+        if channel == 'RGB':
+            for i, ch in enumerate(['R', 'G', 'B']):
+                channel_data = img_np[:, :, i].flatten()
+                stats[ch] = self._calculate_channel_stats(channel_data)
+        else:
+            if channel in ['R', 'G', 'B']:
+                channel_idx = {'R': 0, 'G': 1, 'B': 2}[channel]
+                channel_data = img_np[:, :, channel_idx].flatten()
+            elif channel == 'Luminance':
+                channel_data = (img_np[:, :, 0] * 0.299 + img_np[:, :, 1] * 0.587 + img_np[:, :, 2] * 0.114).flatten()
+            
+            stats[channel] = self._calculate_channel_stats(channel_data)
+        
+        # 格式化输出
+        result = []
+        for ch, stat in stats.items():
+            result.append(f"{ch} Channel Statistics:")
+            result.append(f"  Mean: {stat['mean']:.2f}")
+            result.append(f"  Median: {stat['median']:.2f}")
+            result.append(f"  Std Dev: {stat['std']:.2f}")
+            result.append(f"  Min: {stat['min']:.0f}")
+            result.append(f"  Max: {stat['max']:.0f}")
+            result.append(f"  Range: {stat['range']:.0f}")
+            result.append(f"  Skewness: {stat['skewness']:.3f}")
+            result.append(f"  Kurtosis: {stat['kurtosis']:.3f}")
+            result.append("")
+        
+        return "\n".join(result)
+    
+    def _calculate_channel_stats(self, data):
+        """计算单通道统计信息"""
+        from scipy import stats
+        
+        return {
+            'mean': float(np.mean(data)),
+            'median': float(np.median(data)),
+            'std': float(np.std(data)),
+            'min': float(np.min(data)),
+            'max': float(np.max(data)),
+            'range': float(np.max(data) - np.min(data)),
+            'skewness': float(stats.skew(data)),
+            'kurtosis': float(stats.kurtosis(data))
+        }
+    
+    def _export_raw_histogram_data(self, img_255, channel, bins):
+        """导出原始直方图数据（CSV格式）"""
+        img_np = img_255.cpu().numpy()
+        csv_lines = []
+        
+        if channel == 'RGB':
+            csv_lines.append("Bin_Center,Red_Count,Green_Count,Blue_Count")
+            
+            # 计算每个通道的直方图
+            hists = []
+            bin_edges = None
+            for i in range(3):
+                channel_data = img_np[:, :, i].flatten()
+                hist, edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+                hists.append(hist)
+                if bin_edges is None:
+                    bin_edges = edges
+            
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            
+            for i, center in enumerate(bin_centers):
+                csv_lines.append(f"{center:.1f},{hists[0][i]},{hists[1][i]},{hists[2][i]}")
+        
+        else:
+            csv_lines.append(f"Bin_Center,{channel}_Count")
+            
+            if channel in ['R', 'G', 'B']:
+                channel_idx = {'R': 0, 'G': 1, 'B': 2}[channel]
+                channel_data = img_np[:, :, channel_idx].flatten()
+            elif channel == 'Luminance':
+                channel_data = (img_np[:, :, 0] * 0.299 + img_np[:, :, 1] * 0.587 + img_np[:, :, 2] * 0.114).flatten()
+            
+            hist, bin_edges = np.histogram(channel_data, bins=bins, range=(0, 255))
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            
+            for i, center in enumerate(bin_centers):
+                csv_lines.append(f"{center:.1f},{hist[i]}")
+        
+        return "\n".join(csv_lines)
+    
+    def _get_histogram_stats_text(self, img_255, channel):
+        """获取直方图统计信息文本（用于图像标注）"""
+        img_np = img_255.cpu().numpy()
+        
+        if channel == 'RGB':
+            # RGB平均统计
+            rgb_data = img_np.reshape(-1, 3)
+            mean_rgb = np.mean(rgb_data, axis=0)
+            return f"RGB Mean: ({mean_rgb[0]:.1f}, {mean_rgb[1]:.1f}, {mean_rgb[2]:.1f})\nPixels: {rgb_data.shape[0]:,}"
+        else:
+            if channel in ['R', 'G', 'B']:
+                channel_idx = {'R': 0, 'G': 1, 'B': 2}[channel]
+                channel_data = img_np[:, :, channel_idx].flatten()
+            elif channel == 'Luminance':
+                channel_data = (img_np[:, :, 0] * 0.299 + img_np[:, :, 1] * 0.587 + img_np[:, :, 2] * 0.114).flatten()
+            
+            mean_val = np.mean(channel_data)
+            std_val = np.std(channel_data)
+            return f"{channel} Mean: {mean_val:.1f}\nStd Dev: {std_val:.1f}\nPixels: {len(channel_data):,}"
+    
+    def _create_fallback_histogram_image(self):
+        """创建错误时的备用直方图图像"""
+        # 创建简单的错误图像
+        error_image = np.ones((400, 600, 3), dtype=np.float32) * 0.1
+        return torch.from_numpy(error_image)
+
+class PhotoshopLevelsNode:
+    """专业色阶调整节点 - 专注于色阶调整功能"""
     
     @classmethod
     def INPUT_TYPES(cls):
@@ -945,10 +1299,10 @@ class PhotoshopHistogramNode:
             'hidden': {'unique_id': 'UNIQUE_ID'}
         }
     
-    RETURN_TYPES = ('IMAGE', 'IMAGE', 'STRING', 'STRING')
-    RETURN_NAMES = ('image', 'histogram_image', 'histogram_data', 'statistics')
-    FUNCTION = 'apply_histogram_adjustment'
-    CATEGORY = 'Image/Analysis'
+    RETURN_TYPES = ('IMAGE',)
+    RETURN_NAMES = ('image',)
+    FUNCTION = 'apply_levels_adjustment'
+    CATEGORY = 'Image/Adjustments'
     OUTPUT_NODE = False
     
     @classmethod
@@ -957,9 +1311,9 @@ class PhotoshopHistogramNode:
                    clip_percentage=0.1, unique_id=None):
         return f"{channel}_{input_black}_{input_white}_{input_midtones}_{output_black}_{output_white}_{auto_levels}_{auto_contrast}_{clip_percentage}"
 
-    def apply_histogram_adjustment(self, image, channel, input_black=0.0, input_white=255.0, input_midtones=1.0,
-                                 output_black=0.0, output_white=255.0, auto_levels=False, auto_contrast=False,
-                                 clip_percentage=0.1, unique_id=None):
+    def apply_levels_adjustment(self, image, channel, input_black=0.0, input_white=255.0, input_midtones=1.0,
+                               output_black=0.0, output_white=255.0, auto_levels=False, auto_contrast=False,
+                               clip_percentage=0.1, unique_id=None):
         try:
             # 确保输入图像格式正确
             if image is None:
@@ -1003,68 +1357,45 @@ class PhotoshopHistogramNode:
                     }
                     
                     # 发送事件到前端
-                    PromptServer.instance.send_sync("histogram_levels_preview", send_data)
-                    print(f"✅ 已发送直方图和色阶预览数据到前端，节点ID: {unique_id}")
+                    PromptServer.instance.send_sync("levels_adjustment_preview", send_data)
+                    print(f"✅ 已发送色阶调整预览数据到前端，节点ID: {unique_id}")
                     
                 except Exception as preview_error:
-                    print(f"发送直方图预览时出错: {preview_error}")
+                    print(f"发送色阶预览时出错: {preview_error}")
             
             # 处理批次维度
             if image.dim() == 4:  # Batch dimension exists
                 batch_size = image.shape[0]
                 results = []
-                histogram_images = []
-                histogram_data_list = []
-                statistics_list = []
                 
                 for b in range(batch_size):
-                    result, hist_image, hist_data, stats = self._process_single_image(
+                    result = self._apply_levels_to_image(
                         image[b], channel, input_black, input_white, input_midtones,
                         output_black, output_white, auto_levels, auto_contrast, clip_percentage
                     )
                     results.append(result)
-                    histogram_images.append(hist_image)
-                    histogram_data_list.append(hist_data)
-                    statistics_list.append(stats)
                 
-                # 合并批次结果
-                combined_hist = "\n".join([f"Image {i+1}:\n{hist}" for i, hist in enumerate(histogram_data_list)])
-                combined_stats = "\n".join([f"Image {i+1}:\n{stats}" for i, stats in enumerate(statistics_list)])
-                
-                return (torch.stack(results, dim=0), torch.stack(histogram_images, dim=0), combined_hist, combined_stats)
+                return (torch.stack(results, dim=0),)
             else:
-                result, hist_image, hist_data, stats = self._process_single_image(
+                result = self._apply_levels_to_image(
                     image, channel, input_black, input_white, input_midtones,
                     output_black, output_white, auto_levels, auto_contrast, clip_percentage
                 )
-                return (result.unsqueeze(0), hist_image.unsqueeze(0), hist_data, stats)
+                return (result.unsqueeze(0),)
                 
         except Exception as e:
-            print(f"PhotoshopHistogramNode error: {e}")
+            print(f"PhotoshopLevelsNode error: {e}")
             # 返回原始图像作为fallback
-            fallback_hist = self._create_fallback_histogram_image()
-            return (image, fallback_hist, "Error generating histogram", "Error calculating statistics")
+            return (image,)
     
-    def _process_single_image(self, image, channel, input_black, input_white, input_midtones, output_black, output_white, auto_levels, auto_contrast, clip_percentage):
+    def _apply_levels_to_image(self, image, channel, input_black, input_white, input_midtones, output_black, output_white, auto_levels, auto_contrast, clip_percentage):
+        """应用色阶调整到单个图像"""
         # 确保图像在正确的设备上
         device = get_torch_device()
         image = image.to(device)
         
-        # 处理图像维度 (HWC)
-        if image.dim() == 3:
-            h, w, c = image.shape
-        else:
-            raise ValueError(f"Unexpected image dimensions: {image.shape}")
-        
         # 将图像转换为0-255范围用于直方图分析
         img_255 = (image * 255.0).clamp(0, 255)
-        
-        # 生成直方图数据和图像
-        histogram_data = self._generate_histogram_data(img_255, channel)
-        histogram_image = self._generate_histogram_image(img_255, channel, input_black, input_white, input_midtones)
-        
-        # 计算统计信息
-        statistics = self._calculate_statistics(img_255, channel)
         
         # 应用自动调整（如果启用）
         if auto_levels or auto_contrast:
@@ -1077,339 +1408,71 @@ class PhotoshopHistogramNode:
             image, channel, input_black, input_white, input_midtones, output_black, output_white
         )
         
-        return result, histogram_image, histogram_data, statistics
-    
-    def _generate_histogram_data(self, img_255, channel):
-        """生成直方图数据"""
-        histogram_info = []
-        
-        if channel == 'RGB' or channel == 'Luminance':
-            if channel == 'RGB':
-                # RGB综合直方图
-                for c, color_name in enumerate(['Red', 'Green', 'Blue']):
-                    if c < img_255.shape[2]:
-                        channel_data = img_255[..., c].cpu().numpy().flatten()
-                        hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
-                        histogram_info.append(f"{color_name} Channel Histogram:")
-                        histogram_info.append(f"  Bins: {len(hist)}")
-                        histogram_info.append(f"  Peak: {np.argmax(hist)} (value: {np.max(hist)})")
-                        histogram_info.append(f"  Mean: {np.mean(channel_data):.2f}")
-                        histogram_info.append("")
-            else:
-                # 亮度直方图
-                if img_255.shape[2] >= 3:
-                    luminance = (img_255[..., 0] * 0.299 + 
-                               img_255[..., 1] * 0.587 + 
-                               img_255[..., 2] * 0.114)
-                    lum_data = luminance.cpu().numpy().flatten()
-                    hist, bins = np.histogram(lum_data, bins=256, range=(0, 255))
-                    histogram_info.append("Luminance Histogram:")
-                    histogram_info.append(f"  Bins: {len(hist)}")
-                    histogram_info.append(f"  Peak: {np.argmax(hist)} (value: {np.max(hist)})")
-                    histogram_info.append(f"  Mean: {np.mean(lum_data):.2f}")
-        else:
-            # 单通道直方图
-            channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(channel, 0)
-            colors = {'R': 'red', 'G': 'green', 'B': 'blue'}
-            color = colors.get(channel, 'white')
-            
-            if channel_idx < img_255.shape[2]:
-                channel_data = img_255[..., channel_idx].cpu().numpy().flatten()
-                hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
-                
-                # 归一化直方图
-                hist_normalized = (hist / np.max(hist)) * 255 if np.max(hist) > 0 else hist
-                
-                # 绘制单通道直方图
-                histogram_info.append(f"{channel} Channel Histogram:")
-                histogram_info.append(f"  Bins: {len(hist)}")
-                histogram_info.append(f"  Peak: {np.argmax(hist)} (value: {np.max(hist)})")
-                histogram_info.append(f"  Mean: {np.mean(channel_data):.2f}")
-                histogram_info.append(f"  Std Dev: {np.std(channel_data):.2f}")
-                
-                # 添加分布信息
-                histogram_info.append(f"  Min: {np.min(channel_data):.2f}")
-                histogram_info.append(f"  Max: {np.max(channel_data):.2f}")
-                histogram_info.append(f"  Median: {np.median(channel_data):.2f}")
-                
-                # 计算百分位数
-                p1, p99 = np.percentile(channel_data, [1, 99])
-                histogram_info.append(f"  1st Percentile: {p1:.2f}")
-                histogram_info.append(f"  99th Percentile: {p99:.2f}")
-        
-        return "\n".join(histogram_info)
-    
-    def _generate_histogram_image(self, img_255, channel, input_black=0, input_white=255, input_midtones=1.0):
-        """生成直方图可视化图像 - 统一风格的版本"""
-        try:
-            # 设置图像大小
-            fig_width, fig_height = 6, 4
-            fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-            
-            # 统一风格
-            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
-            ax.set_facecolor('#1a1a1a')  # 内部背景
-            
-            # 设置网格线和边框
-            gridColor = '#444444'
-            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
-            
-            # 设置轴标签颜色
-            ax.tick_params(axis='x', colors='white', labelsize=8)
-            ax.tick_params(axis='y', colors='white', labelsize=8)
-            for spine in ax.spines.values():
-                spine.set_color('#555555')
-            
-            # 设置标题和标签颜色
-            title_color = 'white'
-            label_color = '#cccccc'
-            
-            if channel == 'RGB':
-                # RGB综合直方图 - 显示三个通道
-                colors = ['#ff5555', '#55ff55', '#5555ff']  # 更鲜明的RGB颜色
-                channel_names = ['Red', 'Green', 'Blue']
-                
-                for c, (color, name) in enumerate(zip(colors, channel_names)):
-                    if c < img_255.shape[2]:
-                        channel_data = img_255[..., c].cpu().numpy().flatten()
-                        hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
-                        
-                        # 绘制直方图
-                        ax.plot(bins[:-1], hist, color=color, alpha=0.8, linewidth=1.5, label=name)
-                        ax.fill_between(bins[:-1], hist, alpha=0.3, color=color)
-                
-                ax.legend(loc='upper right', framealpha=0.7, facecolor='#2a2a2a', edgecolor='#555555', labelcolor='white')
-                title = 'RGB Histogram'
-                
-            elif channel == 'Luminance':
-                # 亮度直方图
-                if img_255.shape[2] >= 3:
-                    luminance = (img_255[..., 0] * 0.299 + 
-                               img_255[..., 1] * 0.587 + 
-                               img_255[..., 2] * 0.114)
-                    lum_data = luminance.cpu().numpy().flatten()
-                    hist, bins = np.histogram(lum_data, bins=256, range=(0, 255))
-                    
-                    ax.plot(bins[:-1], hist, color='#aaaaaa', linewidth=1.5)
-                    ax.fill_between(bins[:-1], hist, alpha=0.5, color='#aaaaaa')
-                    
-                title = 'Luminance Histogram'
-                
-            else:
-                # 单通道直方图
-                channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(channel, 0)
-                colors = {'R': '#ff5555', 'G': '#55ff55', 'B': '#5555ff'}
-                color = colors.get(channel, '#5555ff')
-                
-                if channel_idx < img_255.shape[2]:
-                    channel_data = img_255[..., channel_idx].cpu().numpy().flatten()
-                    hist, bins = np.histogram(channel_data, bins=256, range=(0, 255))
-                    
-                    ax.plot(bins[:-1], hist, color=color, linewidth=1.5)
-                    ax.fill_between(bins[:-1], hist, alpha=0.5, color=color)
-                    
-                title = f'{channel} Channel Histogram'
-            
-            # 添加色阶指示线
-            if input_black > 0:
-                ax.axvline(x=input_black, color='#ffffff', linestyle='--', alpha=0.7, linewidth=1, 
-                          label=f'Black: {input_black:.0f}')
-            if input_white < 255:
-                ax.axvline(x=input_white, color='#ffffff', linestyle='--', alpha=0.7, linewidth=1, 
-                          label=f'White: {input_white:.0f}')
-            if gamma != 1.0:
-                # 显示伽马中点
-                gamma_point = input_black + (input_white - input_black) * (0.5 ** (1/gamma))
-                ax.axvline(x=gamma_point, color='#aaaaaa', linestyle=':', alpha=0.7, linewidth=1, 
-                          label=f'Gamma: {gamma:.2f}')
-            
-            # 设置标题和标签
-            ax.set_title(title, fontsize=12, fontweight='bold', color=title_color, pad=10)
-            ax.set_xlabel('Pixel Value (0-255)', fontsize=10, color=label_color)
-            ax.set_ylabel('Frequency', fontsize=10, color=label_color)
-            ax.set_xlim(0, 255)
-            
-            # 如果有色阶线，显示图例
-            if input_black > 0 or input_white < 255 or gamma != 1.0:
-                ax.legend(loc='upper left', fontsize=8, framealpha=0.7, 
-                         facecolor='#2a2a2a', edgecolor='#555555', labelcolor='white')
-            
-            # 调整布局
-            plt.tight_layout()
-            
-            # 将图像转换为tensor
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
-            plt.close(fig)
-            
-            # 转换为PIL图像
-            buf.seek(0)
-            chart_pil = Image.open(buf)
-            
-            # 调整图像大小
-            chart_pil = chart_pil.resize((512, 512), Image.LANCZOS)
-            
-            # 转换为RGB模式
-            if chart_pil.mode != 'RGB':
-                chart_pil = chart_pil.convert('RGB')
-            
-            # 转换为tensor
-            chart_np = np.array(chart_pil) / 255.0
-            chart_tensor = torch.from_numpy(chart_np).float().to(get_torch_device())
-            
-            return chart_tensor
-        
-        except Exception as e:
-            print(f"Error generating histogram image: {e}")
-            return self._create_fallback_histogram_image()
-    
-    def _create_fallback_histogram_image(self):
-        """创建备用直方图图像 - 统一风格的版本"""
-        try:
-            # 创建一个简单的错误图像
-            fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
-            fig.patch.set_facecolor('#2a2a2a')  # 外部背景
-            
-            ax.set_facecolor('#1a1a1a')  # 内部背景
-            ax.text(0.5, 0.5, 'Error generating histogram\nPlease check console for details', 
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes, fontsize=12, color='#ff5555')
-            ax.set_xlim(0, 255)
-            ax.set_ylim(0, 255)
-            ax.set_xlabel('Pixel Value', color='#cccccc', fontsize=10)
-            ax.set_ylabel('Frequency', color='#cccccc', fontsize=10)
-            ax.set_title('Histogram Error', color='white', fontsize=12)
-            ax.tick_params(colors='#cccccc')
-            
-            # 设置边框颜色
-            for spine in ax.spines.values():
-                spine.set_color('#555555')
-            
-            # 绘制网格线
-            gridColor = '#444444'
-            ax.grid(True, color=gridColor, alpha=0.5, linestyle='-', linewidth=0.5)
-            
-            # 转换为tensor
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', pad_inches=0.1, facecolor='#2a2a2a')
-            plt.close(fig)
-            buf.seek(0)
-            
-            pil_image = Image.open(buf)
-            pil_image = pil_image.resize((512, 512), Image.LANCZOS)
-            
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            
-            img_array = np.array(pil_image)
-            histogram_tensor = torch.from_numpy(img_array).float() / 255.0
-            
-            return histogram_tensor.to(get_torch_device())
-            
-        except Exception as e:
-            print(f"Error creating fallback histogram: {e}")
-            # 创建一个纯色图像作为最后的备用
-            empty_chart = torch.ones((512, 512, 3), dtype=torch.float32).to(get_torch_device()) * 0.1
-            # 在中间绘制红色十字表示错误
-            empty_chart[236:276, 236:276, 0] = 1.0
-            empty_chart[236:276, 236:276, 1] = 0.0
-            empty_chart[236:276, 236:276, 2] = 0.0
-            return empty_chart
-
-    def _calculate_statistics(self, img_255, channel):
-        """计算图像统计信息"""
-        stats_info = []
-        
-        if channel == 'RGB':
-            for c, color_name in enumerate(['Red', 'Green', 'Blue']):
-                if c < img_255.shape[2]:
-                    channel_data = img_255[..., c].cpu().numpy()
-                    stats_info.append(f"{color_name} Channel Statistics:")
-                    stats_info.append(f"  Mean: {np.mean(channel_data):.2f}")
-                    stats_info.append(f"  Std Dev: {np.std(channel_data):.2f}")
-                    stats_info.append(f"  Min: {np.min(channel_data):.2f}")
-                    stats_info.append(f"  Max: {np.max(channel_data):.2f}")
-                    stats_info.append("")
-        elif channel == 'Luminance':
-            if img_255.shape[2] >= 3:
-                luminance = (img_255[..., 0] * 0.299 + 
-                           img_255[..., 1] * 0.587 + 
-                           img_255[..., 2] * 0.114)
-                lum_data = luminance.cpu().numpy()
-                stats_info.append("Luminance Statistics:")
-                stats_info.append(f"  Mean: {np.mean(lum_data):.2f}")
-                stats_info.append(f"  Std Dev: {np.std(lum_data):.2f}")
-                stats_info.append(f"  Min: {np.min(lum_data):.2f}")
-                stats_info.append(f"  Max: {np.max(lum_data):.2f}")
-        else:
-            channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(channel, 0)
-            if channel_idx < img_255.shape[2]:
-                channel_data = img_255[..., channel_idx].cpu().numpy()
-                stats_info.append(f"{channel} Channel Statistics:")
-                stats_info.append(f"  Mean: {np.mean(channel_data):.2f}")
-                stats_info.append(f"  Std Dev: {np.std(channel_data):.2f}")
-                stats_info.append(f"  Min: {np.min(channel_data):.2f}")
-                stats_info.append(f"  Max: {np.max(channel_data):.2f}")
-                stats_info.append(f"  Median: {np.median(channel_data):.2f}")
-                
-                # 添加对比度和亮度信息
-                contrast = np.std(channel_data)
-                brightness = np.mean(channel_data)
-                stats_info.append(f"  Contrast (Std): {contrast:.2f}")
-                stats_info.append(f"  Brightness (Mean): {brightness:.2f}")
-                
-                # 动态范围
-                dynamic_range = np.max(channel_data) - np.min(channel_data)
-                stats_info.append(f"  Dynamic Range: {dynamic_range:.2f}")
-        
-        return "\n".join(stats_info)
+        return result
     
     def _calculate_auto_levels(self, img_255, channel, auto_levels, auto_contrast, clip_percentage):
         """计算自动色阶参数"""
+        # 将裁剪百分比转换为0-1范围
+        clip = clip_percentage / 100.0
+        
         if channel == 'RGB':
-            # 对所有通道计算
-            all_data = img_255.cpu().numpy().flatten()
+            # 对RGB三个通道分别计算
+            r_min, r_max = self._calculate_channel_range(img_255[..., 0], clip, auto_levels, auto_contrast)
+            g_min, g_max = self._calculate_channel_range(img_255[..., 1], clip, auto_levels, auto_contrast)
+            b_min, b_max = self._calculate_channel_range(img_255[..., 2], clip, auto_levels, auto_contrast)
+            
+            # 取三个通道的平均值或极值
+            if auto_levels:
+                # 自动色阶：每个通道独立调整
+                min_val = (r_min + g_min + b_min) / 3
+                max_val = (r_max + g_max + b_max) / 3
+            else:
+                # 自动对比度：使用极值
+                min_val = min(r_min, g_min, b_min)
+                max_val = max(r_max, g_max, b_max)
+        
         elif channel == 'Luminance':
+            # 计算亮度通道
             if img_255.shape[2] >= 3:
                 luminance = (img_255[..., 0] * 0.299 + 
                            img_255[..., 1] * 0.587 + 
                            img_255[..., 2] * 0.114)
-                all_data = luminance.cpu().numpy().flatten()
+                min_val, max_val = self._calculate_channel_range(luminance, clip, auto_levels, auto_contrast)
             else:
-                all_data = img_255[..., 0].cpu().numpy().flatten()
+                min_val, max_val = self._calculate_channel_range(img_255[..., 0], clip, auto_levels, auto_contrast)
+        
         else:
+            # 单通道
             channel_idx = {'R': 0, 'G': 1, 'B': 2}.get(channel, 0)
             if channel_idx < img_255.shape[2]:
-                all_data = img_255[..., channel_idx].cpu().numpy().flatten()
+                min_val, max_val = self._calculate_channel_range(img_255[..., channel_idx], clip, auto_levels, auto_contrast)
             else:
-                all_data = img_255[..., 0].cpu().numpy().flatten()
-        
-        # 计算百分位数来确定黑白场点
-        low_percentile = clip_percentage
-        high_percentile = 100 - clip_percentage
-        
-        input_black = np.percentile(all_data, low_percentile)
-        input_white = np.percentile(all_data, high_percentile)
+                min_val, max_val = 0, 255
         
         # 确保有效范围
-        input_black = max(0, min(254, input_black))
-        input_white = max(input_black + 1, min(255, input_white))
+        min_val = max(0, min(254, min_val))
+        max_val = max(min_val + 1, min(255, max_val))
         
-        # 中间调值保持1.0（除非需要特殊调整）
-        input_midtones = 1.0
+        # 返回计算的参数
+        return min_val, max_val, 1.0  # 伽马值保持为1.0
+    
+    def _calculate_channel_range(self, channel_data, clip, auto_levels, auto_contrast):
+        """计算通道的范围"""
+        # 转换为numpy数组
+        data = channel_data.cpu().numpy().flatten()
         
-        # 如果只是自动对比度，调整中间调值
-        if auto_contrast and not auto_levels:
-            # 计算中间调的位置来调整中间调值
-            median_val = np.median(all_data)
-            if input_white > input_black:
-                normalized_median = (median_val - input_black) / (input_white - input_black)
-                if normalized_median > 0 and normalized_median < 1:
-                    # 调整中间调值使中间调更接近0.5
-                    input_midtones = np.log(0.5) / np.log(normalized_median)
-                    input_midtones = max(0.1, min(9.99, input_midtones))
+        # 计算直方图
+        hist, bins = np.histogram(data, bins=256, range=(0, 255))
         
-        return input_black, input_white, input_midtones
+        # 计算累积分布
+        cdf = hist.cumsum()
+        cdf = cdf / cdf[-1]  # 归一化
+        
+        # 计算裁剪点
+        min_val = bins[np.argwhere(cdf >= clip)[0, 0]]
+        max_val = bins[np.argwhere(cdf >= (1 - clip))[0, 0]]
+        
+        return min_val, max_val
     
     def _apply_levels_adjustment(self, image, channel, input_black, input_white, input_midtones, output_black, output_white):
         """应用色阶调整"""
@@ -1465,11 +1528,11 @@ class PhotoshopHistogramNode:
         normalized = (channel_data - input_black) / (input_white - input_black)
         normalized = torch.clamp(normalized, 0, 1)
         
-        # 中间调校正（伽马校正）
-        midtones_corrected = torch.pow(normalized, 1.0 / input_midtones)
+        # 伽马校正
+        gamma_corrected = torch.pow(normalized, 1.0 / input_midtones)
         
         # 输出范围调整
-        result = midtones_corrected * (output_white - output_black) + output_black
+        result = gamma_corrected * (output_white - output_black) + output_black
         
         return torch.clamp(result, 0, 255)
     
@@ -2889,23 +2952,36 @@ class ColorGradingNode:
         
         return blurred
 
-# 更新NODE_CLASS_MAPPINGS和NODE_DISPLAY_NAME_MAPPINGS，添加新的HSL调整节点
+# 更新NODE_CLASS_MAPPINGS和NODE_DISPLAY_NAME_MAPPINGS
 NODE_CLASS_MAPPINGS = {
     "PhotoshopCurveNode": PhotoshopCurveNode,
-    "PhotoshopHistogramNode": PhotoshopHistogramNode,
+    "PhotoshopLevelsNode": PhotoshopLevelsNode,  # 色阶调整节点
+    "HistogramAnalysisNode": HistogramAnalysisNode,  # 直方图分析节点
     "CurvePresetNode": CurvePresetNode,
     "ColorGradingNode": ColorGradingNode,
-    "PhotoshopHSLNode": PhotoshopHSLNode,  # 添加新节点
+    "PhotoshopHSLNode": PhotoshopHSLNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PhotoshopCurveNode": "🎨 PS Curve (Professional)",
-    "PhotoshopHistogramNode": "📊 PS Histogram & Levels", 
+    "PhotoshopLevelsNode": "🎨 PS Levels (Professional)",  # 色阶调整显示名称
+    "HistogramAnalysisNode": "📊 Histogram Analysis",  # 直方图分析显示名称
     "CurvePresetNode": "🎨 PS Curve Preset",
     "ColorGradingNode": "🎨 Color Grading Wheels",
-    "PhotoshopHSLNode": "🎨 PS HSL Adjustment",  # 添加新节点显示名称
+    "PhotoshopHSLNode": "🎨 PS HSL Adjustment",
 }
 
 # Web目录设置
 WEB_DIRECTORY = "./web"
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
+
+# JS文件映射 - 将节点类名映射到JS文件名
+NODE_CLASS_TO_JS_FILE = {
+    "PhotoshopCurveNode": "PhotoshopCurveNode.js",
+    "PhotoshopLevelsNode": "PhotoshopHistogramNode.js",  # 使用原有的JS文件
+    "HistogramAnalysisNode": "HistogramAnalysisNode.js",  # 明确映射到简化的JS文件
+    "CurvePresetNode": "CurvePresetNode.js",
+    "ColorGradingNode": "ColorGradingNode.js",
+    "PhotoshopHSLNode": "PhotoshopHSLNode.js",
+}
+
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY', 'NODE_CLASS_TO_JS_FILE']
