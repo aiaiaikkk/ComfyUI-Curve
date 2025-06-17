@@ -2594,6 +2594,119 @@ class PhotoshopCurveNodeWidget {
         });
     }
     
+    // 计算图像直方图
+    calculateHistogram(imageElement) {
+        if (!imageElement || !imageElement.complete) {
+            console.warn("🎨 图像未加载完成，无法计算直方图");
+            return null;
+        }
+        
+        try {
+            // 创建离屏画布
+            const canvas = document.createElement('canvas');
+            canvas.width = imageElement.width;
+            canvas.height = imageElement.height;
+            const ctx = canvas.getContext('2d');
+            
+            // 绘制图像到画布
+            ctx.drawImage(imageElement, 0, 0);
+            
+            // 获取图像数据
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            // 初始化直方图数组
+            const histogram = {
+                RGB: new Array(256).fill(0),
+                R: new Array(256).fill(0),
+                G: new Array(256).fill(0),
+                B: new Array(256).fill(0)
+            };
+            
+            // 计算直方图
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                
+                // RGB亮度计算（标准公式）
+                const luminance = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                
+                histogram.R[r]++;
+                histogram.G[g]++;
+                histogram.B[b]++;
+                histogram.RGB[luminance]++;
+            }
+            
+            // 归一化直方图数据
+            const totalPixels = canvas.width * canvas.height;
+            for (const channel in histogram) {
+                const maxCount = Math.max(...histogram[channel]);
+                histogram[channel] = histogram[channel].map(count => count / maxCount);
+            }
+            
+            console.log("🎨 直方图计算完成");
+            return histogram;
+            
+        } catch (error) {
+            console.error("🎨 计算直方图时出错:", error);
+            return null;
+        }
+    }
+    
+    // 绘制直方图背景
+    drawHistogram() {
+        // 获取当前图像
+        const modal = this.node.curveEditorModal;
+        if (!modal || !modal.originalImage) {
+            console.log("🎨 未找到图像数据，跳过直方图绘制");
+            return;
+        }
+        
+        // 计算直方图
+        const histogram = this.calculateHistogram(modal.originalImage);
+        if (!histogram) {
+            console.log("🎨 直方图计算失败，跳过绘制");
+            return;
+        }
+        
+        // 获取当前通道
+        const currentChannel = this.channel ? this.channel.value : 'RGB';
+        const histogramData = histogram[currentChannel] || histogram.RGB;
+        
+        // 创建路径数据
+        let pathData = 'M0,384';
+        for (let i = 0; i < 256; i++) {
+            const x = (i / 255) * 384;
+            const y = 384 - (histogramData[i] * 200); // 最大高度200像素
+            pathData += ` L${x},${y}`;
+        }
+        pathData += ' L384,384 Z';
+        
+        // 创建直方图路径
+        const histogramPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        histogramPath.setAttribute('d', pathData);
+        histogramPath.setAttribute('fill', this.getHistogramColor(currentChannel));
+        histogramPath.setAttribute('opacity', '0.3');
+        histogramPath.setAttribute('stroke', 'none');
+        
+        // 添加到SVG（在背景渐变之后，对角线之前）
+        this.svg.appendChild(histogramPath);
+        
+        console.log("🎨 直方图绘制完成，通道:", currentChannel);
+    }
+    
+    // 获取直方图颜色
+    getHistogramColor(channel) {
+        const colors = {
+            'RGB': '#ffffff',
+            'R': '#ff4444',
+            'G': '#44ff44',
+            'B': '#4444ff'
+        };
+        return colors[channel] || colors['RGB'];
+    }
+    
     drawSmoothCurve() {
         if (this.controlPoints.length < 2) return;
         

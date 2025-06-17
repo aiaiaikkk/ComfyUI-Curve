@@ -3,6 +3,97 @@ import { $el } from '../../scripts/ui.js';
 
 console.log("🔄 PhotoshopHSLNode.js 开始加载...");
 
+// PS风格的饱和度调整因子计算（匹配后端实现）
+function calculatePSSaturationFactor(sat_shift) {
+    if (sat_shift === 0) {
+        return 1.0;
+    } else if (sat_shift > 0) {
+        // 正向调整：使用指数曲线，避免过度饱和
+        return 1.0 + (sat_shift / 100.0) * 2.0;
+    } else {
+        // 负向调整：使用对数曲线，保持自然的去饱和
+        return Math.max(0.0, 1.0 + (sat_shift / 100.0));
+    }
+}
+
+// PS风格的明度调整函数（匹配后端实现）
+function applyPSLightnessAdjustment(value, light_shift) {
+    if (light_shift === 0) {
+        return value;
+    }
+    
+    // 将值规范化到0-1范围
+    const normalized = value / 255.0;
+    
+    let adjusted;
+    if (light_shift > 0) {
+        // 提亮：使用幂函数保护高光
+        const power = 1.0 - (light_shift / 100.0) * 0.5;
+        adjusted = Math.pow(normalized, power);
+    } else {
+        // 变暗：使用反向幂函数保护阴影
+        const power = 1.0 + (Math.abs(light_shift) / 100.0) * 0.5;
+        adjusted = Math.pow(normalized, power);
+    }
+    
+    // 转换回0-255范围并确保在有效范围内
+    return Math.max(0, Math.min(255, adjusted * 255.0));
+}
+
+// OpenCV HSV 转换函数（匹配后端实现）
+function rgbToOpenCVHSV(r, g, b) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const diff = max - min;
+    
+    let h = 0;
+    const s = max === 0 ? 0 : (diff / max) * 255;
+    const v = max * 255;
+    
+    if (diff !== 0) {
+        if (max === r) {
+            h = 60 * ((g - b) / diff);
+        } else if (max === g) {
+            h = 60 * (2 + (b - r) / diff);
+        } else {
+            h = 60 * (4 + (r - g) / diff);
+        }
+    }
+    
+    if (h < 0) h += 360;
+    h = h / 2; // OpenCV H范围是0-179
+    
+    return [Math.round(h), Math.round(s), Math.round(v)];
+}
+
+function openCVHSVToRGB(h, s, v) {
+    h = h * 2; // 转换回0-360度
+    s = s / 255;
+    v = v / 255;
+    
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    
+    let r = 0, g = 0, b = 0;
+    
+    if (h >= 0 && h < 60) {
+        r = c; g = x; b = 0;
+    } else if (h >= 60 && h < 120) {
+        r = x; g = c; b = 0;
+    } else if (h >= 120 && h < 180) {
+        r = 0; g = c; b = x;
+    } else if (h >= 180 && h < 240) {
+        r = 0; g = x; b = c;
+    } else if (h >= 240 && h < 300) {
+        r = x; g = 0; b = c;
+    } else if (h >= 300 && h < 360) {
+        r = c; g = 0; b = x;
+    }
+    
+    return [r + m, g + m, b + m];
+}
+
 // 添加样式
 const style = document.createElement('style');
 style.textContent = `
@@ -1286,111 +1377,81 @@ applyButton.onclick = () => {
                         }
                         
                         function applyHSLWithMask() {
-                            // 应用HSL调整 - 模拟CameraRaw算法
+                            // 应用HSV调整 - 匹配后端OpenCV实现
                             for (let i = 0; i < data.length; i += 4) {
-                                const r = data[i];
-                                const g = data[i + 1];
-                                const b = data[i + 2];
+                                const r = data[i] / 255.0;
+                                const g = data[i + 1] / 255.0;
+                                const b = data[i + 2] / 255.0;
                                 
-                                // 计算遮罩因子
-                                let maskFactor = 1.0; // 默认完全应用调整
-                                if (maskData) {
-                                    // 获取遮罩亮度（使用红色通道作为遮罩值）
-                                    const maskLuminance = maskData[i] / 255.0;
-                                    maskFactor = maskLuminance; // 直接使用遮罩亮度作为因子
-                                }
+                                // 转换为HSV（匹配OpenCV）
+                                const hsv = rgbToOpenCVHSV(r, g, b);
                                 
-                                // 如果遮罩因子为0，跳过处理
-                                if (maskFactor === 0) {
-                                    continue;
-                                }
+                                // 应用调整到所有相关颜色范围
+                                let adjustedHSV = [...hsv];
                                 
-                                // 转换为HSL
-                                const hsl = rgbToHsl(r, g, b);
-                                const originalHue = hsl[0];
-                            
-                            // 获取所有可能影响此像素的通道
-                            const influencingChannels = [];
-                            
-                            // 计算每个通道对此像素的影响权重 (模拟CameraRaw的平滑过渡)
-                            COLOR_CHANNELS.forEach(channel => {
-                                // 计算色相距离 (0-0.5范围)
-                                let hueDist = Math.abs(originalHue - (channel.degree / 360));
-                                // 处理色环边界情况
-                                if (hueDist > 0.5) hueDist = 1 - hueDist;
+                                // 检查每个颜色范围并应用调整（匹配后端逻辑）
+                                const colorRanges = {
+                                    red: [[0, 14], [165, 179]],
+                                    orange: [[15, 29]],
+                                    yellow: [[30, 44]],
+                                    green: [[45, 74]],
+                                    cyan: [[75, 104]],
+                                    blue: [[105, 134]],
+                                    purple: [[135, 149]],
+                                    magenta: [[150, 164]]
+                                };
                                 
-                                // 影响范围 (大约60度/360 = 1/6 = 0.167)
-                                const influence = 0.167;
-                                
-                                // 计算权重 - 使用平滑的钟形曲线
-                                let weight = 0;
-                                if (hueDist < influence) {
-                                    // 平滑过渡 - 余弦曲线 (1 在中心, 0 在边缘)
-                                    weight = Math.cos(hueDist * Math.PI / influence / 2);
-                                    weight = weight * weight; // 使曲线更陡峭
+                                Object.keys(colorRanges).forEach(colorName => {
+                                    const ranges = colorRanges[colorName];
+                                    const colorParams = params[colorName === 'cyan' ? 'aqua' : colorName];
                                     
-                                    influencingChannels.push({
-                                        id: channel.id,
-                                        weight: weight,
-                                        params: params[channel.id]
-                                    });
-                                }
-                            });
-                            
-                            // 总权重
-                            const totalWeight = influencingChannels.reduce((sum, ch) => sum + ch.weight, 0);
-                            
-                            // 如果至少有一个通道有影响
-                            if (totalWeight > 0) {
-                                let hueShift = 0;
-                                let satFactor = 0;
-                                let lightFactor = 0;
-                                
-                                // 计算加权平均调整值
-                                influencingChannels.forEach(ch => {
-                                    const normWeight = ch.weight / totalWeight;
+                                    if (!colorParams || (colorParams.hue === 0 && colorParams.saturation === 0 && colorParams.lightness === 0)) {
+                                        return;
+                                    }
                                     
-                                    // 色相调整 - 使用加权的偏移量
-                                    hueShift += (ch.params.hue / 360) * normWeight;
+                                    // 检查像素是否在当前颜色范围内
+                                    let inRange = false;
+                                    for (const range of ranges) {
+                                        const [minH, maxH] = range;
+                                        if (adjustedHSV[0] >= minH && adjustedHSV[0] <= maxH) {
+                                            inRange = true;
+                                            break;
+                                        }
+                                    }
                                     
-                                    // 饱和度调整 - 使用非线性曲线
-                                    const satAdjust = ch.params.saturation / 100;
-                                    // 应用非线性曲线，保持低饱和度区域的细节
-                                    const satCurve = satAdjust >= 0 
-                                        ? 1 + satAdjust * (1 - 0.3 * hsl[1]) // 高饱和区减少增益
-                                        : 1 + satAdjust * (0.7 + 0.3 * hsl[1]); // 低饱和区减少减益
-                                    satFactor += satCurve * normWeight;
-                                    
-                                    // 明度调整 - 使用非线性曲线
-                                    const lightAdjust = ch.params.lightness / 100;
-                                    // 保护高光和阴影区域
-                                    const lightCurve = lightAdjust >= 0
-                                        ? 1 + lightAdjust * (1 - 0.5 * hsl[2]) // 高亮区减少增益
-                                        : 1 + lightAdjust * (0.5 + 0.5 * hsl[2]); // 暗部减少减益
-                                    lightFactor += lightCurve * normWeight;
+                                    if (inRange) {
+                                        // 应用调整（修复为匹配PS和后端算法）
+                                        if (colorParams.hue !== 0) {
+                                            // 修复：使用1.8的缩放因子匹配PS的色相调整
+                                            const hueAdjustment = colorParams.hue * 1.8; // 将-100~100映射到-180~180度
+                                            adjustedHSV[0] = (adjustedHSV[0] + hueAdjustment) % 180;
+                                        }
+                                        if (colorParams.saturation !== 0) {
+                                            // 修复：使用PS风格的饱和度调整
+                                            const satFactor = calculatePSSaturationFactor(colorParams.saturation);
+                                            adjustedHSV[1] = Math.max(0, Math.min(255, adjustedHSV[1] * satFactor));
+                                        }
+                                        if (colorParams.lightness !== 0) {
+                                            // 修复：使用PS风格的明度调整
+                                            adjustedHSV[2] = applyPSLightnessAdjustment(adjustedHSV[2], colorParams.lightness);
+                                        }
+                                    }
                                 });
                                 
-                                // 应用调整
-                                hsl[0] = (hsl[0] + hueShift) % 1; // 色相调整
-                                hsl[1] = Math.max(0, Math.min(1, hsl[1] * satFactor)); // 饱和度调整
-                                hsl[2] = Math.max(0, Math.min(1, hsl[2] * lightFactor)); // 明度调整
-                            }
-                            
-                            // 转回RGB
-                            const rgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
-                            
-                            // 应用遮罩混合
-                            if (maskFactor < 1.0) {
-                                // 混合原始和调整后的颜色
-                                data[i] = Math.round(r * (1 - maskFactor) + rgb[0] * maskFactor);
-                                data[i + 1] = Math.round(g * (1 - maskFactor) + rgb[1] * maskFactor);
-                                data[i + 2] = Math.round(b * (1 - maskFactor) + rgb[2] * maskFactor);
-                            } else {
-                                // 完全应用调整
-                                data[i] = rgb[0];
-                                data[i + 1] = rgb[1];
-                                data[i + 2] = rgb[2];
-                            }
+                                // 转换回RGB
+                                const rgb = openCVHSVToRGB(adjustedHSV[0], adjustedHSV[1], adjustedHSV[2]);
+                                
+                                // 计算遮罩因子
+                                let maskFactor = 1.0;
+                                if (maskData) {
+                                    const maskLuminance = maskData[i] / 255.0;
+                                    maskFactor = maskLuminance;
+                                }
+                                
+                                // 应用遮罩混合（原图与处理后图像）
+                                data[i] = Math.round((r * 255 * (1 - maskFactor) + rgb[0] * 255 * maskFactor));
+                                data[i + 1] = Math.round((g * 255 * (1 - maskFactor) + rgb[1] * 255 * maskFactor));
+                                data[i + 2] = Math.round((b * 255 * (1 - maskFactor) + rgb[2] * 255 * maskFactor));
                             }
                             
                             // 更新图像数据

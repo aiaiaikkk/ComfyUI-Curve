@@ -919,39 +919,7 @@ class HistogramAnalysisNode:
             if image is None:
                 raise ValueError("Input image is None")
             
-            # 发送预览数据到前端（仅当有unique_id时）
-            if unique_id is not None:
-                try:
-                    preview_image = image[0] if image.dim() == 4 else image
-                    img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
-                    
-                    if img_np.shape[-1] == 3:
-                        pil_img = Image.fromarray(img_np, mode='RGB')
-                    elif img_np.shape[-1] == 4:
-                        pil_img = Image.fromarray(img_np, mode='RGBA')
-                    else:
-                        pil_img = Image.fromarray(img_np[:,:,0], mode='L')
-                    
-                    buffer = io.BytesIO()
-                    pil_img.save(buffer, format='PNG')
-                    img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    
-                    send_data = {
-                        "node_id": str(unique_id),
-                        "image": f"data:image/png;base64,{img_base64}",
-                        "analysis_data": {
-                            "channel": channel,
-                            "histogram_bins": histogram_bins,
-                            "show_statistics": show_statistics,
-                            "export_data": export_data
-                        }
-                    }
-                    
-                    PromptServer.instance.send_sync("histogram_analysis_preview", send_data)
-                    print(f"✅ 已发送直方图分析预览数据到前端，节点ID: {unique_id}")
-                    
-                except Exception as preview_error:
-                    print(f"发送直方图分析预览时出错: {preview_error}")
+            # 直方图数据不需要发送到前端 - 已移除发送逻辑
             
             # 处理批次维度
             if image.dim() == 4:
@@ -2093,30 +2061,27 @@ class PhotoshopHSLNode:
         return result
     
     def _adjust_hsl(self, img_hsv, hue_shift, sat_shift, light_shift, mask=None):
-        """应用HSL调整到HSV图像"""
+        """应用HSL调整到HSV图像 - 修复为匹配PS的算法"""
         h, w, _ = img_hsv.shape
         
         # 创建调整后的HSV图像副本
         adjusted = img_hsv.copy()
         
-        # 色相值偏移
-        adjusted[:,:,0] = (adjusted[:,:,0] + hue_shift * 0.9) % 180  # 将-100~100映射到-90~90，OpenCV的H范围是0-179
+        # 色相值偏移 - 修复：使用1:1映射匹配PS
+        # PS的色相调整范围是-180到+180度，OpenCV H范围是0-179
+        hue_adjustment = hue_shift * 1.8  # 将-100~100映射到-180~180度，然后转换到OpenCV范围
+        adjusted[:,:,0] = (adjusted[:,:,0] + hue_adjustment) % 180
         
-        # 应用饱和度调整 (OpenCV的S范围是0-255)
-        if sat_shift > 0:
-            # 增加饱和度
-            adjusted[:,:,1] = adjusted[:,:,1] * (1 + sat_shift / 100)
-        else:
-            # 降低饱和度
-            adjusted[:,:,1] = adjusted[:,:,1] * (1 + sat_shift / 100)
+        # 应用饱和度调整 - 修复：使用PS兼容的非线性调整
+        if sat_shift != 0:
+            # PS风格的饱和度调整：使用更自然的曲线
+            sat_factor = self._calculate_ps_saturation_factor(sat_shift)
+            adjusted[:,:,1] = np.clip(adjusted[:,:,1] * sat_factor, 0, 255)
         
-        # 应用明度调整 (OpenCV的V范围是0-255)
-        if light_shift > 0:
-            # 增加明度
-            adjusted[:,:,2] = adjusted[:,:,2] * (1 + light_shift / 100)
-        else:
-            # 降低明度
-            adjusted[:,:,2] = adjusted[:,:,2] * (1 + light_shift / 100)
+        # 应用明度调整 - 修复：使用PS兼容的亮度调整
+        if light_shift != 0:
+            # PS风格的明度调整：保护高光和阴影细节
+            adjusted[:,:,2] = self._apply_ps_lightness_adjustment(adjusted[:,:,2], light_shift)
         
         # 如果提供了遮罩，只在遮罩区域应用调整
         if mask is not None:
@@ -2152,6 +2117,37 @@ class PhotoshopHSLNode:
         result = img_hsv * (1 - mask) + adjusted * mask
         
         return result
+    
+    def _calculate_ps_saturation_factor(self, sat_shift):
+        """计算PS风格的饱和度调整因子"""
+        if sat_shift == 0:
+            return 1.0
+        elif sat_shift > 0:
+            # 正向调整：使用指数曲线，避免过度饱和
+            return 1.0 + (sat_shift / 100.0) * 2.0
+        else:
+            # 负向调整：使用对数曲线，保持自然的去饱和
+            return max(0.0, 1.0 + (sat_shift / 100.0))
+    
+    def _apply_ps_lightness_adjustment(self, values, light_shift):
+        """应用PS风格的明度调整"""
+        if light_shift == 0:
+            return values
+        
+        # 将值规范化到0-1范围
+        normalized = values / 255.0
+        
+        if light_shift > 0:
+            # 提亮：使用幂函数保护高光
+            power = 1.0 - (light_shift / 100.0) * 0.5
+            adjusted = np.power(normalized, power)
+        else:
+            # 变暗：使用反向幂函数保护阴影
+            power = 1.0 + (abs(light_shift) / 100.0) * 0.5
+            adjusted = np.power(normalized, power)
+        
+        # 转换回0-255范围并确保在有效范围内
+        return np.clip(adjusted * 255.0, 0, 255)
     
     def _apply_mask(self, original_image, processed_image, mask, mask_blur, invert_mask):
         """应用遮罩混合原始图像和处理后的图像"""
