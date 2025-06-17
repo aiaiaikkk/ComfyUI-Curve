@@ -2599,30 +2599,64 @@ class ColorGradingNode:
         midtones_mask = self._create_improved_luminance_mask(luminance, 'midtones')
         highlights_mask = self._create_improved_luminance_mask(luminance, 'highlights')
         
+        # 调试：检查遮罩覆盖率
+        total_mask = shadows_mask + midtones_mask + highlights_mask
+        print(f"  - 遮罩覆盖率: 最小={np.min(total_mask):.3f}, 最大={np.max(total_mask):.3f}, 平均={np.mean(total_mask):.3f}")
+        
         # 保存原始亮度（重要：保持亮度不变）
         original_luminance = img_lab[:,:,0].copy()
         
         # 应用色彩分级到Lab空间的a和b通道
         result_lab = img_lab.copy()
         
-        # 处理每个区域的色彩调整
-        for region, region_mask, hue, sat, lum in [
-            ('shadows', shadows_mask, shadows_hue, shadows_saturation, shadows_luminance),
-            ('midtones', midtones_mask, midtones_hue, midtones_saturation, midtones_luminance),
-            ('highlights', highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
-        ]:
-            if hue != 0 or sat != 0:
-                # 将色相和饱和度转换为Lab空间的偏移
-                color_offset_a, color_offset_b = self._hue_sat_to_lab_offset(hue, sat)
-                
-                # 应用颜色偏移（只影响a和b通道）
-                result_lab[:,:,1] = result_lab[:,:,1] + color_offset_a * region_mask * overall_strength
-                result_lab[:,:,2] = result_lab[:,:,2] + color_offset_b * region_mask * overall_strength
+        # 检查是否所有区域都要求完全去饱和
+        all_regions_desaturated = (shadows_saturation == -100 and midtones_saturation == -100 and highlights_saturation == -100)
+        
+        if all_regions_desaturated:
+            # 如果所有区域都要求完全去饱和，直接将整个图像的a和b通道设为中性
+            print("  - 检测到所有区域完全去饱和，应用全局去饱和")
+            neutral_a = 128.0 / 255.0
+            neutral_b = 128.0 / 255.0
+            result_lab[:,:,1] = neutral_a
+            result_lab[:,:,2] = neutral_b
             
-            # 亮度调整（保留更多细节）
-            if lum != 0:
-                lum_factor = lum / 100.0 * overall_strength
-                result_lab[:,:,0] = result_lab[:,:,0] + lum_factor * region_mask
+            # 但仍然需要处理亮度调整
+            for region, region_mask, hue, sat, lum in [
+                ('shadows', shadows_mask, shadows_hue, shadows_saturation, shadows_luminance),
+                ('midtones', midtones_mask, midtones_hue, midtones_saturation, midtones_luminance),
+                ('highlights', highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
+            ]:
+                if lum != 0:
+                    lum_factor = lum / 100.0 * overall_strength
+                    result_lab[:,:,0] = result_lab[:,:,0] + lum_factor * region_mask
+        else:
+            # 处理每个区域的色彩调整
+            for region, region_mask, hue, sat, lum in [
+                ('shadows', shadows_mask, shadows_hue, shadows_saturation, shadows_luminance),
+                ('midtones', midtones_mask, midtones_hue, midtones_saturation, midtones_luminance),
+                ('highlights', highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
+            ]:
+                if hue != 0 or sat != 0:
+                    if sat >= 0:
+                        # 正饱和度：应用颜色偏移
+                        color_offset_a, color_offset_b = self._hue_sat_to_lab_offset(hue, sat)
+                        result_lab[:,:,1] = result_lab[:,:,1] + color_offset_a * region_mask * overall_strength
+                        result_lab[:,:,2] = result_lab[:,:,2] + color_offset_b * region_mask * overall_strength
+                    else:
+                        # 负饱和度：朝向中性灰色混合
+                        desaturation_strength = abs(sat) / 100.0 * overall_strength
+                        # 在归一化的Lab空间中，中性灰色的a和b通道应该是128/255
+                        neutral_a = 128.0 / 255.0  # 约等于0.502
+                        neutral_b = 128.0 / 255.0  # 约等于0.502
+                        
+                        # 朝向中性色混合
+                        result_lab[:,:,1] = result_lab[:,:,1] * (1 - desaturation_strength * region_mask) + neutral_a * desaturation_strength * region_mask
+                        result_lab[:,:,2] = result_lab[:,:,2] * (1 - desaturation_strength * region_mask) + neutral_b * desaturation_strength * region_mask
+                
+                # 亮度调整（保留更多细节）
+                if lum != 0:
+                    lum_factor = lum / 100.0 * overall_strength
+                    result_lab[:,:,0] = result_lab[:,:,0] + lum_factor * region_mask
         
         # 添加调试信息
         print(f"  - Lab值范围检查:")
@@ -2762,30 +2796,30 @@ class ColorGradingNode:
         # 将角度转换为弧度
         hue_rad = np.radians(hue)
         
-        # 饱和度归一化到0-1范围
-        sat_normalized = abs(saturation) / 100.0
+        # 饱和度归一化到-1到1范围，保留正负号
+        sat_normalized = saturation / 100.0
         
-        # 在Lab空间中，a和b通道的范围大约是-128到127
-        # 但为了获得更自然的效果，我们使用较小的偏移范围
-        # 注意：这个值是归一化后的，实际偏移量会乘以255再减128
-        max_offset = 0.15  # 减小最大偏移量，避免颜色过度饱和
-        
-        # 计算Lab空间的偏移
-        # a通道：红-绿轴
-        # b通道：黄-蓝轴
-        offset_a = np.cos(hue_rad) * sat_normalized * max_offset
-        offset_b = np.sin(hue_rad) * sat_normalized * max_offset
-        
-        # 考虑人眼对不同颜色的敏感度差异
-        # 对某些颜色区域进行微调
-        if -30 <= hue <= 30:  # 红色区域
-            offset_a *= 1.1
-        elif 150 <= hue <= 210:  # 青色区域
-            offset_a *= 0.9
-        elif 60 <= hue <= 120:  # 绿色区域
-            offset_b *= 0.95
-        elif 240 <= hue <= 300:  # 蓝色区域
-            offset_b *= 1.05
+        if sat_normalized >= 0:
+            # 正饱和度：增加颜色偏移
+            max_offset = 0.15  # 减小最大偏移量，避免颜色过度饱和
+            offset_a = np.cos(hue_rad) * sat_normalized * max_offset
+            offset_b = np.sin(hue_rad) * sat_normalized * max_offset
+            
+            # 考虑人眼对不同颜色的敏感度差异
+            # 对某些颜色区域进行微调
+            if -30 <= hue <= 30:  # 红色区域
+                offset_a *= 1.1
+            elif 150 <= hue <= 210:  # 青色区域
+                offset_a *= 0.9
+            elif 60 <= hue <= 120:  # 绿色区域
+                offset_b *= 0.95
+            elif 240 <= hue <= 300:  # 蓝色区域
+                offset_b *= 1.05
+        else:
+            # 负饱和度：朝向去饱和方向（a=0.5, b=0.5是中性灰色）
+            # 返回负的偏移量，表示需要朝向中性色移动
+            offset_a = sat_normalized * 0.1  # 负值表示去饱和强度
+            offset_b = sat_normalized * 0.1
         
         return offset_a, offset_b
     

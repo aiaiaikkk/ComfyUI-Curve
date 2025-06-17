@@ -431,17 +431,25 @@ class ColorGradingEditor {
         
         // 将色相和饱和度转换为坐标
         const hue = data.hue * Math.PI / 180;
-        const saturation = Math.abs(data.saturation) / 100; // 归一化到0-1
+        const saturation = Math.abs(data.saturation) / 100; // 色轮显示仍使用绝对值，但用颜色区分正负
         
         const x = centerX + Math.cos(hue) * saturation * radius;
         const y = centerY + Math.sin(hue) * saturation * radius;
         
-        // 绘制指示器
+        // 绘制指示器（用颜色区分正负饱和度）
         ctx.beginPath();
         ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffffff';
+        
+        // 正饱和度用白色，负饱和度用灰色
+        if (data.saturation >= 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#000000';
+        } else {
+            ctx.fillStyle = '#888888';
+            ctx.strokeStyle = '#ffffff';
+        }
+        
         ctx.fill();
-        ctx.strokeStyle = '#000000';
         ctx.lineWidth = 2;
         ctx.stroke();
     }
@@ -463,7 +471,12 @@ class ColorGradingEditor {
             
             // 计算色相和饱和度
             const hue = Math.atan2(y, x) * 180 / Math.PI;
-            const saturation = Math.min(distance / radius, 1) * 100;
+            let saturation = Math.min(distance / radius, 1) * 100;
+            
+            // 如果按住Shift键，则设置为负饱和度
+            if (e.shiftKey) {
+                saturation = -saturation;
+            }
             
             // 更新数据
             this.gradingData[regionKey].hue = hue;
@@ -1029,46 +1042,72 @@ class ColorGradingEditor {
             // 计算颜色偏移
             let deltaR = 0, deltaG = 0, deltaB = 0;
             
-            // 处理每个区域的色彩调整
-            const regions = [
-                { mask: shadowsMask, data: this.gradingData.shadows },
-                { mask: midtonesMask, data: this.gradingData.midtones },
-                { mask: highlightsMask, data: this.gradingData.highlights }
-            ];
+            // 检查是否所有区域都要求完全去饱和
+            const allRegionsDesaturated = (
+                this.gradingData.shadows.saturation === -100 &&
+                this.gradingData.midtones.saturation === -100 &&
+                this.gradingData.highlights.saturation === -100
+            );
             
-            regions.forEach(region => {
+            if (allRegionsDesaturated) {
+                // 如果所有区域都要求完全去饱和，直接转换为灰度
+                const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                deltaR = gray - r;
+                deltaG = gray - g;
+                deltaB = gray - b;
+            } else {
+                // 处理每个区域的色彩调整
+                const regions = [
+                    { mask: shadowsMask, data: this.gradingData.shadows },
+                    { mask: midtonesMask, data: this.gradingData.midtones },
+                    { mask: highlightsMask, data: this.gradingData.highlights }
+                ];
+                
+                regions.forEach(region => {
                 if (region.data.hue !== 0 || region.data.saturation !== 0) {
-                    // 模拟后端的Lab色彩空间处理
-                    const hueRad = region.data.hue * Math.PI / 180;
-                    const satNormalized = Math.abs(region.data.saturation) / 100;
-                    
-                    // 模拟Lab空间的a和b通道偏移（与后端保持一致）
-                    const maxOffset = 0.3;
-                    let offsetA = Math.cos(hueRad) * satNormalized * maxOffset;
-                    let offsetB = Math.sin(hueRad) * satNormalized * maxOffset;
-                    
-                    // 应用颜色敏感度调整（与后端一致）
-                    const hueDeg = region.data.hue;
-                    if (hueDeg >= -30 && hueDeg <= 30) { // 红色区域
-                        offsetA *= 1.1;
-                    } else if (hueDeg >= 150 && hueDeg <= 210) { // 青色区域
-                        offsetA *= 0.9;
-                    } else if (hueDeg >= 60 && hueDeg <= 120) { // 绿色区域
-                        offsetB *= 0.95;
-                    } else if (hueDeg >= 240 && hueDeg <= 300) { // 蓝色区域
-                        offsetB *= 1.05;
-                    }
-                    
-                    // 将Lab偏移转换为RGB调整（近似）
-                    // Lab的a通道影响红-绿，b通道影响黄-蓝
                     const strength = region.mask * this.gradingData.overall_strength;
                     
-                    // 更精确的Lab到RGB转换近似（基于Lab色彩空间的特性）
-                    // a轴: 绿色(-) ← → 红色(+)
-                    // b轴: 蓝色(-) ← → 黄色(+)
-                    deltaR += (offsetA * 0.6 + offsetB * 0.3) * strength;
-                    deltaG += (-offsetA * 0.5 + offsetB * 0.2) * strength;
-                    deltaB += (-offsetA * 0.1 - offsetB * 0.8) * strength;
+                    if (region.data.saturation >= 0) {
+                        // 正饱和度：模拟后端的Lab色彩空间处理
+                        const hueRad = region.data.hue * Math.PI / 180;
+                        const satNormalized = region.data.saturation / 100;
+                        
+                        // 模拟Lab空间的a和b通道偏移（与后端保持一致）
+                        const maxOffset = 0.3;
+                        let offsetA = Math.cos(hueRad) * satNormalized * maxOffset;
+                        let offsetB = Math.sin(hueRad) * satNormalized * maxOffset;
+                        
+                        // 应用颜色敏感度调整（与后端一致）
+                        const hueDeg = region.data.hue;
+                        if (hueDeg >= -30 && hueDeg <= 30) { // 红色区域
+                            offsetA *= 1.1;
+                        } else if (hueDeg >= 150 && hueDeg <= 210) { // 青色区域
+                            offsetA *= 0.9;
+                        } else if (hueDeg >= 60 && hueDeg <= 120) { // 绿色区域
+                            offsetB *= 0.95;
+                        } else if (hueDeg >= 240 && hueDeg <= 300) { // 蓝色区域
+                            offsetB *= 1.05;
+                        }
+                        
+                        // 将Lab偏移转换为RGB调整（近似）
+                        // Lab的a通道影响红-绿，b通道影响黄-蓝
+                        // a轴: 绿色(-) ← → 红色(+)
+                        // b轴: 蓝色(-) ← → 黄色(+)
+                        deltaR += (offsetA * 0.6 + offsetB * 0.3) * strength;
+                        deltaG += (-offsetA * 0.5 + offsetB * 0.2) * strength;
+                        deltaB += (-offsetA * 0.1 - offsetB * 0.8) * strength;
+                    } else {
+                        // 负饱和度：朝向灰度混合
+                        const desaturationStrength = Math.abs(region.data.saturation) / 100 * strength;
+                        
+                        // 计算当前像素的灰度值
+                        const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                        
+                        // 朝向灰度混合
+                        deltaR += (gray - r) * desaturationStrength;
+                        deltaG += (gray - g) * desaturationStrength;
+                        deltaB += (gray - b) * desaturationStrength;
+                    }
                 }
                 
                 // 亮度调整（与后端保持一致）
@@ -1080,7 +1119,8 @@ class ColorGradingEditor {
                     deltaG += lumAdjust;
                     deltaB += lumAdjust;
                 }
-            });
+                });
+            }
             
             // 应用调整
             let processedR = Math.min(1, Math.max(0, r + deltaR));

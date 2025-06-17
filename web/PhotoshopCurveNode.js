@@ -982,13 +982,21 @@ class CurveEditorModal {
         // 保存原始的drawCurve方法
         const originalDrawCurve = this.curveEditor.drawCurve;
         
-        // 覆盖drawCurve方法，添加预览更新
+        // 添加防抖定时器
+        let updatePreviewTimer = null;
+        
+        // 覆盖drawCurve方法，添加防抖的预览更新
         this.curveEditor.drawCurve = (...args) => {
             // 调用原始方法
             originalDrawCurve.apply(this.curveEditor, args);
             
-            // 更新预览图像
-            this.updatePreview();
+            // 使用防抖机制更新预览，避免拖动时频繁更新
+            if (updatePreviewTimer) {
+                clearTimeout(updatePreviewTimer);
+            }
+            updatePreviewTimer = setTimeout(() => {
+                this.updatePreview();
+            }, 100); // 100ms 防抖延迟
         };
         
         // 监听控制点相关事件
@@ -1105,8 +1113,8 @@ class CurveEditorModal {
             // 应用效果
             this.applyPreviewEffect(curvePoints, interpolation, channel);
             
-            // 更新直方图显示（基于处理后的图像）
-            this.updateHistogramAfterCurveChange();
+            // 注意：直方图更新已移到applyPreviewEffect的onload回调中
+            // 以确保基于更新后的图像计算直方图
             
         } catch (error) {
             console.error("🎨 预览更新失败:", error);
@@ -1139,6 +1147,9 @@ class CurveEditorModal {
             console.error("🎨 没有原始图像可用");
             return;
         }
+        
+        // 保存this引用，以便在回调中使用
+        const modalInstance = this;
         
         try {
             // 获取预览图像元素
@@ -1526,6 +1537,12 @@ class CurveEditorModal {
                         if (this.showMaskOverlay) {
                             this.renderMaskOverlay();
                         }
+                        
+                        // 注释掉实时直方图更新，避免性能问题和循环调用
+                        // 直方图将显示原始图像数据，作为参考背景
+                        // if (modalInstance.updateHistogramAfterCurveChange) {
+                        //     modalInstance.updateHistogramAfterCurveChange();
+                        // }
                     };
                     
                     previewImg.onerror = () => {
@@ -1570,6 +1587,12 @@ class CurveEditorModal {
                             this.renderMaskOverlay();
                         }, 50);
                     }
+                    
+                    // 注释掉实时直方图更新，避免性能问题和循环调用
+                    // 直方图将显示原始图像数据，作为参考背景
+                    // if (modalInstance.updateHistogramAfterCurveChange) {
+                    //     modalInstance.updateHistogramAfterCurveChange();
+                    // }
                 };
                 
                 previewImg.onerror = () => {
@@ -2443,6 +2466,9 @@ class PhotoshopCurveNodeWidget {
                 this.svg.removeChild(this.svg.firstChild);
             }
             
+            // 重置直方图绘制标记（因为SVG被清空了）
+            this._histogramDrawn = false;
+            
             // 生成唯一ID以避免多个编辑器之间的ID冲突
             const uniqueId = `curve_${this.node.id || Math.random().toString(36).substring(2, 10)}`;
             
@@ -2506,7 +2532,7 @@ class PhotoshopCurveNodeWidget {
             diagonal.setAttribute('stroke-dasharray', '4, 4');
             this.svg.appendChild(diagonal);
             
-            // 绘制直方图背景
+            // 绘制直方图背景（基于原始图像）
             this.drawHistogram();
             
             // 绘制曲线
@@ -2651,7 +2677,7 @@ class PhotoshopCurveNodeWidget {
                 histogram[channel] = histogram[channel].map(count => count / maxCount);
             }
             
-            console.log("🎨 直方图计算完成");
+            // console.log("🎨 直方图计算完成");
             return histogram;
             
         } catch (error) {
@@ -2662,6 +2688,11 @@ class PhotoshopCurveNodeWidget {
     
     // 绘制直方图背景
     drawHistogram() {
+        // 如果已经绘制过直方图，不再重复绘制
+        if (this._histogramDrawn) {
+            return;
+        }
+        
         // 获取当前图像
         const modal = this.node.curveEditorModal;
         if (!modal || !modal.originalImage) {
@@ -2669,8 +2700,13 @@ class PhotoshopCurveNodeWidget {
             return;
         }
         
-        // 计算直方图
-        const histogram = this.calculateHistogram(modal.originalImage);
+        // 使用缓存的直方图数据（如果存在）
+        let histogram = this._cachedHistogram;
+        if (!histogram) {
+            // 计算直方图并缓存
+            histogram = this.calculateHistogram(modal.originalImage);
+            this._cachedHistogram = histogram;
+        }
         if (!histogram) {
             console.log("🎨 直方图计算失败，跳过绘制");
             return;
@@ -2699,7 +2735,10 @@ class PhotoshopCurveNodeWidget {
         // 添加到SVG（在背景渐变之后，对角线之前）
         this.svg.appendChild(histogramPath);
         
-        console.log("🎨 直方图绘制完成，通道:", currentChannel);
+        // 标记直方图已经绘制
+        this._histogramDrawn = true;
+        
+        // console.log("🎨 直方图绘制完成，通道:", currentChannel);
     }
     
     // 更新直方图（基于处理后的图像进行实时更新）
@@ -2751,22 +2790,39 @@ class PhotoshopCurveNodeWidget {
                     }
                     pathData += ' L384,384 Z';
                     
-                    // 创建新的直方图路径元素
-                    const histogramPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    histogramPath.setAttribute('d', pathData);
-                    histogramPath.setAttribute('fill', curveEditor.getHistogramColor(currentChannel));
-                    histogramPath.setAttribute('opacity', '0.3');
-                    histogramPath.setAttribute('stroke', 'none');
+                    // 缓存处理后的直方图路径数据
+                    curveEditor.processedHistogramPath = pathData;
                     
-                    // 插入到适当位置（在渐变之后，对角线之前）
-                    const diagonal = curveEditor.svg.querySelector('line[stroke-dasharray]');
-                    if (diagonal) {
-                        curveEditor.svg.insertBefore(histogramPath, diagonal);
+                    // 直接更新SVG中的直方图，而不是重绘整个曲线编辑器
+                    const existingHistogram = curveEditor.svg.querySelector('path[opacity="0.3"]');
+                    if (existingHistogram) {
+                        // 更新现有直方图的路径
+                        existingHistogram.setAttribute('d', pathData);
+                        existingHistogram.setAttribute('fill', curveEditor.getHistogramColor(currentChannel));
+                        console.log("🎨 直方图实时更新完成，通道:", currentChannel);
                     } else {
-                        curveEditor.svg.appendChild(histogramPath);
+                        // 如果没有找到直方图，创建一个新的
+                        const histogramPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        histogramPath.setAttribute('d', pathData);
+                        histogramPath.setAttribute('fill', curveEditor.getHistogramColor(currentChannel));
+                        histogramPath.setAttribute('opacity', '0.3');
+                        histogramPath.setAttribute('stroke', 'none');
+                        
+                        // 插入到适当位置（在对角线之前）
+                        const diagonal = curveEditor.svg.querySelector('line[stroke-dasharray]');
+                        if (diagonal) {
+                            curveEditor.svg.insertBefore(histogramPath, diagonal);
+                        } else {
+                            // 如果没有对角线，插入到曲线路径之前
+                            const curvePath = curveEditor.svg.querySelector('path[stroke="#4ecdc4"]');
+                            if (curvePath) {
+                                curveEditor.svg.insertBefore(histogramPath, curvePath);
+                            } else {
+                                curveEditor.svg.appendChild(histogramPath);
+                            }
+                        }
+                        console.log("🎨 新建直方图并更新完成，通道:", currentChannel);
                     }
-                    
-                    console.log("🎨 实时直方图更新完成，通道:", currentChannel);
                     
                 } catch (error) {
                     console.error("🎨 计算处理后图像直方图时出错:", error);

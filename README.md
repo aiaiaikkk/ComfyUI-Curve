@@ -35,22 +35,32 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 支持遮罩和羽化效果
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
 
-#### 📊 直方图与色阶 (PS Histogram)
-- 完整的直方图分析和PS风格的色阶调整
-- 实时直方图数据和统计信息
-- 自动色阶和自动对比度功能
-- 精确控制：输入/输出黑白场点、伽马
+#### 📊 直方图分析 (Histogram Analysis)
+- **双击节点打开专业直方图分析界面**：实时显示RGB和单通道直方图
+- **详细的统计信息**：平均值、中位数、标准差等图像统计数据
+- **像素分布可视化**：清晰显示图像的亮度和颜色分布情况
+- **实时数据更新**：图像变化时直方图实时刷新
+- **多通道支持**：可切换查看RGB整体或单独R/G/B通道直方图
+
+#### 🎚️ 色阶调整 (PS Levels)
+- **双击节点打开Photoshop风格色阶调整界面**：专业三点控制（黑场、灰场、白场）
+- **实时预览调整**：拖动滑块即时查看色阶调整效果
+- **自动色阶功能**：一键自动优化图像对比度和色阶分布
+- **自动对比度功能**：智能增强图像对比度
+- **精确数值控制**：输入/输出黑白场点、伽马值精确调整
+- **直方图背景显示**：在色阶界面中显示实时直方图，便于精确调整
 
 #### 🎨 色彩分级 (Color Grading)
-![image](https://github.com/user-attachments/assets/dd8d11f8-675d-4792-b653-d56bd8ca2428)
+![image](https://github.com/user-attachments/assets/fb67b936-1ca3-4ac3-b47e-d5c19591f1ad)
 
-
-- Lightroom风格的色彩分级轮盘
-- 阴影、中间调、高光三区域独立调整
-- 每个区域可独立控制色相、饱和度和亮度
-- 支持多种混合模式
-- 使用改进的Lab色彩空间算法，实现更自然的色彩过渡
-- 精确的色相/饱和度映射，保持色彩准确性
+- **双击节点打开Lightroom风格的色彩分级界面**：专业三色轮设计（阴影、中间调、高光）
+- **实时交互式色轮操作**：直接在色轮上拖拽调整色相和饱和度，实时预览效果
+- **负饱和度完全去饱和**：-100饱和度实现完全灰度效果，不再产生偏色
+- **Shift键负饱和度支持**：按住Shift键在色轮上操作可设置负饱和度值
+- **精确的Lab色彩空间处理**：使用专业Lab色彩算法，确保色彩准确性
+- **多种混合模式**：normal、multiply、screen、overlay、soft_light等专业混合选项
+- **区域智能遮罩**：基于亮度的平滑过渡遮罩，精确控制阴影、中间调、高光区域
+- **强度控制**：可调整整体效果强度（0-200%）
 
 #### 🖼️ 预设风格 (PS Curve Preset)
 - 70+种专业调色预设
@@ -119,13 +129,47 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - 连接输入图像和遮罩（可选）
    - **双击节点**打开色彩分级调整弹窗
    - 在弹出窗口中您将看到三个色轮：阴影、中间调和高光
-   - 在每个色轮中拖动中心点调整该区域的色相和饱和度
-   - 使用每个色轮下方的亮度滑块调整该区域的亮度
-   - 调整混合模式和整体强度以控制效果的应用方式
+   - **色轮操作技巧**：
+     - 普通点击拖拽：设置正饱和度（增强颜色）
+     - **按住Shift键拖拽**：设置负饱和度（去饱和效果）
+     - 色轮指示器颜色：白色=正饱和度，灰色=负饱和度
+   - **饱和度滑块**：-100到+100范围
+     - 正值：增强该区域的颜色饱和度
+     - 负值：降低该区域的颜色饱和度（朝向灰度）
+     - -100：该区域完全去饱和变为灰度
+   - 使用亮度滑块调整各区域明暗程度
+   - 选择混合模式控制颜色应用方式
+   - 调整整体强度控制效果程度
    - 预览窗口实时更新，所见即所得
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
-4. **弹窗预览界面通用操作**：
+4. **直方图分析实时查看**：
+   - 在工作流中添加Histogram Analysis节点
+   - 连接输入图像
+   - **双击节点**打开直方图分析弹窗
+   - 在弹出窗口中查看实时直方图显示
+   - **通道切换**：点击RGB、R、G、B按钮切换不同通道的直方图
+   - **统计信息查看**：在弹窗中查看平均值、中位数、标准差等详细数据
+   - **像素分布分析**：观察直方图峰值和分布，了解图像特征
+   - 直方图会随输入图像变化实时更新
+
+5. **色阶调整实时预览**：
+   - 在工作流中添加PS Levels节点
+   - 连接输入图像和遮罩（可选）
+   - **双击节点**打开色阶调整弹窗
+   - 在弹出窗口中您将看到带直方图背景的色阶调整界面
+   - **三点控制调整**：
+     - 左侧滑块：调整黑场点（输入暗部范围）
+     - 中间滑块：调整伽马值（中间调亮度）
+     - 右侧滑块：调整白场点（输入亮部范围）
+   - **输出色阶调整**：设置输出的黑白场范围
+   - **自动功能**：
+     - 点击"自动色阶"按钮自动优化图像对比度
+     - 点击"自动对比度"按钮智能增强对比度
+   - 所有调整都会在预览窗口中实时显示效果
+   - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
+
+6. **弹窗预览界面通用操作**：
    - **放大/缩小预览**：在弹窗内使用鼠标滚轮或+/-按钮
    - **平移预览**：在弹窗内按住中键并拖动
    - **对比原图**：在弹窗内按住空格键查看原始图像，释放返回调整后效果
@@ -148,13 +192,54 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - 日落效果：增强橙色和品红通道
 - **实时预览技巧**：在弹窗中逐个通道调整并观察实时效果，找到理想的颜色平衡点
 
+#### 直方图分析技巧
+- **亮度分布判断**：
+  - 左侧堆积：图像偏暗，考虑提亮处理
+  - 右侧堆积：图像偏亮，考虑压暗处理
+  - 中间集中：对比度较低，需要增强对比
+  - 双峰分布：图像层次丰富，对比度良好
+- **颜色通道分析**：
+  - R/G/B通道偏移：判断色偏问题
+  - 某通道过度集中：该颜色饱和度可能过高或过低
+- **统计数据应用**：
+  - 平均值：判断整体亮度水平
+  - 标准差：评估图像对比度和层次
+  - 中位数：了解像素分布的平衡点
+
+#### 色阶调整技巧
+- **三点控制策略**：
+  - 黑场点：设置图像中最暗部分的位置，影响阴影细节
+  - 白场点：设置图像中最亮部分的位置，影响高光细节
+  - 伽马值：调整中间调亮度，<1变亮，>1变暗
+- **自动功能使用**：
+  - 自动色阶：适合欠曝或过曝图像的快速修正
+  - 自动对比度：适合对比度不足的平淡图像
+- **输出色阶控制**：
+  - 压缩动态范围：适合打印输出或特殊效果
+  - 扩展输出范围：增强图像对比度
+- **结合直方图调整**：观察直方图变化，避免过度调整导致的色阶断层
+
 #### Color Grading技巧
-- 电影风格：阴影区域添加蓝色，高光添加暖色
-- 复古效果：阴影添加青色，高光添加橙黄色
-- 日落效果：阴影添加紫色，高光添加橙色
-- 增强氛围：使用soft_light混合模式，微调阴影和高光色轮
-- 增强对比：使用overlay混合模式，增加阴影区域饱和度
-- 冷暖平衡：阴影区域偏蓝（冷色调），高光区域偏黄（暖色调）
+- **饱和度调整技巧**：
+  - 正饱和度（1-100）：增强该区域的颜色鲜艳度
+  - 负饱和度（-1到-100）：降低该区域的颜色鲜艳度，朝向灰度
+  - 全区域-100饱和度：实现完全灰度效果，适合制作黑白照片基底
+  - 选择性去饱和：只对特定区域（如阴影或高光）设置负饱和度
+- **色轮操作技巧**：
+  - 普通拖拽：调整色相和正饱和度
+  - Shift+拖拽：调整色相和负饱和度（去饱和方向）
+  - 观察指示器：白色圆点=正饱和度，灰色圆点=负饱和度
+- **风格化调色**：
+  - 电影风格：阴影区域添加蓝色，高光添加暖色
+  - 复古效果：阴影添加青色，高光添加橙黄色  
+  - 日落效果：阴影添加紫色，高光添加橙色
+  - 冷调风格：所有区域朝向蓝青色调整
+  - 暖调风格：所有区域朝向橙黄色调整
+- **混合模式应用**：
+  - soft_light：自然的颜色增强，适合微调
+  - overlay：强烈的对比增强，适合戏剧效果
+  - multiply：压暗效果，适合营造神秘氛围
+  - screen：提亮效果，适合梦幻风格
 
 #### 遮罩应用技巧
 - 人像皮肤：建议2-4像素羽化
@@ -164,13 +249,16 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 
 ### 🆕 最近更新
 
-#### Color Grading功能改进
-- 优化了色彩分级算法，使其更接近Adobe Lightroom的效果
-- 实现了改进的亮度遮罩算法，使用sigmoid函数创建平滑过渡
-- 使用Lab色彩空间处理，保持感知亮度不变
-- 改进了色相和饱和度到Lab空间的转换算法
-- 添加了多种混合模式支持
-- 优化了实时预览性能
+#### Color Grading功能重大改进
+- **修复饱和度-100偏色问题**：现在-100饱和度能实现完全灰度效果，不再产生青色等偏色
+- **新增负饱和度支持**：-100到+100完整饱和度范围，负值实现去饱和效果
+- **Shift键交互增强**：按住Shift键在色轮上操作可设置负饱和度值  
+- **色轮视觉指示器**：白色指示器表示正饱和度，灰色指示器表示负饱和度
+- **Lab色彩空间优化**：修正了Lab中性值计算，确保完全去饱和时的色彩准确性
+- **全局去饱和检测**：当所有区域都设为-100饱和度时，自动应用全局灰度转换
+- **改进的亮度遮罩算法**：使用sigmoid函数创建平滑过渡，更接近Lightroom效果
+- **多种混合模式支持**：添加multiply、screen、overlay、soft_light等专业混合选项
+- **实时预览性能优化**：提升弹窗内预览响应速度和准确性
 
 ### 📄 许可证
 
@@ -199,19 +287,30 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - Support for masks and feathering effects
 - **Real-time interactive response in popup**: Any HSL parameter adjustment in the popup interface instantly reflects in the preview image
 
-#### 📊 Histogram & Levels (PS Histogram)
-- Complete histogram analysis with PS-style levels adjustment
-- Real-time histogram data and statistics
-- Auto levels and auto contrast functions
-- Precise control: input/output black/white points, gamma
+#### 📊 Histogram Analysis
+- **Double-click node for professional histogram analysis interface**: Real-time display of RGB and individual channel histograms
+- **Detailed statistical information**: Mean, median, standard deviation and other image statistics
+- **Pixel distribution visualization**: Clear display of image brightness and color distribution
+- **Real-time data updates**: Histogram refreshes instantly when image changes
+- **Multi-channel support**: Switch between RGB overall or individual R/G/B channel histograms
+
+#### 🎚️ Levels Adjustment (PS Levels)
+- **Double-click node for Photoshop-style levels adjustment interface**: Professional three-point control (black point, gray point, white point)
+- **Real-time preview adjustment**: Drag sliders to instantly see levels adjustment effects
+- **Auto levels function**: One-click automatic optimization of image contrast and level distribution
+- **Auto contrast function**: Intelligent image contrast enhancement
+- **Precise numerical control**: Accurate adjustment of input/output black/white points and gamma values
+- **Histogram background display**: Shows real-time histogram in levels interface for precise adjustments
 
 #### 🎨 Color Grading
-- Lightroom-style color grading wheels
-- Independent adjustment for shadows, midtones, and highlights
-- Control hue, saturation, and luminance for each region
-- Support for multiple blend modes
-- Improved Lab color space algorithm for more natural color transitions
-- Precise hue/saturation mapping for color accuracy
+- **Double-click for Lightroom-style color grading interface**: Professional three-wheel design (shadows, midtones, highlights)
+- **Real-time interactive color wheel operation**: Directly drag on wheels to adjust hue and saturation with instant preview
+- **Full desaturation at -100 saturation**: -100 saturation achieves complete grayscale effect without color cast
+- **Shift key for negative saturation**: Hold Shift while operating on color wheels to set negative saturation values
+- **Precise Lab color space processing**: Professional Lab color algorithm ensures color accuracy
+- **Multiple blend modes**: normal, multiply, screen, overlay, soft_light and other professional blending options
+- **Intelligent region masking**: Smooth transition masks based on luminance for precise control of shadows, midtones, highlights
+- **Strength control**: Adjustable overall effect intensity (0-200%)
 
 #### 🖼️ Preset Styles (PS Curve Preset)
 - 70+ professional color grading presets
@@ -280,13 +379,47 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - Connect input image and mask (optional)
    - **Double-click the node** to open the color grading popup window
    - In the popup, you'll see three color wheels for shadows, midtones, and highlights
-   - Drag the center point in each wheel to adjust hue and saturation for that region
-   - Use the luminance slider below each wheel to adjust brightness for that region
-   - Adjust blend mode and overall strength to control how the effect is applied
-   - The preview window updates in real-time, showing exactly what you'll get
+   - **Color wheel operation techniques**:
+     - Normal click and drag: Set positive saturation (enhance colors)
+     - **Hold Shift key and drag**: Set negative saturation (desaturation effect)
+     - Wheel indicator colors: White circle = positive saturation, Gray circle = negative saturation
+   - **Saturation sliders**: -100 to +100 range
+     - Positive values: Enhance color saturation in that region
+     - Negative values: Reduce color saturation in that region (toward grayscale)
+     - -100: Complete desaturation of that region to grayscale
+   - Use luminance sliders to adjust brightness levels for each region
+   - Select blend mode to control how colors are applied
+   - Adjust overall strength to control effect intensity
+   - Preview window updates in real-time, showing exactly what you'll get
    - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
 
-4. **Popup Preview Interface Common Operations**:
+4. **Histogram Analysis Real-time View**:
+   - Add Histogram Analysis node to your workflow
+   - Connect input image
+   - **Double-click the node** to open histogram analysis popup
+   - View real-time histogram display in the popup window
+   - **Channel switching**: Click RGB, R, G, B buttons to switch between different channel histograms
+   - **Statistics viewing**: View detailed data like mean, median, standard deviation in the popup
+   - **Pixel distribution analysis**: Observe histogram peaks and distribution to understand image characteristics
+   - Histogram updates in real-time as input image changes
+
+5. **Levels Adjustment Real-time Preview**:
+   - Add PS Levels node to your workflow
+   - Connect input image and mask (optional)
+   - **Double-click the node** to open levels adjustment popup
+   - In the popup window you'll see levels adjustment interface with histogram background
+   - **Three-point control adjustment**:
+     - Left slider: Adjust black point (input shadow range)
+     - Middle slider: Adjust gamma value (midtone brightness)
+     - Right slider: Adjust white point (input highlight range)
+   - **Output levels adjustment**: Set output black and white point range
+   - **Auto functions**:
+     - Click "Auto Levels" button to automatically optimize image contrast
+     - Click "Auto Contrast" button for intelligent contrast enhancement
+   - All adjustments display effects in real-time in the preview window
+   - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
+
+6. **Popup Preview Interface Common Operations**:
    - **Zoom in/out preview**: Use mouse wheel or +/- buttons in the popup
    - **Pan preview**: Hold middle mouse button and drag in the popup
    - **Compare with original**: Hold spacebar in the popup to view original image, release to return to adjusted effect
@@ -309,13 +442,54 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 - Sunset effect: Enhance Orange and Magenta channels
 - **Real-time preview tip**: In the popup window, adjust channels one by one while observing real-time effects to find the ideal color balance
 
+#### Histogram Analysis Tips
+- **Brightness distribution assessment**:
+  - Left-side clustering: Image is too dark, consider brightening
+  - Right-side clustering: Image is too bright, consider darkening
+  - Center concentration: Low contrast, needs contrast enhancement
+  - Bimodal distribution: Rich image layers with good contrast
+- **Color channel analysis**:
+  - R/G/B channel shifts: Identify color cast issues
+  - Excessive concentration in one channel: Color saturation may be too high or low
+- **Statistical data application**:
+  - Mean: Judge overall brightness level
+  - Standard deviation: Evaluate image contrast and tonal range
+  - Median: Understand pixel distribution balance point
+
+#### Levels Adjustment Tips
+- **Three-point control strategy**:
+  - Black point: Set position of darkest part in image, affects shadow detail
+  - White point: Set position of brightest part in image, affects highlight detail
+  - Gamma value: Adjust midtone brightness, <1 brightens, >1 darkens
+- **Auto function usage**:
+  - Auto Levels: Suitable for quick correction of underexposed or overexposed images
+  - Auto Contrast: Suitable for flat images lacking contrast
+- **Output levels control**:
+  - Compress dynamic range: Suitable for print output or special effects
+  - Expand output range: Enhance image contrast
+- **Combined histogram adjustment**: Observe histogram changes to avoid over-adjustment causing tone breaks
+
 #### Color Grading Tips
-- Cinematic look: Add blue to shadows and warm tones to highlights
-- Vintage effect: Add cyan to shadows and orange/yellow to highlights
-- Sunset effect: Add purple to shadows and orange to highlights
-- Enhance mood: Use soft_light blend mode with subtle shadow and highlight wheel adjustments
-- Enhance contrast: Use overlay blend mode and increase saturation in shadow region
-- Cool-warm balance: Bluish (cool) shadows with yellowish (warm) highlights
+- **Saturation adjustment techniques**:
+  - Positive saturation (1-100): Enhance color vibrancy in that region
+  - Negative saturation (-1 to -100): Reduce color vibrancy toward grayscale
+  - All regions at -100 saturation: Achieve complete grayscale effect, perfect for black & white photo foundation
+  - Selective desaturation: Apply negative saturation only to specific regions (shadows or highlights)
+- **Color wheel operation techniques**:
+  - Normal drag: Adjust hue and positive saturation
+  - Shift+drag: Adjust hue and negative saturation (desaturation direction)
+  - Watch indicators: White dot = positive saturation, Gray dot = negative saturation
+- **Stylistic color grading**:
+  - Cinematic look: Add blue to shadows and warm tones to highlights
+  - Vintage effect: Add cyan to shadows and orange/yellow to highlights
+  - Sunset effect: Add purple to shadows and orange to highlights
+  - Cool tone style: Adjust all regions toward blue-cyan tones
+  - Warm tone style: Adjust all regions toward orange-yellow tones
+- **Blend mode applications**:
+  - soft_light: Natural color enhancement, suitable for subtle adjustments
+  - overlay: Strong contrast enhancement, suitable for dramatic effects
+  - multiply: Darkening effect, suitable for creating mysterious atmosphere
+  - screen: Brightening effect, suitable for dreamy styles
 
 #### Mask Application Tips
 - Portrait skin: Recommended 2-4 pixel feathering
@@ -325,13 +499,16 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
 
 ### 🆕 Recent Updates
 
-#### Color Grading Improvements
-- Optimized color grading algorithm to more closely match Adobe Lightroom's effect
-- Implemented improved luminance mask algorithm using sigmoid functions for smooth transitions
-- Using Lab color space processing to maintain perceived luminance
-- Improved hue and saturation to Lab space conversion algorithm
-- Added support for multiple blend modes
-- Optimized real-time preview performance
+#### Major Color Grading Improvements
+- **Fixed -100 saturation color cast issue**: -100 saturation now achieves complete grayscale effect without cyan or other color casts
+- **Added negative saturation support**: Full -100 to +100 saturation range, negative values achieve desaturation effects
+- **Enhanced Shift key interaction**: Hold Shift key while operating on color wheels to set negative saturation values
+- **Color wheel visual indicators**: White indicators for positive saturation, gray indicators for negative saturation
+- **Lab color space optimization**: Corrected Lab neutral value calculations for accurate color when fully desaturated
+- **Global desaturation detection**: Automatically applies global grayscale conversion when all regions are set to -100 saturation
+- **Improved luminance mask algorithm**: Uses sigmoid functions for smooth transitions, closer to Lightroom effects
+- **Multiple blend mode support**: Added multiply, screen, overlay, soft_light and other professional blending options
+- **Real-time preview performance optimization**: Improved popup preview response speed and accuracy
 
 ### 📄 License
 
