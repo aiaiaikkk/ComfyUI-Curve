@@ -42,7 +42,8 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 精确控制：输入/输出黑白场点、伽马
 
 #### 🎨 色彩分级 (Color Grading)
-![image](https://github.com/user-attachments/assets/fb67b936-1ca3-4ac3-b47e-d5c19591f1ad)
+![image](https://github.com/user-attachments/assets/dd8d11f8-675d-4792-b653-d56bd8ca2428)
+
 
 - Lightroom风格的色彩分级轮盘
 - 阴影、中间调、高光三区域独立调整
