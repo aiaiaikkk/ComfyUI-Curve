@@ -2696,7 +2696,7 @@ class PhotoshopCurveNodeWidget {
         // 获取当前图像
         const modal = this.node.curveEditorModal;
         if (!modal || !modal.originalImage) {
-            console.log("🎨 未找到图像数据，跳过直方图绘制");
+            // 静默跳过，避免日志刷屏
             return;
         }
         
@@ -2708,7 +2708,7 @@ class PhotoshopCurveNodeWidget {
             this._cachedHistogram = histogram;
         }
         if (!histogram) {
-            console.log("🎨 直方图计算失败，跳过绘制");
+            // 静默跳过，避免日志刷屏
             return;
         }
         

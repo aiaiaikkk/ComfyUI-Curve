@@ -28,6 +28,8 @@ class ColorGradingEditor {
             shadows: { hue: 0, saturation: 0, luminance: 0 },
             midtones: { hue: 0, saturation: 0, luminance: 0 },
             highlights: { hue: 0, saturation: 0, luminance: 0 },
+            blend: 100.0,
+            balance: 0.0,
             blend_mode: 'normal',
             overall_strength: 1.0
         };
@@ -547,27 +549,49 @@ class ColorGradingEditor {
             border-radius: 2px;
         `;
         
-        // 数值显示
-        const valueDisplay = document.createElement("span");
-        valueDisplay.style.cssText = `
+        // 数值输入框
+        const valueInput = document.createElement("input");
+        valueInput.type = "text";
+        valueInput.style.cssText = `
             color: #ffffff;
             font-size: 12px;
-            min-width: 40px;
+            width: 60px;
             text-align: center;
             background-color: #333333;
             padding: 2px 6px;
             border-radius: 3px;
+            border: 1px solid #555555;
+            outline: none;
+            transition: all 0.2s ease;
         `;
-        valueDisplay.textContent = defaultValue + unit;
+        valueInput.value = defaultValue + unit;
         
-        // 事件监听
+        // 添加hover和focus效果
+        valueInput.addEventListener('mouseenter', () => {
+            valueInput.style.borderColor = '#777777';
+        });
+        valueInput.addEventListener('mouseleave', () => {
+            if (document.activeElement !== valueInput) {
+                valueInput.style.borderColor = '#555555';
+            }
+        });
+        valueInput.addEventListener('focus', () => {
+            valueInput.style.borderColor = '#888888';
+            valueInput.style.backgroundColor = '#404040';
+        });
+        
+        // 滑块事件监听
         slider.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            valueDisplay.textContent = value + unit;
+            const value = parseFloat(e.target.value);
+            valueInput.value = value + unit;
             
             // 特殊处理overall_strength
             if (id === 'overall_strength') {
                 this.gradingData.overall_strength = value / 100.0;
+            } else if (id === 'blend') {
+                this.gradingData.blend = value;
+            } else if (id === 'balance') {
+                this.gradingData.balance = value;
             } else {
                 // 解析ID以更新对应数据
                 const [regionKey, property] = id.split('_');
@@ -583,8 +607,71 @@ class ColorGradingEditor {
             this.updatePreview();
         });
         
+        // 输入框事件监听
+        valueInput.addEventListener('input', (e) => {
+            // 移除单位并解析数值
+            const inputValue = e.target.value.replace(unit, '').trim();
+            let value = parseFloat(inputValue);
+            
+            // 验证输入值
+            if (isNaN(value)) {
+                return;
+            }
+            
+            // 限制范围
+            value = Math.max(min, Math.min(max, value));
+            
+            // 更新滑块值
+            slider.value = value;
+            
+            // 更新数据
+            if (id === 'overall_strength') {
+                this.gradingData.overall_strength = value / 100.0;
+            } else if (id === 'blend') {
+                this.gradingData.blend = value;
+            } else if (id === 'balance') {
+                this.gradingData.balance = value;
+            } else {
+                const [regionKey, property] = id.split('_');
+                if (this.gradingData[regionKey]) {
+                    this.gradingData[regionKey][property] = value;
+                    
+                    if ((property === 'hue' || property === 'saturation') && this.colorWheels[regionKey]) {
+                        this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
+                    }
+                }
+            }
+            this.updatePreview();
+        });
+        
+        // 失去焦点时格式化输入值并恢复样式
+        valueInput.addEventListener('blur', (e) => {
+            // 恢复样式
+            valueInput.style.borderColor = '#555555';
+            valueInput.style.backgroundColor = '#333333';
+            
+            // 格式化输入值
+            const inputValue = e.target.value.replace(unit, '').trim();
+            let value = parseFloat(inputValue);
+            
+            if (isNaN(value)) {
+                value = defaultValue;
+            }
+            
+            value = Math.max(min, Math.min(max, value));
+            e.target.value = value + unit;
+            slider.value = value;
+        });
+        
+        // 按Enter键时失去焦点
+        valueInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.target.blur();
+            }
+        });
+        
         container.appendChild(slider);
-        container.appendChild(valueDisplay);
+        container.appendChild(valueInput);
         
         return container;
     }
@@ -655,9 +742,16 @@ class ColorGradingEditor {
         blendModeContainer.appendChild(blendSelect);
         container.appendChild(blendModeContainer);
         
+        // 混合程度滑块 (Blend)
+        const blendSlider = this.createSlider('blend', '混合', 0, 100, 100, '%');
+        container.appendChild(blendSlider);
+        
+        // 平衡控制滑块 (Balance)
+        const balanceSlider = this.createSlider('balance', '平衡', -100, 100, 0, '');
+        container.appendChild(balanceSlider);
+        
         // 整体强度滑块（createSlider已经正确处理overall_strength的事件监听）
         const strengthSlider = this.createSlider('overall_strength', '强度', 0, 200, 100, '%');
-        
         container.appendChild(strengthSlider);
         
         return container;
@@ -704,6 +798,8 @@ class ColorGradingEditor {
             shadows: { hue: 0, saturation: 0, luminance: 0 },
             midtones: { hue: 0, saturation: 0, luminance: 0 },
             highlights: { hue: 0, saturation: 0, luminance: 0 },
+            blend: 100.0,
+            balance: 0.0,
             blend_mode: 'normal',
             overall_strength: 1.0
         };
@@ -737,6 +833,12 @@ class ColorGradingEditor {
                 case 'highlights_luminance':
                     this.gradingData.highlights.luminance = widget.value;
                     break;
+                case 'blend':
+                    this.gradingData.blend = widget.value;
+                    break;
+                case 'balance':
+                    this.gradingData.balance = widget.value;
+                    break;
                 case 'blend_mode':
                     this.gradingData.blend_mode = widget.value;
                     break;
@@ -758,14 +860,14 @@ class ColorGradingEditor {
             const slider = this.modal.querySelector(`#${id}`);
             if (slider) {
                 slider.value = value;
-                const valueDisplay = slider.parentElement.querySelector('span');
-                if (valueDisplay) {
+                const valueInput = slider.parentElement.querySelector('input[type="text"]');
+                if (valueInput) {
                     // 根据滑块类型确定单位
                     let unit = '%';
                     if (id.includes('hue')) {
                         unit = '°';
                     }
-                    valueDisplay.textContent = value + unit;
+                    valueInput.value = value + unit;
                 }
             }
         };
@@ -786,14 +888,18 @@ class ColorGradingEditor {
         updateSlider('highlights_saturation', this.gradingData.highlights.saturation);
         updateSlider('highlights_luminance', this.gradingData.highlights.luminance);
         
+        // Blend和Balance
+        updateSlider('blend', this.gradingData.blend);
+        updateSlider('balance', this.gradingData.balance);
+        
         // 特殊处理overall_strength（需要转换为百分比）
         const strengthSlider = this.modal.querySelector('#overall_strength');
         if (strengthSlider) {
             const strengthValue = this.gradingData.overall_strength * 100;
             strengthSlider.value = strengthValue;
-            const valueDisplay = strengthSlider.parentElement.querySelector('span');
-            if (valueDisplay) {
-                valueDisplay.textContent = strengthValue + '%';
+            const valueInput = strengthSlider.parentElement.querySelector('input[type="text"]');
+            if (valueInput) {
+                valueInput.value = strengthValue + '%';
             }
         }
         
@@ -904,9 +1010,44 @@ class ColorGradingEditor {
             
             // 方法3: 从连接的输入节点获取
             const inputNode = this.findConnectedInputNode();
-            if (inputNode && inputNode._curveNodeImageUrls && inputNode._curveNodeImageUrls.length > 0) {
-                console.log('Color Grading: 使用输入节点的图像');
-                return inputNode._curveNodeImageUrls[0];
+            if (inputNode) {
+                // 3.1: 检查输入节点的_curveNodeImageUrls
+                if (inputNode._curveNodeImageUrls && inputNode._curveNodeImageUrls.length > 0) {
+                    console.log('Color Grading: 使用输入节点的_curveNodeImageUrls');
+                    return inputNode._curveNodeImageUrls[0];
+                }
+                
+                // 3.2: 检查输入节点的imgs属性（Load Image节点使用）
+                if (inputNode.imgs && inputNode.imgs.length > 0) {
+                    console.log('Color Grading: 使用输入节点的imgs');
+                    return this.convertToImageUrl(inputNode.imgs[0]);
+                }
+                
+                // 3.3: 检查输入节点的imageIndex和images（某些节点使用）
+                if (inputNode.imageIndex !== undefined && inputNode.images && inputNode.images.length > 0) {
+                    const idx = Math.min(inputNode.imageIndex, inputNode.images.length - 1);
+                    console.log('Color Grading: 使用输入节点的images[' + idx + ']');
+                    return this.convertToImageUrl(inputNode.images[idx]);
+                }
+                
+                // 3.4: 从app.nodeOutputs获取输入节点的输出
+                if (app.nodeOutputs && app.nodeOutputs[inputNode.id]) {
+                    const inputNodeOutput = app.nodeOutputs[inputNode.id];
+                    if (inputNodeOutput.images && inputNodeOutput.images.length > 0) {
+                        console.log('Color Grading: 使用输入节点的nodeOutputs');
+                        return this.convertToImageUrl(inputNodeOutput.images[0]);
+                    }
+                }
+                
+                // 3.5: 检查输入节点的widgets中是否有图像数据
+                if (inputNode.widgets) {
+                    for (const widget of inputNode.widgets) {
+                        if (widget.type === 'image' && widget.value) {
+                            console.log('Color Grading: 使用输入节点的widget图像');
+                            return this.convertToImageUrl(widget.value);
+                        }
+                    }
+                }
             }
             
             // 方法4: 从app.nodeOutputs获取
@@ -918,6 +1059,30 @@ class ColorGradingEditor {
                 }
             }
             
+            // 方法5: 递归查找图像源节点
+            const imageSourceNode = this.findImageSourceNode(inputNode || this.node);
+            if (imageSourceNode && imageSourceNode.imgs && imageSourceNode.imgs.length > 0) {
+                console.log('Color Grading: 通过递归查找到图像源节点');
+                return this.convertToImageUrl(imageSourceNode.imgs[0]);
+            }
+            
+            // 方法6: 遍历所有可能的输入链接
+            if (this.node.inputs) {
+                for (let i = 0; i < this.node.inputs.length; i++) {
+                    const input = this.node.inputs[i];
+                    if (input.link !== null) {
+                        const link = app.graph.links[input.link];
+                        if (link && link.origin_id) {
+                            const sourceNode = app.graph.getNodeById(link.origin_id);
+                            if (sourceNode && sourceNode.imgs && sourceNode.imgs.length > 0) {
+                                console.log('Color Grading: 通过链接找到源节点图像');
+                                return this.convertToImageUrl(sourceNode.imgs[0]);
+                            }
+                        }
+                    }
+                }
+            }
+            
             return null;
         } catch (error) {
             console.error('Color Grading: 获取图像时出错:', error);
@@ -926,16 +1091,47 @@ class ColorGradingEditor {
     }
     
     convertToImageUrl(imageData) {
+        if (!imageData) return null;
+        
+        // 字符串类型
         if (typeof imageData === 'string') {
             if (imageData.startsWith('data:')) {
                 return imageData;
             }
-            return `/view?filename=${imageData}`;
+            if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+                return imageData;
+            }
+            // 假设是文件名
+            return `/view?filename=${encodeURIComponent(imageData)}&type=input&subfolder=&preview=canvas`;
         }
         
+        // 对象类型
         if (imageData && typeof imageData === 'object') {
-            const { filename, subfolder = '', type = 'temp' } = imageData;
-            return `/view?filename=${filename}&subfolder=${subfolder}&type=${type}`;
+            // 标准格式 {filename, subfolder, type}
+            if (imageData.filename) {
+                const { filename, subfolder = '', type = 'input' } = imageData;
+                return `/view?filename=${encodeURIComponent(filename)}&type=${type}&subfolder=${encodeURIComponent(subfolder)}&preview=canvas`;
+            }
+            
+            // 可能是{url}格式
+            if (imageData.url) {
+                return imageData.url;
+            }
+            
+            // 可能是{src}格式
+            if (imageData.src) {
+                return imageData.src;
+            }
+            
+            // 可能是{image}格式
+            if (imageData.image) {
+                return this.convertToImageUrl(imageData.image);
+            }
+        }
+        
+        // 数组类型（取第一个）
+        if (Array.isArray(imageData) && imageData.length > 0) {
+            return this.convertToImageUrl(imageData[0]);
         }
         
         return null;
@@ -946,6 +1142,20 @@ class ColorGradingEditor {
             return null;
         }
         
+        // 查找名为"image"的输入
+        for (const input of this.node.inputs) {
+            if (input.name === "image" && input.link) {
+                const link = app.graph.links[input.link];
+                if (link) {
+                    const sourceNode = app.graph.getNodeById(link.origin_id);
+                    if (sourceNode) {
+                        return sourceNode;
+                    }
+                }
+            }
+        }
+        
+        // 如果没有找到，尝试第一个有链接的输入
         for (const input of this.node.inputs) {
             if (input.link) {
                 const link = app.graph.links[input.link];
@@ -953,6 +1163,44 @@ class ColorGradingEditor {
                     const sourceNode = app.graph.getNodeById(link.origin_id);
                     if (sourceNode) {
                         return sourceNode;
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    findImageSourceNode(node, visited = new Set()) {
+        // 防止循环引用
+        if (!node || visited.has(node.id)) {
+            return null;
+        }
+        visited.add(node.id);
+        
+        // 检查当前节点是否有图像
+        if (node.imgs && node.imgs.length > 0) {
+            return node;
+        }
+        
+        // 检查节点类型
+        if (node.type === "LoadImage" || node.type === "LoadImageMask") {
+            return node;
+        }
+        
+        // 递归查找上游节点
+        if (node.inputs) {
+            for (const input of node.inputs) {
+                if (input.link) {
+                    const link = app.graph.links[input.link];
+                    if (link) {
+                        const sourceNode = app.graph.getNodeById(link.origin_id);
+                        if (sourceNode) {
+                            const imageSource = this.findImageSourceNode(sourceNode, visited);
+                            if (imageSource) {
+                                return imageSource;
+                            }
+                        }
                     }
                 }
             }
@@ -1035,9 +1283,9 @@ class ColorGradingEditor {
             const luminance = r * 0.299 + g * 0.587 + b * 0.114;
             
             // 创建改进的亮度遮罩（模拟后端的sigmoid函数）
-            const shadowsMask = this.createImprovedMask(luminance, 'shadows');
-            const midtonesMask = this.createImprovedMask(luminance, 'midtones');
-            const highlightsMask = this.createImprovedMask(luminance, 'highlights');
+            const shadowsMask = this.createImprovedMask(luminance, 'shadows', this.gradingData.balance);
+            const midtonesMask = this.createImprovedMask(luminance, 'midtones', this.gradingData.balance);
+            const highlightsMask = this.createImprovedMask(luminance, 'highlights', this.gradingData.balance);
             
             // 计算颜色偏移
             let deltaR = 0, deltaG = 0, deltaB = 0;
@@ -1136,9 +1384,18 @@ class ColorGradingEditor {
                 this.gradingData.overall_strength
             );
             
-            let finalR = blendedRGB[0] * 255;
-            let finalG = blendedRGB[1] * 255;
-            let finalB = blendedRGB[2] * 255;
+            // 应用blend参数（混合原图和处理后的图像）
+            let finalR, finalG, finalB;
+            if (this.gradingData.blend < 100) {
+                const blendFactor = this.gradingData.blend / 100.0;
+                finalR = (r * 255) * (1.0 - blendFactor) + blendedRGB[0] * 255 * blendFactor;
+                finalG = (g * 255) * (1.0 - blendFactor) + blendedRGB[1] * 255 * blendFactor;
+                finalB = (b * 255) * (1.0 - blendFactor) + blendedRGB[2] * 255 * blendFactor;
+            } else {
+                finalR = blendedRGB[0] * 255;
+                finalG = blendedRGB[1] * 255;
+                finalB = blendedRGB[2] * 255;
+            }
             
             // 如果有遮罩，根据遮罩值混合原始和处理后的颜色
             if (maskData) {
@@ -1161,19 +1418,25 @@ class ColorGradingEditor {
         this.previewContext.putImageData(imageData, 0, 0);
     }
     
-    createImprovedMask(luminance, region) {
+    createImprovedMask(luminance, region, balance = 0) {
         // 模拟后端的改进遮罩算法
+        // balance: -100到100的值，控制阴影和高光之间的平衡点
+        const balanceNormalized = balance / 100.0; // -1.0 to 1.0
+        
         if (region === 'shadows') {
-            const threshold = 0.25;
+            // balance越小（负值），阴影区域越大
+            const threshold = 0.25 + balanceNormalized * 0.2; // 0.05 to 0.45
             const transition = 0.15;
             // Sigmoid函数
             return 1 / (1 + Math.exp(-(threshold - luminance) / transition));
         } else if (region === 'highlights') {
-            const threshold = 0.75;
+            // balance越大（正值），高光区域越大
+            const threshold = 0.75 - balanceNormalized * 0.2; // 0.55 to 0.95
             const transition = 0.15;
             return 1 / (1 + Math.exp(-(luminance - threshold) / transition));
         } else { // midtones
-            const center = 0.5;
+            // balance影响中间调的中心点
+            const center = 0.5 + balanceNormalized * 0.1; // 0.4 to 0.6
             const width = 0.35;
             // 高斯函数
             return Math.exp(-0.5 * Math.pow((luminance - center) / width, 2)) * 1.2;
@@ -1277,9 +1540,9 @@ class ColorGradingEditor {
         const hueSlider = this.modal.querySelector(`#${regionKey}_hue`);
         if (hueSlider) {
             hueSlider.value = Math.round(data.hue);
-            const valueDisplay = hueSlider.parentElement.querySelector('span');
-            if (valueDisplay) {
-                valueDisplay.textContent = Math.round(data.hue) + '°';
+            const valueInput = hueSlider.parentElement.querySelector('input[type="text"]');
+            if (valueInput) {
+                valueInput.value = Math.round(data.hue) + '°';
             }
         }
         
@@ -1287,9 +1550,9 @@ class ColorGradingEditor {
         const saturationSlider = this.modal.querySelector(`#${regionKey}_saturation`);
         if (saturationSlider) {
             saturationSlider.value = Math.round(data.saturation);
-            const valueDisplay = saturationSlider.parentElement.querySelector('span');
-            if (valueDisplay) {
-                valueDisplay.textContent = Math.round(data.saturation) + '%';
+            const valueInput = saturationSlider.parentElement.querySelector('input[type="text"]');
+            if (valueInput) {
+                valueInput.value = Math.round(data.saturation) + '%';
             }
         }
     }
@@ -1315,6 +1578,8 @@ class ColorGradingEditor {
             shadows: { hue: 0, saturation: 0, luminance: 0 },
             midtones: { hue: 0, saturation: 0, luminance: 0 },
             highlights: { hue: 0, saturation: 0, luminance: 0 },
+            blend: 100.0,
+            balance: 0.0,
             blend_mode: 'normal',
             overall_strength: 1.0
         };
@@ -1417,6 +1682,8 @@ class ColorGradingEditor {
             'highlights_hue': this.gradingData.highlights.hue,
             'highlights_saturation': this.gradingData.highlights.saturation,
             'highlights_luminance': this.gradingData.highlights.luminance,
+            'blend': this.gradingData.blend,
+            'balance': this.gradingData.balance,
             'blend_mode': this.gradingData.blend_mode,
             'overall_strength': this.gradingData.overall_strength
         };

@@ -11,7 +11,7 @@ function calculatePSSaturationFactor(sat_shift) {
         // 正向调整：使用指数曲线，避免过度饱和
         return 1.0 + (sat_shift / 100.0) * 2.0;
     } else {
-        // 负向调整：使用对数曲线，保持自然的去饱和
+        // 负向调整：当saturation为-100时，应该完全去除饱和度
         return Math.max(0.0, 1.0 + (sat_shift / 100.0));
     }
 }
@@ -119,8 +119,8 @@ style.textContent = `
         -webkit-appearance: none;
         background: transparent;
         flex: 1;
-        min-width: 120px;
-        margin: 0 4px;
+        min-width: 250px;
+        margin: 0 10px;
         padding: 0;
     }
     
@@ -234,65 +234,64 @@ style.textContent = `
         border-color: #888;
     }
 
-    /* 模态弹窗样式 */
+    /* 模态弹窗样式 - Color Grading风格 */
     .hsl-modal {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
+        background-color: rgba(0, 0, 0, 0.8);
         display: flex;
         justify-content: center;
         align-items: center;
-        z-index: 1000;
+        z-index: 10000;
     }
     
     .hsl-modal-content {
-        background-color: #1a1a1a;
-        border-radius: 8px;
+        background-color: #2a2a2a;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         padding: 0;
-        width: 1200px;
-        max-width: 95%;
-        height: 800px;
-        max-height: 95vh;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        width: 95%;
+        max-width: 1400px;
+        height: 90%;
+        max-height: 900px;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
     
     .hsl-modal-header {
+        padding: 15px 20px;
+        background-color: #1a1a1a;
+        border-bottom: 1px solid #404040;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 20px;
-        background: #2a2a2a;
-        border-bottom: 1px solid #333;
     }
     
     .hsl-modal-title {
-        color: #fff;
-        font-size: 16px;
-        font-weight: bold;
+        color: #ffffff;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
     }
     
     .hsl-modal-close {
-        background: none;
+        background-color: #ff4757;
+        color: white;
         border: none;
-        color: #fff;
-        font-size: 20px;
+        border-radius: 5px;
+        padding: 8px 15px;
         cursor: pointer;
-        padding: 0;
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s;
     }
     
     .hsl-modal-close:hover {
-        background: #333;
+        background-color: #ff3838;
     }
     
     .hsl-modal-body {
@@ -302,14 +301,15 @@ style.textContent = `
     }
     
     .hsl-preview-container {
-        flex: 1.5;
+        flex: 1;
+        padding: 20px;
+        background-color: #1e1e1e;
+        border-right: 1px solid #404040;
         display: flex;
         flex-direction: column;
-        background: #2a2a2a;
-        margin: 20px;
-        border-radius: 8px;
+        justify-content: center;
+        align-items: center;
         overflow: hidden;
-        min-width: 500px;
     }
     
     .hsl-preview-image {
@@ -328,40 +328,65 @@ style.textContent = `
         border-radius: 8px;
         padding: 20px;
         overflow-y: auto;
-        min-width: 300px;
-        max-width: 400px;
+        min-width: 450px;
+        max-width: 550px;
+    }
+    
+    /* 自定义滚动条样式 */
+    .hsl-controls-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .hsl-controls-container::-webkit-scrollbar-track {
+        background: #1a1a1a;
+        border-radius: 4px;
+    }
+    
+    .hsl-controls-container::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
+    }
+    
+    .hsl-controls-container::-webkit-scrollbar-thumb:hover {
+        background: #555;
     }
     
     .hsl-modal-footer {
+        padding: 15px 20px;
+        background-color: #1a1a1a;
+        border-top: 1px solid #404040;
         display: flex;
-        justify-content: flex-end;
-        padding: 10px 20px;
-        background: #2a2a2a;
-        border-top: 1px solid #333;
+        justify-content: space-between;
+        align-items: center;
     }
     
     .hsl-modal-button {
-        padding: 8px 16px;
-        background-color: #4a90e2;
+        padding: 8px 15px;
         border: none;
-        border-radius: 4px;
-        color: #fff;
-        font-size: 14px;
+        border-radius: 5px;
         cursor: pointer;
-        margin-left: 10px;
+        font-size: 14px;
+        font-weight: 500;
         transition: background-color 0.2s;
+        margin-left: 10px;
     }
     
-    .hsl-modal-button:hover {
-        background-color: #3a80d2;
+    .hsl-modal-button.primary {
+        background-color: #27ae60;
+        color: white;
+    }
+    
+    .hsl-modal-button.primary:hover {
+        background-color: #229954;
     }
     
     .hsl-modal-button.secondary {
-        background-color: #555;
+        background-color: #3498db;
+        color: white;
     }
     
     .hsl-modal-button.secondary:hover {
-        background-color: #666;
+        background-color: #2980b9;
     }
     
     .hsl-control {
@@ -371,10 +396,11 @@ style.textContent = `
     
     .hsl-channel-section {
         margin-bottom: 20px;
-        padding: 10px;
+        padding: 15px 20px;
+        padding-left: 30px;
         background-color: #333;
         border-radius: 6px;
-        border-left: 3px solid;
+        border-left: 4px solid;
     }
     
     .hsl-channel-section.master {
@@ -383,6 +409,10 @@ style.textContent = `
     
     .hsl-channel-section.red {
         border-left-color: #ff0000;
+    }
+    
+    .hsl-channel-section.orange {
+        border-left-color: #ff8000;
     }
     
     .hsl-channel-section.yellow {
@@ -399,6 +429,10 @@ style.textContent = `
     
     .hsl-channel-section.blue {
         border-left-color: #0000ff;
+    }
+    
+    .hsl-channel-section.purple {
+        border-left-color: #8000ff;
     }
     
     .hsl-channel-section.magenta {
@@ -688,7 +722,7 @@ const COLOR_CHANNELS = [
       // 明度滑轨从黑色到当前色再到白色
       lightGradient: "linear-gradient(to right, #000000, #00ff00, #ffffff)"
     },
-    { id: "aqua", name: "浅绿", color: "#00ffff", degree: 180,
+    { id: "cyan", name: "青色", color: "#00ffff", degree: 180,
       // 青色(180°)向左-100对应黄色(80°)，向右+100对应洋红(280°)
       hueGradient: "linear-gradient(to right, #e0ff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff, #4000ff, #8000ff)",
       // 饱和度滑轨从灰色到饱和色
@@ -819,19 +853,51 @@ app.registerExtension({
                 const modalHeader = document.createElement("div");
                 modalHeader.className = "hsl-modal-header";
                 
-                const modalTitle = document.createElement("div");
+                const modalTitle = document.createElement("h3");
                 modalTitle.className = "hsl-modal-title";
-                modalTitle.textContent = "Photoshop HSL 调整";
+                modalTitle.textContent = "🎨 Photoshop HSL 调整";
                 
+                // 按钮容器
+                const buttonContainer = document.createElement("div");
+                buttonContainer.style.cssText = `
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                `;
+                
+                // 重置按钮
+                const resetBtn = document.createElement("button");
+                resetBtn.className = "hsl-modal-button secondary";
+                resetBtn.textContent = "重置";
+                resetBtn.onclick = () => {
+                    this.resetAllParameters();
+                    this.updateModalControls(controlsContainer);
+                    updatePreviewImage();
+                };
+                
+                // 应用按钮
+                const applyBtn = document.createElement("button");
+                applyBtn.className = "hsl-modal-button primary";
+                applyBtn.textContent = "应用";
+                applyBtn.onclick = () => {
+                    // 应用功能已自动生效，关闭弹窗即可
+                    document.body.removeChild(modal);
+                };
+                
+                // 关闭按钮
                 const closeButton = document.createElement("button");
                 closeButton.className = "hsl-modal-close";
-                closeButton.textContent = "×";
+                closeButton.textContent = "关闭";
                 closeButton.onclick = () => {
                     document.body.removeChild(modal);
                 };
                 
+                buttonContainer.appendChild(resetBtn);
+                buttonContainer.appendChild(applyBtn);
+                buttonContainer.appendChild(closeButton);
+                
                 modalHeader.appendChild(modalTitle);
-                modalHeader.appendChild(closeButton);
+                modalHeader.appendChild(buttonContainer);
                 
                 // 创建模态弹窗主体 - 新的布局：左侧预览，右侧控制区
                 const modalBody = document.createElement("div");
@@ -841,13 +907,45 @@ app.registerExtension({
                 const previewContainer = document.createElement("div");
                 previewContainer.className = "hsl-preview-container";
                 
+                // 预览标题
+                const previewTitle = document.createElement("h4");
+                previewTitle.style.cssText = `
+                    color: #ffffff;
+                    margin: 0 0 15px 0;
+                    font-size: 16px;
+                    font-weight: 500;
+                `;
+                previewTitle.textContent = "实时预览";
+                previewContainer.appendChild(previewTitle);
+                
+                // 预览图像容器
+                const imageContainer = document.createElement("div");
+                imageContainer.style.cssText = `
+                    flex: 1;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    background-color: #0a0a0a;
+                    border-radius: 8px;
+                    border: 2px solid #333333;
+                    position: relative;
+                    overflow: hidden;
+                `;
+                
                 // 创建预览图像
                 const previewImage = document.createElement("img");
                 previewImage.className = "hsl-preview-image";
+                previewImage.style.cssText = `
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    border-radius: 5px;
+                `;
                 previewImage.src = ""; // 图像源将在后续设置
                 previewImage.alt = "预览";
                 
-                previewContainer.appendChild(previewImage);
+                imageContainer.appendChild(previewImage);
+                previewContainer.appendChild(imageContainer);
                 modalBody.appendChild(previewContainer);
                 
                 // 创建右侧控制区域
@@ -872,15 +970,80 @@ app.registerExtension({
                 
                 controlsContainer.appendChild(presets);
                 
-                // 为每个颜色通道创建控件
-                COLOR_CHANNELS.forEach(channel => {
+                // 创建选项卡容器
+                const tabsContainer = document.createElement("div");
+                tabsContainer.className = "hsl-tabs-container";
+                tabsContainer.style.cssText = `
+                    margin-bottom: 20px;
+                    border-bottom: 2px solid #333;
+                    display: flex;
+                    flex-wrap: wrap;
+                    background: rgba(0, 0, 0, 0.2);
+                    border-radius: 8px 8px 0 0;
+                    padding: 5px 5px 0 5px;
+                `;
+                
+                // 创建内容容器
+                const tabContentContainer = document.createElement("div");
+                tabContentContainer.className = "hsl-tab-content-container";
+                tabContentContainer.style.cssText = `
+                    min-height: 300px;
+                `;
+                
+                // 存储选项卡和内容
+                const tabs = [];
+                const tabContents = [];
+                
+                // 为每个颜色通道创建选项卡和内容
+                COLOR_CHANNELS.forEach((channel, index) => {
+                    // 创建选项卡按钮
+                    const tab = document.createElement("button");
+                    tab.className = "hsl-tab";
+                    tab.dataset.channelColor = channel.color; // 保存通道颜色
+                    tab.style.cssText = `
+                        background: none;
+                        border: none;
+                        padding: 8px 12px;
+                        color: ${channel.color}88; // 初始状态使用通道颜色的半透明版本
+                        cursor: pointer;
+                        font-size: 13px;
+                        font-weight: 600;
+                        transition: all 0.2s;
+                        border-bottom: 3px solid transparent;
+                        margin: 0 2px;
+                        margin-bottom: -3px;
+                        text-shadow: 0 0 2px rgba(0,0,0,0.8);
+                        border-radius: 6px 6px 0 0;
+                    `;
+                    tab.textContent = channel.name;
+                    tab.onclick = () => selectTab(index);
+                    
+                    // 添加hover效果
+                    tab.onmouseenter = () => {
+                        if (!tab.classList.contains('active')) { // 不是当前选中的选项卡
+                            tab.style.color = channel.color + 'CC'; // 更亮的颜色
+                            tab.style.backgroundColor = channel.color + '1A'; // 淡淡的背景色
+                        }
+                    };
+                    tab.onmouseleave = () => {
+                        if (!tab.classList.contains('active')) { // 不是当前选中的选项卡
+                            tab.style.color = channel.color + '88';
+                            tab.style.backgroundColor = 'transparent';
+                        }
+                    };
+                    
+                    tabs.push(tab);
+                    tabsContainer.appendChild(tab);
+                    
+                    // 创建选项卡内容
                     const channelSection = document.createElement("div");
                     channelSection.className = `hsl-channel-section ${channel.id}`;
-                    
-                    const channelTitle = document.createElement("div");
-                    channelTitle.className = "hsl-channel-title";
-                    channelTitle.textContent = channel.name;
-                    channelSection.appendChild(channelTitle);
+                    channelSection.style.cssText = `
+                        display: none;
+                        padding: 20px 0;
+                        margin: 0 10px;
+                    `;
+                    tabContents.push(channelSection);
                     
                     // 创建色相控制
                     const hueControl = this.createSliderControl(
@@ -939,117 +1102,49 @@ app.registerExtension({
                     }
                     channelSection.appendChild(lightnessControl);
                     
-                    controlsContainer.appendChild(channelSection);
+                    // 将内容添加到内容容器
+                    tabContentContainer.appendChild(channelSection);
                 });
+                
+                // 选项卡切换函数
+                const selectTab = (index) => {
+                    // 更新选项卡样式
+                    tabs.forEach((tab, i) => {
+                        const channelColor = tab.dataset.channelColor;
+                        if (i === index) {
+                            tab.classList.add('active');
+                            tab.style.color = channelColor; // 使用完全不透明的通道颜色
+                            tab.style.borderBottomColor = channelColor;
+                            tab.style.backgroundColor = channelColor + '1A'; // 淡淡的背景色
+                            tab.style.textShadow = `0 0 5px ${channelColor}66`; // 发光效果
+                        } else {
+                            tab.classList.remove('active');
+                            tab.style.color = channelColor + '88'; // 半透明的通道颜色
+                            tab.style.borderBottomColor = 'transparent';
+                            tab.style.backgroundColor = 'transparent';
+                            tab.style.textShadow = '0 0 2px rgba(0,0,0,0.5)';
+                        }
+                    });
+                    
+                    // 显示对应内容
+                    tabContents.forEach((content, i) => {
+                        content.style.display = i === index ? 'block' : 'none';
+                    });
+                };
+                
+                // 添加选项卡和内容到控制容器
+                controlsContainer.appendChild(tabsContainer);
+                controlsContainer.appendChild(tabContentContainer);
+                
+                // 默认选中第一个选项卡
+                selectTab(0);
                 
                 // 着色模式已移除
                 modalBody.appendChild(controlsContainer);
                 
-                // 创建模态弹窗底部
-                const modalFooter = document.createElement("div");
-                modalFooter.className = "hsl-modal-footer";
-                
-                const resetButton = document.createElement("button");
-                resetButton.className = "hsl-modal-button secondary";
-                resetButton.textContent = "重置默认";
-                resetButton.style.marginRight = "auto"; // 将重置按钮放在左侧
-                resetButton.onclick = () => {
-                    // 重置所有参数到默认值
-                    this.resetAllParameters();
-                    // 更新控件显示
-                    this.updateModalControls(controlsContainer);
-                    // 更新预览
-                    updatePreviewImage();
-                };
-                
-                const cancelButton = document.createElement("button");
-                cancelButton.className = "hsl-modal-button secondary";
-                cancelButton.textContent = "取消";
-                cancelButton.onclick = () => {
-                    document.body.removeChild(modal);
-                };
-                
-                const applyButton = document.createElement("button");
-                applyButton.className = "hsl-modal-button";
-applyButton.textContent = "应用";
-applyButton.onclick = () => {
-    // 获取当前弹窗中的所有控件值，并更新到节点
-    try {
-        console.log("应用HSL调整到节点");
-        
-        // 遍历所有颜色通道
-        COLOR_CHANNELS.forEach(channel => {
-            const channelSection = controlsContainer.querySelector(`.hsl-channel-section.${channel.id}`);
-            if (channelSection) {
-                // 获取当前通道控件值
-                const hueControl = channelSection.querySelector(".hsl-control:nth-child(2)");
-                const saturationControl = channelSection.querySelector(".hsl-control:nth-child(3)");
-                const lightnessControl = channelSection.querySelector(".hsl-control:nth-child(4)");
-                
-                // 获取对应的节点控件
-                const hueWidget = this.widgets.find(w => w.name === `${channel.id}_hue`);
-                const saturationWidget = this.widgets.find(w => w.name === `${channel.id}_saturation`);
-                const lightnessWidget = this.widgets.find(w => w.name === `${channel.id}_lightness`);
-                
-                // 更新节点控件值
-                if (hueWidget && hueControl) {
-                    const input = hueControl.querySelector("input");
-                    if (input) {
-                        hueWidget.value = parseInt(input.value);
-                    }
-                }
-                
-                if (saturationWidget && saturationControl) {
-                    const input = saturationControl.querySelector("input");
-                    if (input) {
-                        saturationWidget.value = parseInt(input.value);
-                    }
-                }
-                
-                if (lightnessWidget && lightnessControl) {
-                    const input = lightnessControl.querySelector("input");
-                    if (input) {
-                        lightnessWidget.value = parseInt(input.value);
-                    }
-                }
-            }
-        });
-        
-        // 更新节点参数字符串（hsl_params）
-        const paramsObj = {};
-        COLOR_CHANNELS.forEach(channel => {
-            const hueWidget = this.widgets.find(w => w.name === `${channel.id}_hue`);
-            const saturationWidget = this.widgets.find(w => w.name === `${channel.id}_saturation`);
-            const lightnessWidget = this.widgets.find(w => w.name === `${channel.id}_lightness`);
-            
-            paramsObj[channel.id] = {
-                hue: hueWidget ? hueWidget.value : 0,
-                saturation: saturationWidget ? saturationWidget.value : 0,
-                lightness: lightnessWidget ? lightnessWidget.value : 0
-            };
-        });
-        
-        // 更新输入参数
-        this.inputs[1].value = JSON.stringify(paramsObj);
-        
-        console.log("HSL参数已更新:", paramsObj);
-    } catch (error) {
-        console.error("更新HSL参数失败:", error);
-    }
-    
-    document.body.removeChild(modal);
-    // 通知画布更新
-    this.graph.setDirtyCanvas(true);
-};
-                
-                modalFooter.appendChild(resetButton);
-                modalFooter.appendChild(cancelButton);
-                modalFooter.appendChild(applyButton);
-                
                 // 组装模态弹窗
                 modalContent.appendChild(modalHeader);
                 modalContent.appendChild(modalBody);
-                modalContent.appendChild(modalFooter);
                 modal.appendChild(modalContent);
                 
                 // 添加到文档
@@ -1318,9 +1413,9 @@ applyButton.onclick = () => {
                                 lightness: this.widgets.find(w => w.name === "green_lightness")?.value || 0
                             },
                             aqua: {
-                                hue: this.widgets.find(w => w.name === "aqua_hue")?.value || 0,
-                                saturation: this.widgets.find(w => w.name === "aqua_saturation")?.value || 0,
-                                lightness: this.widgets.find(w => w.name === "aqua_lightness")?.value || 0
+                                hue: this.widgets.find(w => w.name === "cyan_hue")?.value || 0,
+                                saturation: this.widgets.find(w => w.name === "cyan_saturation")?.value || 0,
+                                lightness: this.widgets.find(w => w.name === "cyan_lightness")?.value || 0
                             },
                             blue: {
                                 hue: this.widgets.find(w => w.name === "blue_hue")?.value || 0,
@@ -1391,14 +1486,14 @@ applyButton.onclick = () => {
                                 
                                 // 检查每个颜色范围并应用调整（匹配后端逻辑）
                                 const colorRanges = {
-                                    red: [[0, 14], [165, 179]],
-                                    orange: [[15, 29]],
-                                    yellow: [[30, 44]],
-                                    green: [[45, 74]],
-                                    cyan: [[75, 104]],
-                                    blue: [[105, 134]],
-                                    purple: [[135, 149]],
-                                    magenta: [[150, 164]]
+                                    red: [[0, 10], [170, 179]],      // 红色 - 跨越0度
+                                    orange: [[11, 25]],              // 橙色
+                                    yellow: [[26, 40]],              // 黄色
+                                    green: [[41, 80]],               // 绿色 - 扩大范围
+                                    cyan: [[81, 100]],               // 青色
+                                    blue: [[101, 130]],              // 蓝色 - 修正范围
+                                    purple: [[131, 150]],            // 紫色
+                                    magenta: [[151, 169]]            // 洋红
                                 };
                                 
                                 Object.keys(colorRanges).forEach(colorName => {
@@ -1574,22 +1669,56 @@ applyButton.onclick = () => {
                     input.style.backgroundPosition = "center";
                 }
                 
-                // 创建数值显示
-                const valueSpan = document.createElement("span");
-                valueSpan.className = "hsl-value";
-                valueSpan.textContent = value;
+                // 创建数值输入框（替代span）
+                const valueInput = document.createElement("input");
+                valueInput.type = "number";
+                valueInput.className = "hsl-value-input";
+                valueInput.value = value;
+                valueInput.min = min;
+                valueInput.max = max;
+                valueInput.style.cssText = `
+                    width: 60px;
+                    background: #1a1a1a;
+                    border: 1px solid #444;
+                    color: #fff;
+                    padding: 4px 6px;
+                    font-size: 12px;
+                    text-align: center;
+                    border-radius: 3px;
+                    margin-left: 15px;
+                `;
                 
+                // 滑块变化时更新输入框
                 input.oninput = () => {
-                    valueSpan.textContent = input.value;
+                    valueInput.value = input.value;
                     if (onChange) {
                         onChange(input.value);
+                    }
+                };
+                
+                // 输入框变化时更新滑块
+                valueInput.oninput = () => {
+                    let val = parseInt(valueInput.value);
+                    if (isNaN(val)) val = 0;
+                    val = Math.max(min, Math.min(max, val)); // 限制在范围内
+                    valueInput.value = val;
+                    input.value = val;
+                    if (onChange) {
+                        onChange(val);
+                    }
+                };
+                
+                // 处理Enter键
+                valueInput.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        valueInput.blur();
                     }
                 };
                 
                 // 将元素添加到控件中
                 control.appendChild(labelDiv);
                 control.appendChild(input);
-                control.appendChild(valueSpan);
+                control.appendChild(valueInput);
                 
                 return control;
             };
@@ -1615,34 +1744,40 @@ applyButton.onclick = () => {
                         const saturationWidget = this.widgets.find(w => w.name === `${channel.id}_saturation`);
                         const lightnessWidget = this.widgets.find(w => w.name === `${channel.id}_lightness`);
                         
-                        const hueControl = channelSection.querySelector(".hsl-control:nth-child(2)");
-                        const saturationControl = channelSection.querySelector(".hsl-control:nth-child(3)");
-                        const lightnessControl = channelSection.querySelector(".hsl-control:nth-child(4)");
+                        const hueControl = channelSection.querySelector(".hsl-control:nth-child(1)");
+                        const saturationControl = channelSection.querySelector(".hsl-control:nth-child(2)");
+                        const lightnessControl = channelSection.querySelector(".hsl-control:nth-child(3)");
                         
                         if (hueWidget && hueControl) {
-                            const input = hueControl.querySelector("input");
-                            const valueSpan = hueControl.querySelector(".hsl-value");
-                            if (input && valueSpan) {
-                                input.value = hueWidget.value;
-                                valueSpan.textContent = hueWidget.value;
+                            const rangeInput = hueControl.querySelector("input[type='range']");
+                            const valueInput = hueControl.querySelector(".hsl-value-input");
+                            if (rangeInput) {
+                                rangeInput.value = hueWidget.value;
+                            }
+                            if (valueInput) {
+                                valueInput.value = hueWidget.value;
                             }
                         }
                         
                         if (saturationWidget && saturationControl) {
-                            const input = saturationControl.querySelector("input");
-                            const valueSpan = saturationControl.querySelector(".hsl-value");
-                            if (input && valueSpan) {
-                                input.value = saturationWidget.value;
-                                valueSpan.textContent = saturationWidget.value;
+                            const rangeInput = saturationControl.querySelector("input[type='range']");
+                            const valueInput = saturationControl.querySelector(".hsl-value-input");
+                            if (rangeInput) {
+                                rangeInput.value = saturationWidget.value;
+                            }
+                            if (valueInput) {
+                                valueInput.value = saturationWidget.value;
                             }
                         }
                         
                         if (lightnessWidget && lightnessControl) {
-                            const input = lightnessControl.querySelector("input");
-                            const valueSpan = lightnessControl.querySelector(".hsl-value");
-                            if (input && valueSpan) {
-                                input.value = lightnessWidget.value;
-                                valueSpan.textContent = lightnessWidget.value;
+                            const rangeInput = lightnessControl.querySelector("input[type='range']");
+                            const valueInput = lightnessControl.querySelector(".hsl-value-input");
+                            if (rangeInput) {
+                                rangeInput.value = lightnessWidget.value;
+                            }
+                            if (valueInput) {
+                                valueInput.value = lightnessWidget.value;
                             }
                         }
                     }
