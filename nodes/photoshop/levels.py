@@ -129,7 +129,7 @@ class PhotoshopLevelsNode(BaseImageNode):
             
             # 发送预览数据到前端（仅当有unique_id时）
             if unique_id is not None:
-                levels_data = {
+                self._send_levels_preview_to_frontend(image, unique_id, mask, {
                     "channel": channel,
                     "input_black": input_black,
                     "input_white": input_white,
@@ -139,8 +139,7 @@ class PhotoshopLevelsNode(BaseImageNode):
                     "auto_levels": auto_levels,
                     "auto_contrast": auto_contrast,
                     "clip_percentage": clip_percentage
-                }
-                self.send_preview_to_frontend(image, unique_id, "photoshop_levels_preview", mask, levels_data)
+                })
             
             # 支持批处理
             if len(image.shape) == 4:
@@ -343,3 +342,64 @@ class PhotoshopLevelsNode(BaseImageNode):
         result = torch.clamp(result, 0, 1) * 255.0
         
         return result
+    
+    def _send_levels_preview_to_frontend(self, image, unique_id, mask, levels_data):
+        """发送色阶预览数据到前端"""
+        try:
+            # 使用第一张图像进行预览
+            preview_image = image[0] if image.dim() == 4 else image
+            
+            # 转换为PIL图像
+            img_np = (preview_image.cpu().numpy() * 255).astype(np.uint8)
+            if img_np.shape[-1] == 3:
+                pil_img = Image.fromarray(img_np, mode='RGB')
+            elif img_np.shape[-1] == 4:
+                pil_img = Image.fromarray(img_np, mode='RGBA')
+            else:
+                pil_img = Image.fromarray(img_np[:,:,0], mode='L')
+            
+            # 转换为base64
+            buffer = io.BytesIO()
+            pil_img.save(buffer, format='PNG')
+            img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            # 准备发送数据
+            send_data = {
+                "node_id": str(unique_id),
+                "image": f"data:image/png;base64,{img_base64}",
+                "levels_data": levels_data
+            }
+            
+            # 处理遮罩
+            if mask is not None:
+                try:
+                    # 获取第一个遮罩用于预览
+                    preview_mask = mask[0] if mask.dim() == 3 else mask
+                    
+                    # 确保遮罩是2D的
+                    if preview_mask.dim() > 2:
+                        preview_mask = preview_mask.squeeze()
+                    
+                    # 转换遮罩为PIL图像
+                    mask_np = (preview_mask.cpu().numpy() * 255).astype(np.uint8)
+                    pil_mask = Image.fromarray(mask_np, mode='L')
+                    
+                    # 转换为base64
+                    mask_buffer = io.BytesIO()
+                    pil_mask.save(mask_buffer, format='PNG')
+                    mask_base64 = base64.b64encode(mask_buffer.getvalue()).decode('utf-8')
+                    
+                    send_data["mask"] = f"data:image/png;base64,{mask_base64}"
+                except Exception as mask_error:
+                    print(f"处理色阶遮罩时出错: {mask_error}")
+            
+            # 发送事件到前端
+            try:
+                from server import PromptServer
+                PromptServer.instance.send_sync("levels_adjustment_preview", send_data)
+                print(f"✅ 已发送色阶调整预览数据到前端，节点ID: {unique_id}")
+            except ImportError:
+                print("PromptServer不可用，跳过前端预览")
+            
+        except Exception as preview_error:
+            print(f"发送色阶预览时出错: {preview_error}")

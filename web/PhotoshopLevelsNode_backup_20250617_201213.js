@@ -12,105 +12,6 @@ if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// 添加全局节点执行监听器
-function setupGlobalNodeOutputCache() {
-    
-    if (app.api) {
-        
-        // 监听executed事件
-        app.api.addEventListener("executed", ({ detail }) => {
-            const nodeId = String(detail.node); // 确保nodeId是字符串
-            const outputData = detail.output;
-            
-            
-            if (nodeId && outputData && outputData.images) {
-                window.globalNodeCache.set(nodeId, outputData);
-                
-                // 同时更新到app.nodeOutputs
-                if (!app.nodeOutputs) {
-                    app.nodeOutputs = {};
-                }
-                app.nodeOutputs[nodeId] = outputData;
-                
-                // 更新节点的imgs属性
-                const node = app.graph.getNodeById(nodeId);
-                if (node && outputData.images && outputData.images.length > 0) {
-                    // 转换图像数据为URL格式
-                    const convertToImageUrl = (imageData) => {
-                        if (typeof imageData === 'string') {
-                            return imageData;
-                        }
-                        if (imageData && typeof imageData === 'object' && imageData.filename) {
-                            const baseUrl = window.location.origin;
-                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
-                            if (imageData.subfolder) {
-                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
-                            }
-                            if (imageData.type) {
-                                url += `&type=${encodeURIComponent(imageData.type)}`;
-                            }
-                            return url;
-                        }
-                        return imageData;
-                    };
-                    
-                    // 将转换后的图像URL存储到自定义属性，避免影响原有系统
-                    node._levelsNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
-                }
-                
-                // 更新连接的下游节点缓存（支持PhotoshopLevelsNode节点）
-                const graph = app.graph;
-                if (graph && graph.links) {
-                    Object.values(graph.links).forEach(link => {
-                        if (link && String(link.origin_id) === nodeId) {
-                            const targetNode = graph.getNodeById(link.target_id);
-                            // 支持PhotoshopLevelsNode节点
-                            if (targetNode && targetNode.type === "PhotoshopLevelsNode") {
-                                if (outputData.images && outputData.images.length > 0) {
-                                    const convertToImageUrl = (imageData) => {
-                                        if (typeof imageData === 'string') {
-                                            return imageData;
-                                        }
-                                        if (imageData && typeof imageData === 'object' && imageData.filename) {
-                                            const baseUrl = window.location.origin;
-                                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
-                                            if (imageData.subfolder) {
-                                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
-                                            }
-                                            if (imageData.type) {
-                                                url += `&type=${encodeURIComponent(imageData.type)}`;
-                                            }
-                                            return url;
-                                        }
-                                        return imageData;
-                                    };
-                                    
-                                    targetNode._lastInputImage = convertToImageUrl(outputData.images[0]);
-                                    
-                                    console.log(`📊 更新了下游PhotoshopLevelsNode节点 ${targetNode.id} 的输入图像`);
-                                }
-                                if (outputData.masks && outputData.masks.length > 0) {
-                                    targetNode._lastInputMask = outputData.masks[0];
-                                }
-                            }
-                        }
-                    });
-                }
-            }
-        });
-        
-        console.log("📊 全局节点输出缓存监听器已设置");
-    }
-}
-
-// 在app准备好后设置监听器
-app.registerExtension({
-    name: "Comfy.PhotoshopLevelsNode.GlobalCache",
-    async setup() {
-        setupGlobalNodeOutputCache();
-    }
-});
-
 // Levels编辑器类
 class LevelsEditor {
     constructor(node, options = {}) {
@@ -1107,56 +1008,45 @@ class LevelsEditor {
         try {
             // 方法1: 后端推送的预览图像
             if (this.node._previewImageUrl) {
-                console.log('📊 Levels: 使用后端推送的图像');
+                console.log('Levels: 使用后端推送的图像');
                 return this.node._previewImageUrl;
             }
             
-            // 方法2: 使用缓存的上游节点图像（最常用的情况）
-            if (this.node._lastInputImage) {
-                console.log('📊 Levels: 使用缓存的上游节点图像');
-                return this.node._lastInputImage;
-            }
-            
-            // 方法3: 从全局缓存获取
+            // 方法2: 从全局缓存获取
             const cached = window.globalNodeCache.get(String(this.node.id));
             if (cached && cached.images && cached.images.length > 0) {
-                console.log('📊 Levels: 使用缓存的图像');
+                console.log('Levels: 使用缓存的图像');
                 return this.convertToImageUrl(cached.images[0]);
             }
             
-            // 方法4: 从连接的输入节点获取
+            // 方法3: 从连接的输入节点获取
             const inputNode = this.findConnectedInputNode();
             if (inputNode) {
                 // 先尝试从输入节点的预览URL获取
                 if (inputNode._previewImageUrl) {
-                    console.log('📊 Levels: 使用输入节点的预览图像');
+                    console.log('Levels: 使用输入节点的预览图像');
                     return inputNode._previewImageUrl;
                 }
                 // 再尝试从输入节点的缓存获取
                 const inputCached = window.globalNodeCache.get(String(inputNode.id));
                 if (inputCached && inputCached.images && inputCached.images.length > 0) {
-                    console.log('📊 Levels: 使用输入节点的缓存图像');
+                    console.log('Levels: 使用输入节点的缓存图像');
                     return this.convertToImageUrl(inputCached.images[0]);
-                }
-                // 尝试从输入节点的自定义属性获取
-                if (inputNode._levelsNodeImageUrls && inputNode._levelsNodeImageUrls.length > 0) {
-                    console.log('📊 Levels: 使用输入节点的自定义图像URL');
-                    return inputNode._levelsNodeImageUrls[0];
                 }
             }
             
-            // 方法5: 从app.nodeOutputs获取
+            // 方法4: 从app.nodeOutputs获取
             if (app.nodeOutputs) {
                 const nodeOutput = app.nodeOutputs[this.node.id];
                 if (nodeOutput && nodeOutput.images) {
-                    console.log('📊 Levels: 使用app.nodeOutputs的图像');
+                    console.log('Levels: 使用app.nodeOutputs的图像');
                     return this.convertToImageUrl(nodeOutput.images[0]);
                 }
             }
             
             return null;
         } catch (error) {
-            console.error('📊 Levels: 获取图像时出错:', error);
+            console.error('Levels: 获取图像时出错:', error);
             return null;
         }
     }

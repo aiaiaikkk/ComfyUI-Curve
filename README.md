@@ -1,4 +1,4 @@
-﻿# ComfyUI-Curve
+# ComfyUI-Curve
 
 <!-- 语言切换 | Language Switch -->
 <div align="center">
@@ -10,17 +10,13 @@
 ## 中文
 
 ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格、高级遮罩和Lightroom风格的色彩分级功能。
-![image](https://github.com/user-attachments/assets/9c8d2d61-7fba-4e49-9f41-d6f650d08bda)
-
-
 
 ### 🌟 主要功能
+
 项目介绍视频：https://www.bilibili.com/video/BV1QuMFzRE5i/
 
-#### 🎨 曲线调整 (PS Curve)
-![image](https://github.com/user-attachments/assets/969d97ca-70e4-47a4-b451-7d1e4eea6a87)
-
-
+#### 🎨 曲线调整 (Photoshop Curve)
+![Photoshop Curve Node](images/PS_Curve.png)
 - 类似Photoshop的专业曲线调整，支持多种插值方式
 - **双击节点进入实时调整界面**：在弹出窗口中直接拖动控制点，即刻观察图像变化效果
 - 实时曲线图表，可选直方图背景显示
@@ -28,27 +24,16 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 可调曲线效果强度（0-200%）
 - **弹窗内调整立即应用**：所有曲线修改无需重新运行工作流即可在弹窗内实时查看效果
 
-#### 🎭 HSL混色器 (PS HSL)
-![image](https://github.com/user-attachments/assets/3e9e86be-c09c-476f-a23c-03c7eb0ce339)
-
+#### 🎭 HSL调整 (Photoshop HSL)
+![Photoshop HSL Node](images/HSL.png)
 - 精准控制8个颜色通道：红、橙、黄、绿、浅绿、蓝、紫、品红
 - 每个颜色可独立调整色相、饱和度、明度
 - **双击节点打开HSL调整弹窗**：在弹出窗口中滑动调节器立即显示颜色变化效果，所见即所得
 - 支持遮罩和羽化效果
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
 
-#### 📊 直方图分析 (Histogram Analysis)
-![image](https://github.com/user-attachments/assets/e41a3f24-e37a-4508-8316-2be34858d5c9)
-
-- **双击节点打开专业直方图分析界面**：实时显示RGB和单通道直方图
-- **详细的统计信息**：平均值、中位数、标准差等图像统计数据
-- **像素分布可视化**：清晰显示图像的亮度和颜色分布情况
-- **实时数据更新**：图像变化时直方图实时刷新
-- **多通道支持**：可切换查看RGB整体或单独R/G/B通道直方图
-
-#### 🎚️ 色阶调整 (PS Levels)
-![image](https://github.com/user-attachments/assets/66702215-64c1-4356-988f-071098c60852)
-
+#### 🎚️ 色阶调整 (Photoshop Levels)
+![Photoshop Levels Node](images/PS_Levels.png)
 - **双击节点打开Photoshop风格色阶调整界面**：专业三点控制（黑场、灰场、白场）
 - **实时预览调整**：拖动滑块即时查看色阶调整效果
 - **自动色阶功能**：一键自动优化图像对比度和色阶分布
@@ -57,9 +42,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **直方图背景显示**：在色阶界面中显示实时直方图，便于精确调整
 
 #### 🎨 色彩分级 (Color Grading)
-![image](https://github.com/user-attachments/assets/8c0496c8-b637-457b-befe-734b586a1d94)
-
-
+![Color Grading Node](images/ColorGradingWheels.png)
 - **双击节点打开Lightroom风格的色彩分级界面**：专业三色轮设计（阴影、中间调、高光）
 - **实时交互式色轮操作**：直接在色轮上拖拽调整色相和饱和度，实时预览效果
 - **负饱和度完全去饱和**：-100饱和度实现完全灰度效果，不再产生偏色
@@ -69,7 +52,24 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **区域智能遮罩**：基于亮度的平滑过渡遮罩，精确控制阴影、中间调、高光区域
 - **强度控制**：可调整整体效果强度（0-200%）
 
-#### 🖼️ 预设风格 (PS Curve Preset)
+#### 🔍 直方图分析 (Histogram Analysis)
+![Histogram Analysis Node](images/Histogram_Analysis.png)
+- **双击节点打开专业直方图分析界面**：实时显示RGB和单通道直方图
+- **详细的统计信息**：平均值、中位数、标准差等图像统计数据
+- **像素分布可视化**：清晰显示图像的亮度和颜色分布情况
+- **实时数据更新**：图像变化时直方图实时刷新
+- **多通道支持**：可切换查看RGB整体或单独R/G/B通道直方图
+
+#### 🎯 Camera Raw增强 (Camera Raw Enhance)
+![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
+- 集成Adobe Camera Raw的三个核心增强功能
+- **纹理 (Texture)**：增强中等大小细节的对比度，范围-100到100
+- **清晰度 (Clarity)**：增强中间调对比度，让图像更锐利，范围-100到100
+- **去薄雾 (Dehaze)**：减少或增加大气雾霾效果，范围-100到100
+- 支持混合控制和整体强度调节
+- 包含完整的前端JavaScript界面，支持实时预览
+
+#### 🖼️ 预设风格 (Curve Preset)
 - 70+种专业调色预设
 - 涵盖人像、风景、电影、复古等多种风格
 - 一键应用，快速实现专业调色效果
@@ -83,7 +83,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **双击节点打开专业调整弹窗**，在弹出界面中实时预览调整效果
 - **弹窗内所有调整参数实时同步**，无需重新运行工作流
 - **零延迟反馈**：在弹出窗口中调整参数时图像实时更新，像使用专业图像编辑软件一样流畅
-- 支持曲线、HSL和色彩分级节点的交互式编辑
+- 支持曲线、HSL、色阶和色彩分级节点的交互式编辑
 - 类似Photoshop的专业编辑体验
 
 ### 📥 安装方法
@@ -91,7 +91,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 #### Git克隆（推荐）
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
+git clone https://github.com/your-username/ComfyUI-Curve.git
 ```
 
 #### 手动下载
@@ -109,7 +109,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 #### 如何使用弹窗实时预览功能
 
 1. **曲线调整实时预览**：
-   - 在工作流中添加PS Curve节点
+   - 在工作流中添加Photoshop Curve节点
    - 连接输入图像和遮罩（可选）
    - **双击节点**打开调整弹窗
    - 此时您可以看到弹出窗口中的图像预览区域和曲线编辑区域
@@ -121,7 +121,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
 2. **HSL调整实时预览**：
-   - 在工作流中添加PS HSL节点
+   - 在工作流中添加Photoshop HSL节点
    - 连接输入图像和遮罩（可选）
    - **双击节点**打开HSL调整弹窗
    - 在弹出窗口中选择您想调整的颜色通道（红、橙、黄等）
@@ -161,7 +161,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
    - 直方图会随输入图像变化实时更新
 
 5. **色阶调整实时预览**：
-   - 在工作流中添加PS Levels节点
+   - 在工作流中添加Photoshop Levels节点
    - 连接输入图像和遮罩（可选）
    - **双击节点**打开色阶调整弹窗
    - 在弹出窗口中您将看到带直方图背景的色阶调整界面
@@ -248,6 +248,21 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
   - multiply：压暗效果，适合营造神秘氛围
   - screen：提亮效果，适合梦幻风格
 
+#### Camera Raw增强技巧
+- **纹理调整**：
+  - 正值（1-100）：增强细节，让图像更有质感
+  - 负值（-1到-100）：柔化细节，适合人像皮肤处理
+- **清晰度调整**：
+  - 正值：增强中间调对比度，让图像更锐利
+  - 负值：减少中间调对比度，产生柔焦效果
+- **去薄雾调整**：
+  - 正值：减少雾霾，增强清晰度和色彩饱和度
+  - 负值：增加雾霾效果，营造朦胧氛围
+- **组合使用建议**：
+  - 风景照片：纹理+10，清晰度+20，去薄雾+15
+  - 人像照片：纹理-10，清晰度+5，去薄雾+5
+  - 建筑摄影：纹理+20，清晰度+25，去薄雾+10
+
 #### 遮罩应用技巧
 - 人像皮肤：建议2-4像素羽化
 - 天空背景：建议5-10像素羽化
@@ -255,6 +270,18 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 - 大面积区域：建议8-15像素羽化
 
 ### 🆕 最近更新
+
+#### 2025-06-22 - 项目全面模块化重构
+- **架构升级**：将3591行的单体nodes.py文件重构为清晰的模块化架构
+- **代码组织**：创建了6个功能模块（core、photoshop、lightroom、camera_raw、effects、analysis、presets）
+- **可维护性提升**：每个节点独立文件，便于维护和扩展
+- **代码复用**：通过BaseImageNode基类消除重复代码
+- **性能优化**：修复了PhotoshopLevelsNode的预览问题，添加了直接预览功能
+
+#### 2025-06-21 - 新增Camera Raw增强节点
+- 集成Adobe Camera Raw的三个核心增强功能：纹理、清晰度、去薄雾
+- 支持-100到100的调整范围，提供专业级图像增强效果
+- 包含完整的前端实时预览界面
 
 #### Color Grading功能重大改进
 - **修复饱和度-100偏色问题**：现在-100饱和度能实现完全灰度效果，不再产生青色等偏色
@@ -279,7 +306,8 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 
 ### 🌟 Key Features
 
-#### 🎨 Curve Adjustment (PS Curve)
+#### 🎨 Curve Adjustment (Photoshop Curve)
+![Photoshop Curve Node](images/PS_Curve.png)
 - Professional Photoshop-style curve adjustment with multiple interpolation methods
 - **Double-click node for real-time adjustment interface**: Directly drag control points in the popup window and instantly see image changes
 - Real-time curve chart with optional histogram background display
@@ -287,21 +315,16 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - Adjustable curve effect intensity (0-200%)
 - **Popup window adjustments apply immediately**: All curve modifications can be viewed in real-time within the popup without re-running the workflow
 
-#### 🎭 HSL Adjustment (PS HSL)
+#### 🎭 HSL Adjustment (Photoshop HSL)
+![Photoshop HSL Node](images/HSL.png)
 - Precise control over 8 color channels: Red, Orange, Yellow, Green, Cyan, Blue, Purple, Magenta
 - Independent adjustment of Hue, Saturation, and Lightness for each color
 - **Double-click node to open HSL adjustment popup**: Slide controllers in the popup window to immediately see color change effects, WYSIWYG
 - Support for masks and feathering effects
 - **Real-time interactive response in popup**: Any HSL parameter adjustment in the popup interface instantly reflects in the preview image
 
-#### 📊 Histogram Analysis
-- **Double-click node for professional histogram analysis interface**: Real-time display of RGB and individual channel histograms
-- **Detailed statistical information**: Mean, median, standard deviation and other image statistics
-- **Pixel distribution visualization**: Clear display of image brightness and color distribution
-- **Real-time data updates**: Histogram refreshes instantly when image changes
-- **Multi-channel support**: Switch between RGB overall or individual R/G/B channel histograms
-
-#### 🎚️ Levels Adjustment (PS Levels)
+#### 🎚️ Levels Adjustment (Photoshop Levels)
+![Photoshop Levels Node](images/PS_Levels.png)
 - **Double-click node for Photoshop-style levels adjustment interface**: Professional three-point control (black point, gray point, white point)
 - **Real-time preview adjustment**: Drag sliders to instantly see levels adjustment effects
 - **Auto levels function**: One-click automatic optimization of image contrast and level distribution
@@ -310,6 +333,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Histogram background display**: Shows real-time histogram in levels interface for precise adjustments
 
 #### 🎨 Color Grading
+![Color Grading Node](images/ColorGradingWheels.png)
 - **Double-click for Lightroom-style color grading interface**: Professional three-wheel design (shadows, midtones, highlights)
 - **Real-time interactive color wheel operation**: Directly drag on wheels to adjust hue and saturation with instant preview
 - **Full desaturation at -100 saturation**: -100 saturation achieves complete grayscale effect without color cast
@@ -319,7 +343,24 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Intelligent region masking**: Smooth transition masks based on luminance for precise control of shadows, midtones, highlights
 - **Strength control**: Adjustable overall effect intensity (0-200%)
 
-#### 🖼️ Preset Styles (PS Curve Preset)
+#### 📊 Histogram Analysis
+![Histogram Analysis Node](images/Histogram_Analysis.png)
+- **Double-click node for professional histogram analysis interface**: Real-time display of RGB and individual channel histograms
+- **Detailed statistical information**: Mean, median, standard deviation and other image statistics
+- **Pixel distribution visualization**: Clear display of image brightness and color distribution
+- **Real-time data updates**: Histogram refreshes instantly when image changes
+- **Multi-channel support**: Switch between RGB overall or individual R/G/B channel histograms
+
+#### 🎯 Camera Raw Enhance
+![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
+- Integrates three core Adobe Camera Raw enhancement features
+- **Texture**: Enhances medium-sized detail contrast, range -100 to 100
+- **Clarity**: Enhances midtone contrast for sharper images, range -100 to 100
+- **Dehaze**: Reduces or adds atmospheric haze effect, range -100 to 100
+- Supports blend control and overall strength adjustment
+- Includes complete frontend JavaScript interface with real-time preview
+
+#### 🖼️ Preset Styles (Curve Preset)
 - 70+ professional color grading presets
 - Covers portrait, landscape, cinematic, vintage, and more
 - One-click application for quick professional color grading
@@ -333,7 +374,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Double-click nodes to open professional adjustment popup** with real-time preview in the window
 - **All adjustment parameters in the popup sync instantly** without re-running the workflow
 - **Zero-delay feedback**: Images update in real-time in the popup window as parameters are adjusted, as smooth as using professional image editing software
-- Supports interactive editing for Curve, HSL and Color Grading nodes
+- Supports interactive editing for Curve, HSL, Levels and Color Grading nodes
 - Professional editing experience similar to Photoshop and Lightroom
 
 ### 📥 Installation
@@ -341,7 +382,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 #### Git Clone (Recommended)
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
+git clone https://github.com/your-username/ComfyUI-Curve.git
 ```
 
 #### Manual Download
@@ -359,7 +400,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 #### How to Use Popup Real-time Preview
 
 1. **Curve Adjustment Real-time Preview**:
-   - Add PS Curve node to your workflow
+   - Add Photoshop Curve node to your workflow
    - Connect input image and mask (optional)
    - **Double-click the node** to open the adjustment popup window
    - You'll see the image preview area and curve editing area in the popup
@@ -371,7 +412,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
    - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
 
 2. **HSL Adjustment Real-time Preview**:
-   - Add PS HSL node to your workflow
+   - Add Photoshop HSL node to your workflow
    - Connect input image and mask (optional)
    - **Double-click the node** to open the HSL adjustment popup window
    - In the popup window, select the color channel you want to adjust (Red, Orange, Yellow, etc.)
@@ -411,7 +452,7 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
    - Histogram updates in real-time as input image changes
 
 5. **Levels Adjustment Real-time Preview**:
-   - Add PS Levels node to your workflow
+   - Add Photoshop Levels node to your workflow
    - Connect input image and mask (optional)
    - **Double-click the node** to open levels adjustment popup
    - In the popup window you'll see levels adjustment interface with histogram background
@@ -498,6 +539,21 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
   - multiply: Darkening effect, suitable for creating mysterious atmosphere
   - screen: Brightening effect, suitable for dreamy styles
 
+#### Camera Raw Enhancement Tips
+- **Texture adjustment**:
+  - Positive values (1-100): Enhance details for more texture
+  - Negative values (-1 to -100): Soften details, suitable for portrait skin
+- **Clarity adjustment**:
+  - Positive values: Enhance midtone contrast for sharper images
+  - Negative values: Reduce midtone contrast for soft focus effect
+- **Dehaze adjustment**:
+  - Positive values: Reduce haze, enhance clarity and color saturation
+  - Negative values: Add haze effect for dreamy atmosphere
+- **Combination suggestions**:
+  - Landscape photos: Texture +10, Clarity +20, Dehaze +15
+  - Portrait photos: Texture -10, Clarity +5, Dehaze +5
+  - Architecture photography: Texture +20, Clarity +25, Dehaze +10
+
 #### Mask Application Tips
 - Portrait skin: Recommended 2-4 pixel feathering
 - Sky background: Recommended 5-10 pixel feathering
@@ -505,6 +561,18 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 - Large areas: Recommended 8-15 pixel feathering
 
 ### 🆕 Recent Updates
+
+#### 2025-06-22 - Complete Modular Refactoring
+- **Architecture Upgrade**: Refactored 3591-line monolithic nodes.py file into clear modular architecture
+- **Code Organization**: Created 6 functional modules (core, photoshop, lightroom, camera_raw, effects, analysis, presets)
+- **Maintainability Enhancement**: Each node in independent file, easy to maintain and extend
+- **Code Reuse**: Eliminated duplicate code through BaseImageNode base class
+- **Performance Optimization**: Fixed PhotoshopLevelsNode preview issue, added direct preview functionality
+
+#### 2025-06-21 - New Camera Raw Enhance Node
+- Integrated three core Adobe Camera Raw enhancement features: Texture, Clarity, Dehaze
+- Supports -100 to 100 adjustment range for professional-grade image enhancement
+- Includes complete frontend real-time preview interface
 
 #### Major Color Grading Improvements
 - **Fixed -100 saturation color cast issue**: -100 saturation now achieves complete grayscale effect without cyan or other color casts
@@ -525,7 +593,6 @@ MIT License - See [LICENSE](LICENSE) file.
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给个Star支持！**
+**If this project helps you, please give it a Star!**
 
-</div> 
-
+</div>
