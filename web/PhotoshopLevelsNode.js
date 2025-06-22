@@ -1127,17 +1127,28 @@ class LevelsEditor {
             // 方法4: 从连接的输入节点获取
             const inputNode = this.findConnectedInputNode();
             if (inputNode) {
+                // 最重要：检查Load Image节点的imgs属性
+                if (inputNode.imgs && inputNode.imgs.length > 0) {
+                    const imgData = inputNode.imgs[0];
+                    if (imgData && imgData.src) {
+                        console.log('📊 Levels: 使用输入节点的imgs图像（Load Image节点）');
+                        return imgData.src;
+                    }
+                }
+                
                 // 先尝试从输入节点的预览URL获取
                 if (inputNode._previewImageUrl) {
                     console.log('📊 Levels: 使用输入节点的预览图像');
                     return inputNode._previewImageUrl;
                 }
+                
                 // 再尝试从输入节点的缓存获取
                 const inputCached = window.globalNodeCache.get(String(inputNode.id));
                 if (inputCached && inputCached.images && inputCached.images.length > 0) {
                     console.log('📊 Levels: 使用输入节点的缓存图像');
                     return this.convertToImageUrl(inputCached.images[0]);
                 }
+                
                 // 尝试从输入节点的自定义属性获取
                 if (inputNode._levelsNodeImageUrls && inputNode._levelsNodeImageUrls.length > 0) {
                     console.log('📊 Levels: 使用输入节点的自定义图像URL');
@@ -1166,14 +1177,15 @@ class LevelsEditor {
             return null;
         }
         
-        for (const input of this.node.inputs) {
-            if (input.link) {
-                const link = app.graph.links[input.link];
-                if (link) {
-                    const sourceNode = app.graph.getNodeById(link.origin_id);
-                    if (sourceNode) {
-                        return sourceNode;
-                    }
+        // 优先查找图像输入（第一个输入）
+        const imageInput = this.node.inputs[0];
+        if (imageInput && imageInput.link) {
+            const link = app.graph.links[imageInput.link];
+            if (link) {
+                const sourceNode = app.graph.getNodeById(link.origin_id);
+                if (sourceNode) {
+                    console.log("📊 找到连接的输入节点:", sourceNode.type);
+                    return sourceNode;
                 }
             }
         }
@@ -1564,6 +1576,113 @@ app.registerExtension({
                 // 创建编辑器实例
                 const editor = new LevelsEditor(node);
                 levelsEditors.set(node.id, editor);
+                
+                // 检查初始连接的函数
+                const checkInitialConnection = () => {
+                    if (node.inputs && node.inputs.length > 0 && node.inputs[0].link) {
+                        const linkId = node.inputs[0].link;
+                        const link = app.graph.links[linkId];
+                        if (link) {
+                            const sourceNode = app.graph.getNodeById(link.origin_id);
+                            if (sourceNode) {
+                                console.log("📊 初始化时检测到上游节点:", sourceNode.type);
+                                
+                                // 尝试获取上游节点的输出
+                                if (sourceNode.imgs && sourceNode.imgs.length > 0) {
+                                    const imgData = sourceNode.imgs[0];
+                                    if (imgData && imgData.src) {
+                                        node._lastInputImage = imgData.src;
+                                        console.log("📊 初始化时从上游节点获取到图像");
+                                    }
+                                }
+                                
+                                // 检查全局缓存
+                                const cached = window.globalNodeCache.get(String(sourceNode.id));
+                                if (cached && cached.images && cached.images.length > 0) {
+                                    const convertToImageUrl = (imageData) => {
+                                        if (typeof imageData === 'string') {
+                                            return imageData;
+                                        }
+                                        if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                            const baseUrl = window.location.origin;
+                                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                                            if (imageData.subfolder) {
+                                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                                            }
+                                            if (imageData.type) {
+                                                url += `&type=${encodeURIComponent(imageData.type)}`;
+                                            }
+                                            return url;
+                                        }
+                                        return imageData;
+                                    };
+                                    node._lastInputImage = convertToImageUrl(cached.images[0]);
+                                    console.log("📊 初始化时从全局缓存获取到图像");
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                // 延迟检查初始连接，确保节点完全加载
+                setTimeout(checkInitialConnection, 200);
+                
+                // 监听连接变化
+                const onConnectionsChange = node.onConnectionsChange;
+                node.onConnectionsChange = function(type, index, connected, link_info) {
+                    if (onConnectionsChange) {
+                        onConnectionsChange.apply(this, arguments);
+                    }
+                    
+                    console.log("📊 PhotoshopLevelsNode 连接变化:", type, index, connected);
+                    
+                    // 当输入连接时，尝试获取上游节点的图像
+                    if (type === 1 && index === 0 && connected && link_info) {
+                        setTimeout(() => {
+                            const link = app.graph.links[link_info.id];
+                            if (link) {
+                                const sourceNode = app.graph.getNodeById(link.origin_id);
+                                if (sourceNode) {
+                                    console.log("📊 检测到上游节点:", sourceNode.type);
+                                    
+                                    // 尝试获取上游节点的输出
+                                    if (sourceNode.imgs && sourceNode.imgs.length > 0) {
+                                        // 如果上游节点有imgs属性（如Load Image节点）
+                                        const imgData = sourceNode.imgs[0];
+                                        if (imgData && imgData.src) {
+                                            node._lastInputImage = imgData.src;
+                                            console.log("📊 从上游节点获取到图像");
+                                        }
+                                    }
+                                    
+                                    // 检查全局缓存
+                                    const cached = window.globalNodeCache.get(String(sourceNode.id));
+                                    if (cached && cached.images && cached.images.length > 0) {
+                                        const convertToImageUrl = (imageData) => {
+                                            if (typeof imageData === 'string') {
+                                                return imageData;
+                                            }
+                                            if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                                const baseUrl = window.location.origin;
+                                                let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                                                if (imageData.subfolder) {
+                                                    url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                                                }
+                                                if (imageData.type) {
+                                                    url += `&type=${encodeURIComponent(imageData.type)}`;
+                                                }
+                                                return url;
+                                            }
+                                            return imageData;
+                                        };
+                                        node._lastInputImage = convertToImageUrl(cached.images[0]);
+                                        console.log("📊 从全局缓存获取到图像");
+                                    }
+                                }
+                            }
+                        }, 100); // 短暂延迟以确保连接完全建立
+                    }
+                };
                 
                 // 添加双击事件监听器
                 node.onDblClick = function(e) {
