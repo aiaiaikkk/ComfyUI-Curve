@@ -54,11 +54,11 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 #### 🔍 直方图分析 (Histogram Analysis)
 ![Histogram Analysis Node](images/Histogram_Analysis.png)
-- **双击节点打开专业直方图分析界面**：实时显示RGB和单通道直方图
+- 专业的图像直方图分析节点
 - **详细的统计信息**：平均值、中位数、标准差等图像统计数据
 - **像素分布可视化**：清晰显示图像的亮度和颜色分布情况
-- **实时数据更新**：图像变化时直方图实时刷新
-- **多通道支持**：可切换查看RGB整体或单独R/G/B通道直方图
+- **多通道支持**：支持RGB整体或单独R/G/B通道分析
+- 为其他调整节点提供数据参考
 
 #### 🎯 Camera Raw增强 (Camera Raw Enhance)
 ![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
@@ -150,15 +150,6 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - 预览窗口实时更新，所见即所得
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
-4. **直方图分析实时查看**：
-   - 在工作流中添加Histogram Analysis节点
-   - 连接输入图像
-   - **双击节点**打开直方图分析弹窗
-   - 在弹出窗口中查看实时直方图显示
-   - **通道切换**：点击RGB、R、G、B按钮切换不同通道的直方图
-   - **统计信息查看**：在弹窗中查看平均值、中位数、标准差等详细数据
-   - **像素分布分析**：观察直方图峰值和分布，了解图像特征
-   - 直方图会随输入图像变化实时更新
 
 5. **色阶调整实时预览**：
    - 在工作流中添加Photoshop Levels节点
@@ -176,7 +167,7 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - 所有调整都会在预览窗口中实时显示效果
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
-6. **弹窗预览界面通用操作**：
+4. **弹窗预览界面通用操作**：
    - **放大/缩小预览**：在弹窗内使用鼠标滚轮或+/-按钮
    - **平移预览**：在弹窗内按住中键并拖动
    - **对比原图**：在弹窗内按住空格键查看原始图像，释放返回调整后效果
@@ -345,11 +336,11 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 
 #### 📊 Histogram Analysis
 ![Histogram Analysis Node](images/Histogram_Analysis.png)
-- **Double-click node for professional histogram analysis interface**: Real-time display of RGB and individual channel histograms
+- Professional image histogram analysis node
 - **Detailed statistical information**: Mean, median, standard deviation and other image statistics
 - **Pixel distribution visualization**: Clear display of image brightness and color distribution
-- **Real-time data updates**: Histogram refreshes instantly when image changes
-- **Multi-channel support**: Switch between RGB overall or individual R/G/B channel histograms
+- **Multi-channel support**: Supports RGB overall or individual R/G/B channel analysis
+- Provides data reference for other adjustment nodes
 
 #### 🎯 Camera Raw Enhance
 ![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
@@ -441,15 +432,6 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - Preview window updates in real-time, showing exactly what you'll get
    - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
 
-4. **Histogram Analysis Real-time View**:
-   - Add Histogram Analysis node to your workflow
-   - Connect input image
-   - **Double-click the node** to open histogram analysis popup
-   - View real-time histogram display in the popup window
-   - **Channel switching**: Click RGB, R, G, B buttons to switch between different channel histograms
-   - **Statistics viewing**: View detailed data like mean, median, standard deviation in the popup
-   - **Pixel distribution analysis**: Observe histogram peaks and distribution to understand image characteristics
-   - Histogram updates in real-time as input image changes
 
 5. **Levels Adjustment Real-time Preview**:
    - Add Photoshop Levels node to your workflow
@@ -467,7 +449,7 @@ git clone https://github.com/your-username/ComfyUI-Curve.git
    - All adjustments display effects in real-time in the preview window
    - When finished, click **Apply** in the popup window and parameters will automatically sync to the node
 
-6. **Popup Preview Interface Common Operations**:
+4. **Popup Preview Interface Common Operations**:
    - **Zoom in/out preview**: Use mouse wheel or +/- buttons in the popup
    - **Pan preview**: Hold middle mouse button and drag in the popup
    - **Compare with original**: Hold spacebar in the popup to view original image, release to return to adjusted effect
