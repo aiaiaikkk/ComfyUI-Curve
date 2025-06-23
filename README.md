@@ -17,7 +17,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 #### 🎨 曲线调整 (Photoshop Curve)
 ![Photoshop Curve Node](images/PS_Curve.png)
-- 类似Photoshop的专业曲线调整，支持多种插值方式
+- 类似Photoshop的专业曲线调整，支持多种插值方式 
 - **双击节点进入实时调整界面**：在弹出窗口中直接拖动控制点，即刻观察图像变化效果
 - 实时曲线图表，可选直方图背景显示
 - 支持RGB整体或单独R/G/B通道调整
