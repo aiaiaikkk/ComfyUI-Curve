@@ -16,6 +16,7 @@ import base64
 
 from ..core.base_node import BaseImageNode
 from ..core.mask_utils import apply_mask_to_image, blur_mask
+from ..core.preset_manager import preset_manager
 
 
 class PhotoshopCurveNode(BaseImageNode):
@@ -28,18 +29,22 @@ class PhotoshopCurveNode(BaseImageNode):
                 'image': ('IMAGE',),
                 'rgb_curve': ('STRING', {
                     'default': '[[0,0],[255,255]]',
+                    'display': 'hidden',
                     'tooltip': 'RGB曲线控制点，格式：[[x1,y1],[x2,y2],...]'
                 }),
                 'red_curve': ('STRING', {
                     'default': '[[0,0],[255,255]]',
+                    'display': 'hidden',
                     'tooltip': '红色通道曲线控制点'
                 }),
                 'green_curve': ('STRING', {
                     'default': '[[0,0],[255,255]]',
+                    'display': 'hidden',
                     'tooltip': '绿色通道曲线控制点'
                 }),
                 'blue_curve': ('STRING', {
                     'default': '[[0,0],[255,255]]',
+                    'display': 'hidden',
                     'tooltip': '蓝色通道曲线控制点'
                 }),
                 'curve_type': (['cubic', 'linear'], {
@@ -80,6 +85,13 @@ class PhotoshopCurveNode(BaseImageNode):
                                blue_curve='[[0,0],[255,255]]', curve_type='cubic',
                                mask=None, mask_blur=0.0, invert_mask=False, unique_id=None, **kwargs):
         """应用曲线调整"""
+        print(f"PhotoshopCurveNode 接收到参数:")
+        print(f"  rgb_curve: {rgb_curve}")
+        print(f"  red_curve: {red_curve}")
+        print(f"  green_curve: {green_curve}")
+        print(f"  blue_curve: {blue_curve}")
+        print(f"  curve_type: {curve_type}")
+        
         try:
             # 发送预览到前端
             if unique_id is not None:
@@ -190,6 +202,10 @@ class PhotoshopCurveNode(BaseImageNode):
         # 排序控制点
         points = sorted(points, key=lambda x: x[0])
         
+        # 调试输出
+        print(f"  创建LUT - 输入点数: {len(points)}, 曲线类型: {curve_type}")
+        print(f"  控制点: {points}")
+        
         # 提取x和y坐标
         x_coords = [p[0] for p in points]
         y_coords = [p[1] for p in points]
@@ -203,9 +219,19 @@ class PhotoshopCurveNode(BaseImageNode):
             y_coords.append(255)
         
         # 创建插值函数
-        if curve_type == 'cubic' and len(x_coords) > 2:
-            interp_func = interp1d(x_coords, y_coords, kind='cubic', bounds_error=False, fill_value='extrapolate')
-        else:
+        try:
+            if curve_type == 'cubic' and len(x_coords) > 3:
+                # 对于cubic插值，需要至少4个点
+                interp_func = interp1d(x_coords, y_coords, kind='cubic', bounds_error=False, fill_value='extrapolate')
+            elif curve_type == 'cubic' and len(x_coords) == 3:
+                # 3个点时使用quadratic插值
+                interp_func = interp1d(x_coords, y_coords, kind='quadratic', bounds_error=False, fill_value='extrapolate')
+            else:
+                # 2个点或更少时使用linear插值
+                interp_func = interp1d(x_coords, y_coords, kind='linear', bounds_error=False, fill_value='extrapolate')
+        except Exception as e:
+            # 如果插值失败，回退到线性插值
+            print(f"插值创建失败，使用线性插值: {e}")
             interp_func = interp1d(x_coords, y_coords, kind='linear', bounds_error=False, fill_value='extrapolate')
         
         # 生成查找表
