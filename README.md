@@ -39,6 +39,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 支持RGB整体或单独R/G/B通道调整
 - 可调曲线效果强度（0-200%）
 - **弹窗内调整立即应用**：所有曲线修改无需重新运行工作流即可在弹窗内实时查看效果
+- **支持自定义预设**：可保存、加载、管理和分享您的曲线预设
 
 #### 🎭 HSL调整 (Photoshop HSL)
 ![Photoshop HSL Node](images/HSL.png)
@@ -47,6 +48,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **双击节点打开HSL调整弹窗**：在弹出窗口中滑动调节器立即显示颜色变化效果，所见即所得
 - 支持遮罩和羽化效果
 - **弹窗内实时交互响应**：在弹出界面中调整任何HSL参数都能即时反映在预览图像上
+- **支持自定义预设**：可保存、加载、管理和分享您的HSL调整预设
 
 #### 🎚️ 色阶调整 (Photoshop Levels)
 ![Photoshop Levels Node](images/PS_Levels.png)
@@ -65,6 +67,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **多种混合模式**：normal、multiply、screen、overlay、soft_light等专业混合选项
 - **分区域调色**：独立控制阴影、中间调、高光区域的色彩
 - **强度控制**：可调整整体效果强度（0-200%）
+- **支持自定义预设**：可保存、加载、管理和分享您的色彩分级预设
 
 #### 🔀 高斯模糊 (Gaussian Blur with Mask)
 ![Gaussian Blur with Mask Node](images/Gaussian_Blur_with_Mask.png)
@@ -90,6 +93,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **去薄雾 (Dehaze)**：减少或增加大气雾霾效果，范围-100到100
 - 支持混合控制和整体强度调节
 - 包含完整的前端JavaScript界面，支持实时预览
+- **支持自定义预设**：可保存、加载、管理和分享您的增强预设
 
 #### 🖼️ 预设风格 (Curve Preset)
 - 70+种专业调色预设
