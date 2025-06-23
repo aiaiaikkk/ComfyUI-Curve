@@ -311,6 +311,22 @@ MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
 
 Professional color adjustment extension for ComfyUI with Photoshop-like Curve, HSL, and Levels adjustment functionality, 70+ preset styles, advanced mask support, and Lightroom-style Color Grading. **The standout feature is the ability to double-click nodes to open popup windows with real-time preview that allows you to color grade with the precision of professional image editing software.**
 
+### 📅 Latest Updates (2025-06-24)
+
+#### 🎨 PS Curve Preset System Enhancement
+- ✅ Complete preset management functionality with save, load, delete, export, and import operations
+- ✅ Fixed default preset loading issues (Portrait Enhance, Cinematic, Landscape Vivid)
+- ✅ Expanded mask feathering range to 0-50 for finer edge transitions
+
+#### 🎯 HSL Preset System Optimization
+- ✅ Added complete preset management functionality
+- ✅ Support for saving and sharing custom HSL presets
+- ✅ Optimized preset loading performance
+
+#### 🔧 Mask Functionality Fix (2025-06-23)
+- ✅ Fixed mask functionality for all nodes, restored selective adjustment capability
+- ✅ Optimized mask edge processing for natural transition effects
+
 ### 🌟 Key Features
 
 #### 🎨 Curve Adjustment (Photoshop Curve)
@@ -321,6 +337,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - Support for RGB overall or individual R/G/B channel adjustment
 - Adjustable curve effect intensity (0-200%)
 - **Popup window adjustments apply immediately**: All curve modifications can be viewed in real-time within the popup without re-running the workflow
+- **Custom preset support**: Save, load, manage and share your curve presets
 
 #### 🎭 HSL Adjustment (Photoshop HSL)
 ![Photoshop HSL Node](images/HSL.png)
@@ -329,6 +346,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Double-click node to open HSL adjustment popup**: Slide controllers in the popup window to immediately see color change effects, WYSIWYG
 - Support for masks and feathering effects
 - **Real-time interactive response in popup**: Any HSL parameter adjustment in the popup interface instantly reflects in the preview image
+- **Custom preset support**: Save, load, manage and share your HSL adjustment presets
 
 #### 🎚️ Levels Adjustment (Photoshop Levels)
 ![Photoshop Levels Node](images/PS_Levels.png)
@@ -343,12 +361,19 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 ![Color Grading Node](images/ColorGradingWheels.png)
 - **Double-click for Lightroom-style color grading interface**: Professional three-wheel design (shadows, midtones, highlights)
 - **Real-time interactive color wheel operation**: Directly drag on wheels to adjust hue and saturation with instant preview
-- **Full desaturation at -100 saturation**: -100 saturation achieves complete grayscale effect without color cast
-- **Shift key for negative saturation**: Hold Shift while operating on color wheels to set negative saturation values
-- **Precise Lab color space processing**: Professional Lab color algorithm ensures color accuracy
+- **Professional color processing**: Precise color control ensures grading accuracy
 - **Multiple blend modes**: normal, multiply, screen, overlay, soft_light and other professional blending options
-- **Intelligent region masking**: Smooth transition masks based on luminance for precise control of shadows, midtones, highlights
+- **Independent region grading**: Control colors separately for shadows, midtones, and highlights
 - **Strength control**: Adjustable overall effect intensity (0-200%)
+- **Custom preset support**: Save, load, manage and share your color grading presets
+
+#### 🔀 Gaussian Blur with Mask
+![Gaussian Blur with Mask Node](images/Gaussian_Blur_with_Mask.png)
+- **Selective blur processing**: Precisely control blur areas through masks
+- **Adjustable blur radius**: Supports 0-100 pixel blur intensity adjustment
+- **Mask feathering**: 0-20 pixel edge feathering for natural transitions
+- **Mask inversion**: Quickly reverse blur areas
+- **Applications**: Background blur, focus enhancement, privacy protection, artistic effects
 
 #### 📊 Histogram Analysis
 ![Histogram Analysis Node](images/Histogram_Analysis.png)
@@ -366,6 +391,7 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Dehaze**: Reduces or adds atmospheric haze effect, range -100 to 100
 - Supports blend control and overall strength adjustment
 - Includes complete frontend JavaScript interface with real-time preview
+- **Custom preset support**: Save, load, manage and share your enhancement presets
 
 #### 🖼️ Preset Styles (Curve Preset)
 - 70+ professional color grading presets
