@@ -139,6 +139,11 @@ class LevelsEditor {
             clip_percentage: 0.1
         };
         
+        // 遮罩相关
+        this.currentMask = null;
+        this.maskCanvas = null;
+        this.maskContext = null;
+        
         this.createModal();
     }
     
@@ -1085,6 +1090,9 @@ class LevelsEditor {
                     this.updatePreviewCanvas();
                     this.hideLoadingText();
                     console.log('📊 图像加载成功');
+                    
+                    // 加载遮罩（如果存在）
+                    this.loadMask();
                 };
                 
                 img.onerror = () => {
@@ -1100,6 +1108,60 @@ class LevelsEditor {
         } catch (error) {
             console.error('Levels: 加载图像时出错:', error);
             this.showLoadingText('加载图像时出错');
+        }
+    }
+    
+    loadMask() {
+        try {
+            // 获取遮罩数据
+            const maskUrl = this.getNodeMask();
+            
+            if (maskUrl) {
+                const maskImg = new Image();
+                maskImg.crossOrigin = 'anonymous';
+                
+                maskImg.onload = () => {
+                    this.currentMask = maskImg;
+                    
+                    // 创建遮罩画布
+                    if (!this.maskCanvas) {
+                        this.maskCanvas = document.createElement('canvas');
+                        this.maskContext = this.maskCanvas.getContext('2d');
+                    }
+                    
+                    // 设置遮罩画布大小与预览画布一致
+                    this.maskCanvas.width = this.previewCanvas.width;
+                    this.maskCanvas.height = this.previewCanvas.height;
+                    
+                    // 绘制遮罩
+                    this.maskContext.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                    this.maskContext.drawImage(
+                        maskImg, 
+                        0, 0, 
+                        this.maskCanvas.width, 
+                        this.maskCanvas.height
+                    );
+                    
+                    console.log('📊 遮罩加载成功');
+                    
+                    // 重新应用效果
+                    this.updatePreviewCanvas();
+                };
+                
+                maskImg.onerror = () => {
+                    console.error('Levels: 遮罩加载失败');
+                    this.currentMask = null;
+                };
+                
+                maskImg.src = maskUrl;
+            } else {
+                // 没有遮罩
+                this.currentMask = null;
+                console.log('📊 没有遮罩输入');
+            }
+        } catch (error) {
+            console.error('Levels: 加载遮罩时出错:', error);
+            this.currentMask = null;
         }
     }
     
@@ -1207,6 +1269,46 @@ class LevelsEditor {
         return null;
     }
     
+    getNodeMask() {
+        try {
+            // 方法1: 后端推送的遮罩图像
+            if (this.node._previewMaskUrl) {
+                console.log('📊 Levels: 使用后端推送的遮罩');
+                return this.node._previewMaskUrl;
+            }
+            
+            // 方法2: 使用缓存的上游节点遮罩
+            if (this.node._lastInputMask) {
+                console.log('📊 Levels: 使用缓存的上游节点遮罩');
+                return this.node._lastInputMask;
+            }
+            
+            // 方法3: 从连接的遮罩输入节点获取
+            if (this.node.inputs && this.node.inputs.length > 1) {
+                const maskInput = this.node.inputs[1]; // 第二个输入是遮罩
+                if (maskInput && maskInput.link) {
+                    const link = app.graph.links[maskInput.link];
+                    if (link) {
+                        const sourceNode = app.graph.getNodeById(link.origin_id);
+                        if (sourceNode) {
+                            // 检查全局缓存
+                            const cached = window.globalNodeCache.get(String(sourceNode.id));
+                            if (cached && cached.masks && cached.masks.length > 0) {
+                                console.log('📊 Levels: 使用遮罩节点的缓存数据');
+                                return this.convertToImageUrl(cached.masks[0]);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('📊 Levels: 获取遮罩时出错:', error);
+            return null;
+        }
+    }
+    
     updatePreviewCanvas() {
         if (!this.currentImage || !this.previewCanvas) return;
         
@@ -1241,12 +1343,31 @@ class LevelsEditor {
     applyPreviewEffects() {
         if (!this.previewContext || !this.currentImage) return;
         
+        // 保存原始图像
+        const originalImageData = this.previewContext.getImageData(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+        const originalData = new Uint8ClampedArray(originalImageData.data);
+        
         // 获取图像数据
         const imageData = this.previewContext.getImageData(0, 0, this.previewCanvas.width, this.previewCanvas.height);
         const data = imageData.data;
         
         // 应用色阶调整
         this.applyLevelsToImageData(data);
+        
+        // 如果有遮罩，应用遮罩混合
+        if (this.currentMask && this.maskCanvas) {
+            // 获取遮罩数据
+            const maskData = this.maskContext.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height).data;
+            
+            // 应用遮罩混合
+            for (let i = 0; i < data.length; i += 4) {
+                const maskAlpha = maskData[i] / 255.0; // 使用遮罩的红色通道作为alpha
+                // 混合原始图像和处理后的图像
+                data[i] = originalData[i] * (1 - maskAlpha) + data[i] * maskAlpha;
+                data[i + 1] = originalData[i + 1] * (1 - maskAlpha) + data[i + 1] * maskAlpha;
+                data[i + 2] = originalData[i + 2] * (1 - maskAlpha) + data[i + 2] * maskAlpha;
+            }
+        }
         
         // 将处理后的数据绘制回画布
         this.previewContext.putImageData(imageData, 0, 0);
@@ -1627,6 +1748,31 @@ app.registerExtension({
                 // 延迟检查初始连接，确保节点完全加载
                 setTimeout(checkInitialConnection, 200);
                 
+                // 设置后端预览数据监听器
+                if (app.api) {
+                    app.api.addEventListener("levels_adjustment_preview", ({ detail }) => {
+                        const nodeId = String(detail.node_id);
+                        if (nodeId === String(node.id)) {
+                            console.log("📊 收到色阶预览数据:", detail);
+                            
+                            // 更新预览图像
+                            if (detail.image) {
+                                node._previewImageUrl = detail.image;
+                            }
+                            
+                            // 更新遮罩
+                            if (detail.mask) {
+                                node._previewMaskUrl = detail.mask;
+                            }
+                            
+                            // 如果编辑器打开，更新预览
+                            if (editor.isOpen) {
+                                editor.loadImage();
+                            }
+                        }
+                    });
+                }
+                
                 // 监听连接变化
                 const onConnectionsChange = node.onConnectionsChange;
                 node.onConnectionsChange = function(type, index, connected, link_info) {
@@ -1681,6 +1827,58 @@ app.registerExtension({
                                 }
                             }
                         }, 100); // 短暂延迟以确保连接完全建立
+                    }
+                    
+                    // 当遮罩输入连接时
+                    if (type === 1 && index === 1 && connected && link_info) {
+                        setTimeout(() => {
+                            const link = app.graph.links[link_info.id];
+                            if (link) {
+                                const sourceNode = app.graph.getNodeById(link.origin_id);
+                                if (sourceNode) {
+                                    console.log("📊 检测到遮罩节点:", sourceNode.type);
+                                    
+                                    // 检查全局缓存中的遮罩数据
+                                    const cached = window.globalNodeCache.get(String(sourceNode.id));
+                                    if (cached && cached.masks && cached.masks.length > 0) {
+                                        const convertToImageUrl = (imageData) => {
+                                            if (typeof imageData === 'string') {
+                                                return imageData;
+                                            }
+                                            if (imageData && typeof imageData === 'object' && imageData.filename) {
+                                                const baseUrl = window.location.origin;
+                                                let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
+                                                if (imageData.subfolder) {
+                                                    url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
+                                                }
+                                                if (imageData.type) {
+                                                    url += `&type=${encodeURIComponent(imageData.type)}`;
+                                                }
+                                                return url;
+                                            }
+                                            return imageData;
+                                        };
+                                        node._lastInputMask = convertToImageUrl(cached.masks[0]);
+                                        console.log("📊 从全局缓存获取到遮罩");
+                                        
+                                        // 如果编辑器已打开，重新加载遮罩
+                                        if (editor.isOpen) {
+                                            editor.loadMask();
+                                        }
+                                    }
+                                }
+                            }
+                        }, 100);
+                    }
+                    
+                    // 当遮罩断开连接时
+                    if (type === 1 && index === 1 && !connected) {
+                        node._lastInputMask = null;
+                        node._previewMaskUrl = null;
+                        if (editor.isOpen) {
+                            editor.currentMask = null;
+                            editor.updatePreviewCanvas();
+                        }
                     }
                 };
                 

@@ -426,8 +426,8 @@ class PhotoshopHSLNode(BaseImageNode):
             magenta_hue != 0 or magenta_saturation != 0 or magenta_lightness != 0
         )
         
-        if not needs_processing:
-            # 如果没有任何调整，直接转换回RGB并返回
+        if not needs_processing and mask is None:
+            # 如果没有任何调整且没有遮罩，直接转换回RGB并返回
             img_bgr = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
             if has_alpha:
                 img_rgba = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGBA)

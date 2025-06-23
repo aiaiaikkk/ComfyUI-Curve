@@ -134,7 +134,7 @@ class CameraRawEnhanceNode(BaseImageNode):
                     "blend": blend,
                     "overall_strength": overall_strength
                 }
-                self.send_preview_to_frontend(image, unique_id, "camera_raw_enhance_preview", mask, enhance_data)
+                self.send_preview_to_frontend(image, unique_id, "camera_raw_enhance_preview", mask)
             
             # 支持批处理
             if len(image.shape) == 4:
@@ -167,6 +167,13 @@ class CameraRawEnhanceNode(BaseImageNode):
         
         # 保存原始图像
         original = img_np.copy()
+        
+        # 检查是否需要处理
+        needs_processing = (texture != 0 or clarity != 0 or dehaze != 0 or 
+                          overall_strength != 1.0 or blend < 100.0)
+        
+        if not needs_processing and mask is None:
+            return image
         
         # 应用纹理增强
         if texture != 0:

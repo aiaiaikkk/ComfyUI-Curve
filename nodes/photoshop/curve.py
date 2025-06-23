@@ -85,12 +85,6 @@ class PhotoshopCurveNode(BaseImageNode):
                                blue_curve='[[0,0],[255,255]]', curve_type='cubic',
                                mask=None, mask_blur=0.0, invert_mask=False, unique_id=None, **kwargs):
         """应用曲线调整"""
-        print(f"PhotoshopCurveNode 接收到参数:")
-        print(f"  rgb_curve: {rgb_curve}")
-        print(f"  red_curve: {red_curve}")
-        print(f"  green_curve: {green_curve}")
-        print(f"  blue_curve: {blue_curve}")
-        print(f"  curve_type: {curve_type}")
         
         try:
             # 发送预览到前端
@@ -146,6 +140,7 @@ class PhotoshopCurveNode(BaseImageNode):
             self._is_identity_curve(blue_points)
         )
         
+        # 只有在没有遮罩且是恒等曲线时才返回原图
         if is_identity and mask is None:
             return image
         
@@ -159,20 +154,21 @@ class PhotoshopCurveNode(BaseImageNode):
         green_lut = self._create_lut(green_points, curve_type)
         blue_lut = self._create_lut(blue_points, curve_type)
         
-        # 应用曲线调整
-        if not self._is_identity_curve(rgb_points):
-            # 应用RGB曲线到所有通道
-            result_np[:,:,0] = rgb_lut[result_np[:,:,0]]
-            result_np[:,:,1] = rgb_lut[result_np[:,:,1]]
-            result_np[:,:,2] = rgb_lut[result_np[:,:,2]]
-        
-        # 应用独立通道曲线
-        if not self._is_identity_curve(red_points):
-            result_np[:,:,0] = red_lut[result_np[:,:,0]]
-        if not self._is_identity_curve(green_points):
-            result_np[:,:,1] = green_lut[result_np[:,:,1]]
-        if not self._is_identity_curve(blue_points):
-            result_np[:,:,2] = blue_lut[result_np[:,:,2]]
+        # 应用曲线调整（即使是恒等曲线，当有遮罩时也需要处理）
+        if not is_identity or mask is not None:
+            if not self._is_identity_curve(rgb_points):
+                # 应用RGB曲线到所有通道
+                result_np[:,:,0] = rgb_lut[result_np[:,:,0]]
+                result_np[:,:,1] = rgb_lut[result_np[:,:,1]]
+                result_np[:,:,2] = rgb_lut[result_np[:,:,2]]
+            
+            # 应用独立通道曲线
+            if not self._is_identity_curve(red_points):
+                result_np[:,:,0] = red_lut[result_np[:,:,0]]
+            if not self._is_identity_curve(green_points):
+                result_np[:,:,1] = green_lut[result_np[:,:,1]]
+            if not self._is_identity_curve(blue_points):
+                result_np[:,:,2] = blue_lut[result_np[:,:,2]]
         
         # 转换回tensor
         result = torch.from_numpy(result_np.astype(np.float32) / 255.0).to(device)
@@ -202,9 +198,6 @@ class PhotoshopCurveNode(BaseImageNode):
         # 排序控制点
         points = sorted(points, key=lambda x: x[0])
         
-        # 调试输出
-        print(f"  创建LUT - 输入点数: {len(points)}, 曲线类型: {curve_type}")
-        print(f"  控制点: {points}")
         
         # 提取x和y坐标
         x_coords = [p[0] for p in points]

@@ -328,10 +328,8 @@ class ColorGradingNode(BaseImageNode):
                          midtones_hue != 0 or midtones_saturation != 0 or midtones_luminance != 0 or
                          highlights_hue != 0 or highlights_saturation != 0 or highlights_luminance != 0)
         
-        # 如果没有调整且blend_mode是normal，直接返回原图或应用遮罩
-        if not has_adjustment and blend_mode == 'normal':
-            if mask is None:
-                return image
+        # 如果没有调整且blend_mode是normal，直接返回原图
+        if not has_adjustment and blend_mode == 'normal' and mask is None:
             return image
         
         # 转换为Lab色彩空间（更接近人眼感知，Lightroom使用的色彩空间）

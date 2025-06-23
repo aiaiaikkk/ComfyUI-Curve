@@ -116,8 +116,72 @@ class BaseImageNode:
             batch_size = images.shape[0]
             result = torch.zeros_like(images)
             
+            # 特殊处理mask参数
+            # 在大多数节点中，mask是第6个位置参数（索引5）
+            mask_in_args = False
+            mask_index = 5  # mask通常在第6个参数位置
+            
+            if len(args) > mask_index and isinstance(args[mask_index], (torch.Tensor, type(None))):
+                mask_in_args = True
+                mask = args[mask_index]
+            else:
+                # 检查kwargs
+                mask = kwargs.get('mask', None)
+            
             for i in range(batch_size):
-                result[i] = process_func(images[i], *args, **kwargs)
+                # 准备当前批次的参数
+                batch_args = list(args)
+                
+                # 处理mask
+                if mask is not None:
+                    print(f"[BATCH DEBUG] 批次 {i}: 处理遮罩")
+                    print(f"  原始mask shape: {mask.shape if hasattr(mask, 'shape') else type(mask)}")
+                    print(f"  batch_size: {batch_size}")
+                    
+                    if isinstance(mask, torch.Tensor):
+                        if mask.dim() == 3 and mask.shape[0] == batch_size:
+                            # mask是批处理的，取对应的mask
+                            current_mask = mask[i]
+                            print(f"  选择批处理遮罩[{i}]: {current_mask.shape}")
+                        elif mask.dim() == 2:
+                            # mask是单个的2D，对所有批次使用
+                            current_mask = mask
+                            print(f"  使用2D遮罩: {current_mask.shape}")
+                        elif mask.dim() == 3 and mask.shape[0] == 1:
+                            # mask是单个的3D，展开使用
+                            current_mask = mask[0]
+                            print(f"  展开3D遮罩: {current_mask.shape}")
+                        elif mask.dim() == 3 and mask.shape[0] > 1:
+                            # 多个mask但数量不等于batch_size，使用第一个
+                            current_mask = mask[0]
+                            print(f"  使用多遮罩第一个: {current_mask.shape}")
+                        elif mask.dim() == 4:
+                            # 4D mask，取对应批次
+                            if mask.shape[0] == batch_size:
+                                current_mask = mask[i]
+                            else:
+                                current_mask = mask[0]
+                            print(f"  4D遮罩处理: {current_mask.shape}")
+                        else:
+                            current_mask = mask
+                            print(f"  其他情况遮罩: {current_mask.shape if hasattr(current_mask, 'shape') else type(current_mask)}")
+                    else:
+                        current_mask = mask
+                        print(f"  非tensor遮罩: {type(current_mask)}")
+                    
+                    # 更新参数中的mask
+                    if mask_in_args and len(batch_args) > mask_index:
+                        batch_args[mask_index] = current_mask
+                    else:
+                        kwargs['mask'] = current_mask
+                
+                # 处理当前图像
+                print(f"[BATCH DEBUG] 调用process_func:")
+                print(f"  image[{i}] shape: {images[i].shape}")
+                print(f"  batch_args中mask位置({mask_index}): {batch_args[mask_index].shape if mask_in_args and len(batch_args) > mask_index and hasattr(batch_args[mask_index], 'shape') else 'N/A'}")
+                print(f"  kwargs中mask: {kwargs.get('mask').shape if 'mask' in kwargs and hasattr(kwargs['mask'], 'shape') else 'N/A'}")
+                
+                result[i] = process_func(images[i], *batch_args, **kwargs)
             
             return result
         else:
