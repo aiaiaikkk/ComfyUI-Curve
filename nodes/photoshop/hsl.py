@@ -17,6 +17,203 @@ import base64
 
 from ..core.base_node import BaseImageNode
 from ..core.mask_utils import apply_mask_to_image, blur_mask
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+try:
+    from server import PromptServer
+    from aiohttp import web
+    import aiofiles
+    
+    # 简单的HSL预设管理器
+    class HSLPresetManager:
+        def __init__(self):
+            self.preset_dir = Path(__file__).parent.parent.parent / "presets" / "hsl"
+            self.user_dir = self.preset_dir / "user"
+            self.default_dir = self.preset_dir / "default"
+            self.shared_dir = self.preset_dir / "shared"
+            
+            # 确保目录存在
+            for dir_path in [self.user_dir, self.default_dir, self.shared_dir]:
+                dir_path.mkdir(parents=True, exist_ok=True)
+            
+            self._setup_routes()
+        
+        def _setup_routes(self):
+            """设置API路由"""
+            if not PromptServer or not hasattr(PromptServer, 'instance') or not PromptServer.instance:
+                return
+                
+            routes = PromptServer.instance.routes
+            
+            @routes.get("/hsl_presets/list")
+            async def list_presets(request):
+                try:
+                    presets = []
+                    
+                    # 扫描所有预设目录
+                    for preset_type, dir_path in [
+                        ('default', self.default_dir),
+                        ('user', self.user_dir),
+                        ('shared', self.shared_dir)
+                    ]:
+                        if dir_path.exists():
+                            for file_path in dir_path.glob("*.json"):
+                                try:
+                                    async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                                        content = await f.read()
+                                        preset_data = json.loads(content)
+                                        preset_data['type'] = preset_type
+                                        preset_data['file_name'] = file_path.name
+                                        presets.append(preset_data)
+                                except Exception as e:
+                                    print(f"Error loading preset {file_path}: {e}")
+                    
+                    # 按创建时间排序
+                    presets.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+                    
+                    return web.json_response({"success": True, "presets": presets})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+            
+            @routes.post("/hsl_presets/save")
+            async def save_preset(request):
+                try:
+                    data = await request.json()
+                    preset_id = data.get('id', str(uuid.uuid4()))
+                    preset_type = data.get('type', 'user')
+                    
+                    # 构建预设数据
+                    preset_data = {
+                        'id': preset_id,
+                        'name': data.get('name', 'Untitled Preset'),
+                        'description': data.get('description', ''),
+                        'category': data.get('category', 'custom'),
+                        'created_at': datetime.now().isoformat(),
+                        'author': data.get('author', 'Anonymous'),
+                        'version': '1.0',
+                        'node_type': 'hsl',
+                        'parameters': data.get('parameters', {}),
+                        'metadata': {
+                            'tags': data.get('tags', []),
+                            'thumbnail': data.get('thumbnail', '')
+                        }
+                    }
+                    
+                    # 确定保存目录
+                    save_dir = self.user_dir if preset_type == 'user' else self.shared_dir
+                    file_path = save_dir / f"{preset_id}.json"
+                    
+                    # 保存文件
+                    async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+                        await f.write(json.dumps(preset_data, indent=2, ensure_ascii=False))
+                    
+                    return web.json_response({"success": True, "id": preset_id, "message": "预设保存成功"})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+            
+            @routes.get("/hsl_presets/load/{preset_id}")
+            async def load_preset(request):
+                try:
+                    preset_id = request.match_info['preset_id']
+                    
+                    # 在所有目录中查找预设
+                    for dir_path in [self.default_dir, self.user_dir, self.shared_dir]:
+                        file_path = dir_path / f"{preset_id}.json"
+                        if file_path.exists():
+                            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                                content = await f.read()
+                                preset_data = json.loads(content)
+                                return web.json_response({"success": True, "preset": preset_data})
+                    
+                    return web.json_response({"success": False, "error": "预设未找到"})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+            
+            @routes.delete("/hsl_presets/delete/{preset_id}")
+            async def delete_preset(request):
+                try:
+                    preset_id = request.match_info['preset_id']
+                    
+                    # 只允许删除用户预设
+                    file_path = self.user_dir / f"{preset_id}.json"
+                    if file_path.exists():
+                        file_path.unlink()
+                        return web.json_response({"success": True, "message": "预设删除成功"})
+                    
+                    return web.json_response({"success": False, "error": "预设未找到或无权删除"})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+            
+            @routes.get("/hsl_presets/export/{preset_id}")
+            async def export_preset(request):
+                try:
+                    preset_id = request.match_info['preset_id']
+                    
+                    # 在所有目录中查找预设
+                    for dir_path in [self.default_dir, self.user_dir, self.shared_dir]:
+                        file_path = dir_path / f"{preset_id}.json"
+                        if file_path.exists():
+                            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                                content = await f.read()
+                                preset_data = json.loads(content)
+                                
+                                # 添加导出信息
+                                preset_data['exported_at'] = datetime.now().isoformat()
+                                preset_data['exported_from'] = 'ComfyUI-HSL'
+                                
+                                return web.json_response({
+                                    "success": True,
+                                    "preset": preset_data,
+                                    "filename": f"{preset_data['name'].replace(' ', '_')}_hsl_preset.json"
+                                })
+                    
+                    return web.json_response({"success": False, "error": "预设未找到"})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+            
+            @routes.post("/hsl_presets/import")
+            async def import_preset(request):
+                try:
+                    data = await request.json()
+                    preset_data = data.get('preset_data')
+                    
+                    if not preset_data:
+                        return web.json_response({"success": False, "error": "无效的预设数据"})
+                    
+                    # 验证预设类型
+                    if preset_data.get('node_type') != 'hsl':
+                        return web.json_response({"success": False, "error": "预设类型不匹配，需要hsl类型"})
+                    
+                    # 生成新ID
+                    preset_id = str(uuid.uuid4())
+                    preset_data['id'] = preset_id
+                    preset_data['imported_at'] = datetime.now().isoformat()
+                    preset_data['type'] = 'user'  # 导入的预设总是用户预设
+                    
+                    # 保存到用户目录
+                    file_path = self.user_dir / f"{preset_id}.json"
+                    async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+                        await f.write(json.dumps(preset_data, indent=2, ensure_ascii=False))
+                    
+                    return web.json_response({"success": True, "id": preset_id, "message": "预设导入成功"})
+                
+                except Exception as e:
+                    return web.json_response({"success": False, "error": str(e)})
+    
+    # 创建HSL预设管理器实例
+    hsl_preset_manager = HSLPresetManager()
+    
+except ImportError:
+    print("⚠️ 警告: 无法导入预设管理依赖，预设功能将不可用")
+    hsl_preset_manager = None
 
 
 class PhotoshopHSLNode(BaseImageNode):

@@ -1,0 +1,21 @@
+{
+  "id": "soft_vintage",
+  "name": "柔和复古",
+  "description": "创造柔和的复古效果，降低过度锐化，增加薄雾感",
+  "category": "enhance",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "camera_raw",
+  "parameters": {
+    "texture": -20,
+    "clarity": -15,
+    "dehaze": -30,
+    "blend": 70,
+    "overall_strength": 0.75
+  },
+  "metadata": {
+    "tags": ["复古", "柔和", "薄雾", "降噪"],
+    "thumbnail": ""
+  }
+}

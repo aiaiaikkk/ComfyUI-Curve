@@ -18,6 +18,10 @@ import base64
 
 from ..core.base_node import BaseImageNode
 from ..core.mask_utils import apply_mask_to_image, blur_mask
+from ..core.generic_preset_manager import GenericPresetManager
+
+# 创建Camera Raw预设管理器实例
+camera_raw_preset_manager = GenericPresetManager('camera_raw')
 
 
 class CameraRawEnhanceNode(BaseImageNode):

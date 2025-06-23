@@ -60,7 +60,7 @@ class PhotoshopCurveNode(BaseImageNode):
                 'mask_blur': ('FLOAT', {
                     'default': 0.0,
                     'min': 0.0,
-                    'max': 20.0,
+                    'max': 50.0,
                     'step': 0.1,
                     'display': 'number',
                     'tooltip': '遮罩边缘羽化程度'

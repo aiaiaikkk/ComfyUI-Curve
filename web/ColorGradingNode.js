@@ -128,6 +128,72 @@ class ColorGradingEditor {
             align-items: center;
         `;
         
+        // 预设控制容器
+        const presetContainer = document.createElement("div");
+        presetContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-right: 20px;
+        `;
+        
+        // 预设下拉菜单
+        const presetSelect = document.createElement('select');
+        presetSelect.className = 'color-grading-preset-select';
+        presetSelect.style.cssText = `
+            padding: 4px 8px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            min-width: 120px;
+        `;
+        presetSelect.innerHTML = '<option value="">选择预设...</option>';
+        
+        // 加载预设列表
+        this.loadColorGradingPresetList(presetSelect);
+        
+        // 预设选择事件
+        presetSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.loadColorGradingPreset(e.target.value);
+            }
+        });
+        
+        // 保存预设按钮
+        const savePresetBtn = document.createElement('button');
+        savePresetBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 12px;
+            background: #4a7c4e;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        `;
+        savePresetBtn.innerHTML = '💾 保存';
+        savePresetBtn.onclick = () => this.saveColorGradingPreset(presetSelect);
+        
+        // 管理预设按钮
+        const managePresetBtn = document.createElement('button');
+        managePresetBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 12px;
+            background: #555;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        `;
+        managePresetBtn.innerHTML = '⚙️ 管理';
+        managePresetBtn.onclick = () => this.showColorGradingPresetManager(presetSelect);
+        
+        presetContainer.appendChild(presetSelect);
+        presetContainer.appendChild(savePresetBtn);
+        presetContainer.appendChild(managePresetBtn);
+        
         // 重置按钮
         const resetBtn = document.createElement("button");
         resetBtn.className = "color-grading-reset";
@@ -184,6 +250,7 @@ class ColorGradingEditor {
         closeBtn.addEventListener('mouseenter', () => closeBtn.style.backgroundColor = '#ff3838');
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         
+        buttonContainer.appendChild(presetContainer);
         buttonContainer.appendChild(resetBtn);
         buttonContainer.appendChild(applyBtn);
         buttonContainer.appendChild(closeBtn);
@@ -1756,6 +1823,431 @@ class ColorGradingEditor {
             notification.remove();
             style.remove();
         }, 2000);
+    }
+    
+    // Color Grading预设管理功能
+    async loadColorGradingPresetList(selectElement) {
+        try {
+            const response = await fetch('/color_grading_presets/list');
+            const data = await response.json();
+            
+            if (data.success) {
+                // 清空现有选项
+                selectElement.innerHTML = '<option value="">选择预设...</option>';
+                
+                // 按类别分组
+                const categories = {};
+                data.presets.forEach(preset => {
+                    const category = preset.category || 'custom';
+                    if (!categories[category]) {
+                        categories[category] = [];
+                    }
+                    categories[category].push(preset);
+                });
+                
+                // 添加分组选项
+                Object.entries(categories).forEach(([category, presets]) => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = this.getCategoryLabel(category);
+                    
+                    presets.forEach(preset => {
+                        const option = document.createElement('option');
+                        option.value = preset.id;
+                        option.textContent = preset.name;
+                        option.dataset.preset = JSON.stringify(preset);
+                        optgroup.appendChild(option);
+                    });
+                    
+                    selectElement.appendChild(optgroup);
+                });
+            }
+        } catch (error) {
+            console.error('加载Color Grading预设列表失败:', error);
+        }
+    }
+    
+    getCategoryLabel(category) {
+        const labels = {
+            'default': '默认预设',
+            'cinematic': '电影风格',
+            'portrait': '人像',
+            'landscape': '风景',
+            'custom': '自定义'
+        };
+        return labels[category] || category;
+    }
+    
+    async loadColorGradingPreset(presetId) {
+        try {
+            const response = await fetch(`/color_grading_presets/load/${presetId}`);
+            const data = await response.json();
+            
+            if (data.success && data.preset) {
+                const preset = data.preset;
+                const parameters = preset.parameters;
+                
+                // 应用预设参数到gradingData
+                this.gradingData = {
+                    shadows: {
+                        hue: parameters.shadows_hue || 0,
+                        saturation: parameters.shadows_saturation || 0,
+                        luminance: parameters.shadows_luminance || 0
+                    },
+                    midtones: {
+                        hue: parameters.midtones_hue || 0,
+                        saturation: parameters.midtones_saturation || 0,
+                        luminance: parameters.midtones_luminance || 0
+                    },
+                    highlights: {
+                        hue: parameters.highlights_hue || 0,
+                        saturation: parameters.highlights_saturation || 0,
+                        luminance: parameters.highlights_luminance || 0
+                    },
+                    blend: parameters.blend || 100.0,
+                    balance: parameters.balance || 0.0,
+                    blend_mode: parameters.blend_mode || 'normal',
+                    overall_strength: parameters.overall_strength || 1.0
+                };
+                
+                // 更新UI控件
+                this.updateUIFromGradingData();
+                
+                // 更新预览
+                this.updatePreview();
+                
+                console.log('Color Grading预设加载成功:', preset.name);
+            }
+        } catch (error) {
+            console.error('加载Color Grading预设失败:', error);
+            alert('加载预设失败: ' + error.message);
+        }
+    }
+    
+    updateUIFromGradingData() {
+        // 更新所有滑块和控件的值
+        const updateSlider = (id, value, unit = '%') => {
+            const slider = this.modal.querySelector(`#${id}`);
+            if (slider) {
+                slider.value = value;
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) {
+                    valueDisplay.textContent = Math.round(value) + unit;
+                }
+            }
+        };
+        
+        // 更新阴影控件
+        updateSlider('shadows_hue', this.gradingData.shadows.hue, '°');
+        updateSlider('shadows_saturation', this.gradingData.shadows.saturation, '%');
+        updateSlider('shadows_luminance', this.gradingData.shadows.luminance, '%');
+        
+        // 更新中间调控件
+        updateSlider('midtones_hue', this.gradingData.midtones.hue, '°');
+        updateSlider('midtones_saturation', this.gradingData.midtones.saturation, '%');
+        updateSlider('midtones_luminance', this.gradingData.midtones.luminance, '%');
+        
+        // 更新高光控件
+        updateSlider('highlights_hue', this.gradingData.highlights.hue, '°');
+        updateSlider('highlights_saturation', this.gradingData.highlights.saturation, '%');
+        updateSlider('highlights_luminance', this.gradingData.highlights.luminance, '%');
+        
+        // 更新其他控件
+        updateSlider('blend', this.gradingData.blend, '%');
+        updateSlider('balance', this.gradingData.balance, '');
+        updateSlider('overall_strength', this.gradingData.overall_strength * 100, '%');
+        
+        // 更新混合模式
+        const blendSelect = this.modal.querySelector('select');
+        if (blendSelect) {
+            blendSelect.value = this.gradingData.blend_mode;
+        }
+        
+        // 重绘色轮
+        Object.keys(this.colorWheels).forEach(regionKey => {
+            this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
+        });
+    }
+    
+    async saveColorGradingPreset(presetSelect) {
+        const name = prompt('请输入预设名称:');
+        if (!name) return;
+        
+        const description = prompt('请输入预设描述（可选）:') || '';
+        
+        try {
+            // 收集当前所有Color Grading参数
+            const parameters = {
+                shadows_hue: this.gradingData.shadows.hue,
+                shadows_saturation: this.gradingData.shadows.saturation,
+                shadows_luminance: this.gradingData.shadows.luminance,
+                midtones_hue: this.gradingData.midtones.hue,
+                midtones_saturation: this.gradingData.midtones.saturation,
+                midtones_luminance: this.gradingData.midtones.luminance,
+                highlights_hue: this.gradingData.highlights.hue,
+                highlights_saturation: this.gradingData.highlights.saturation,
+                highlights_luminance: this.gradingData.highlights.luminance,
+                blend: this.gradingData.blend,
+                balance: this.gradingData.balance,
+                blend_mode: this.gradingData.blend_mode,
+                overall_strength: this.gradingData.overall_strength
+            };
+            
+            const presetData = {
+                name: name,
+                description: description,
+                category: 'custom',
+                parameters: parameters,
+                tags: ['color_grading', 'custom']
+            };
+            
+            const response = await fetch('/color_grading_presets/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(presetData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('预设保存成功!');
+                // 重新加载预设列表
+                this.loadColorGradingPresetList(presetSelect);
+            } else {
+                alert('保存预设失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('保存Color Grading预设失败:', error);
+            alert('保存预设失败: ' + error.message);
+        }
+    }
+    
+    async showColorGradingPresetManager(presetSelect) {
+        try {
+            // 获取预设列表
+            const response = await fetch('/color_grading_presets/list');
+            const data = await response.json();
+            
+            if (!data.success) {
+                alert('获取预设列表失败');
+                return;
+            }
+            
+            // 创建预设管理器模态窗口
+            const managerModal = document.createElement('div');
+            managerModal.className = 'preset-manager-modal';
+            managerModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10001;
+            `;
+            
+            const managerContent = document.createElement('div');
+            managerContent.style.cssText = `
+                background: #2b2b2b;
+                padding: 20px;
+                border-radius: 8px;
+                max-width: 600px;
+                max-height: 80vh;
+                overflow-y: auto;
+                color: white;
+            `;
+            
+            const title = document.createElement('h3');
+            title.textContent = 'Color Grading预设管理器';
+            title.style.marginBottom = '20px';
+            managerContent.appendChild(title);
+            
+            // 预设列表
+            const presetList = document.createElement('div');
+            presetList.style.cssText = `
+                max-height: 400px;
+                overflow-y: auto;
+                margin-bottom: 20px;
+            `;
+            
+            data.presets.forEach(preset => {
+                const presetItem = document.createElement('div');
+                presetItem.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px;
+                    border: 1px solid #444;
+                    margin-bottom: 5px;
+                    border-radius: 4px;
+                `;
+                
+                const presetInfo = document.createElement('div');
+                presetInfo.innerHTML = `
+                    <strong>${preset.name}</strong><br>
+                    <small>${preset.description || '无描述'}</small>
+                `;
+                
+                const presetActions = document.createElement('div');
+                presetActions.style.cssText = 'display: flex; gap: 5px;';
+                
+                if (preset.type === 'user') {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = '删除';
+                    deleteBtn.style.cssText = `
+                        padding: 4px 8px;
+                        background: #d32f2f;
+                        border: none;
+                        border-radius: 3px;
+                        color: white;
+                        cursor: pointer;
+                        font-size: 12px;
+                    `;
+                    deleteBtn.onclick = async () => {
+                        if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                            try {
+                                const delResponse = await fetch(`/color_grading_presets/delete/${preset.id}`, {
+                                    method: 'DELETE'
+                                });
+                                const delResult = await delResponse.json();
+                                
+                                if (delResult.success) {
+                                    presetItem.remove();
+                                    this.loadColorGradingPresetList(presetSelect);
+                                } else {
+                                    alert('删除失败: ' + delResult.error);
+                                }
+                            } catch (error) {
+                                alert('删除失败: ' + error.message);
+                            }
+                        }
+                    };
+                    presetActions.appendChild(deleteBtn);
+                }
+                
+                const exportBtn = document.createElement('button');
+                exportBtn.textContent = '导出';
+                exportBtn.style.cssText = `
+                    padding: 4px 8px;
+                    background: #388e3c;
+                    border: none;
+                    border-radius: 3px;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 12px;
+                `;
+                exportBtn.onclick = async () => {
+                    try {
+                        const expResponse = await fetch(`/color_grading_presets/export/${preset.id}`);
+                        const expResult = await expResponse.json();
+                        
+                        if (expResult.success) {
+                            // 创建下载
+                            const blob = new Blob([JSON.stringify(expResult.preset, null, 2)], {
+                                type: 'application/json'
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = expResult.filename;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }
+                    } catch (error) {
+                        alert('导出失败: ' + error.message);
+                    }
+                };
+                presetActions.appendChild(exportBtn);
+                
+                presetItem.appendChild(presetInfo);
+                presetItem.appendChild(presetActions);
+                presetList.appendChild(presetItem);
+            });
+            
+            managerContent.appendChild(presetList);
+            
+            // 导入区域
+            const importSection = document.createElement('div');
+            importSection.style.marginBottom = '20px';
+            
+            const importTitle = document.createElement('h4');
+            importTitle.textContent = '导入预设';
+            importSection.appendChild(importTitle);
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.style.marginBottom = '10px';
+            
+            const importBtn = document.createElement('button');
+            importBtn.textContent = '导入文件';
+            importBtn.style.cssText = `
+                padding: 8px 16px;
+                background: #1976d2;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+            `;
+            importBtn.onclick = async () => {
+                const file = fileInput.files[0];
+                if (!file) {
+                    alert('请选择要导入的文件');
+                    return;
+                }
+                
+                try {
+                    const text = await file.text();
+                    const presetData = JSON.parse(text);
+                    
+                    const impResponse = await fetch('/color_grading_presets/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ preset_data: presetData })
+                    });
+                    
+                    const impResult = await impResponse.json();
+                    
+                    if (impResult.success) {
+                        alert('预设导入成功!');
+                        document.body.removeChild(managerModal);
+                        this.loadColorGradingPresetList(presetSelect);
+                    } else {
+                        alert('导入失败: ' + impResult.error);
+                    }
+                } catch (error) {
+                    alert('导入失败: ' + error.message);
+                }
+            };
+            
+            importSection.appendChild(fileInput);
+            importSection.appendChild(importBtn);
+            managerContent.appendChild(importSection);
+            
+            // 关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '关闭';
+            closeBtn.style.cssText = `
+                padding: 8px 16px;
+                background: #666;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                float: right;
+            `;
+            closeBtn.onclick = () => document.body.removeChild(managerModal);
+            managerContent.appendChild(closeBtn);
+            
+            managerModal.appendChild(managerContent);
+            document.body.appendChild(managerModal);
+            
+        } catch (error) {
+            console.error('显示Color Grading预设管理器失败:', error);
+            alert('显示预设管理器失败: ' + error.message);
+        }
     }
 }
 

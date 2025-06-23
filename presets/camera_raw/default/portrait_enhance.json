@@ -1,0 +1,21 @@
+{
+  "id": "portrait_enhance",
+  "name": "人像增强",
+  "description": "适合人像照片的增强设置，提升皮肤质感和面部清晰度",
+  "category": "portrait",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "camera_raw",
+  "parameters": {
+    "texture": 25,
+    "clarity": 15,
+    "dehaze": -10,
+    "blend": 85,
+    "overall_strength": 0.8
+  },
+  "metadata": {
+    "tags": ["人像", "皮肤", "清晰度", "增强"],
+    "thumbnail": ""
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "cool_tone",
+  "name": "冷色调",
+  "description": "增强冷色调，适合夜景、雪景等清冷场景",
+  "category": "default",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "hsl",
+  "parameters": {
+    "red_hue": 0,
+    "red_saturation": -25,
+    "red_lightness": -5,
+    "orange_hue": 0,
+    "orange_saturation": -30,
+    "orange_lightness": -10,
+    "yellow_hue": 0,
+    "yellow_saturation": -20,
+    "yellow_lightness": -5,
+    "green_hue": -5,
+    "green_saturation": 15,
+    "green_lightness": 0,
+    "cyan_hue": 0,
+    "cyan_saturation": 30,
+    "cyan_lightness": 10,
+    "blue_hue": -5,
+    "blue_saturation": 35,
+    "blue_lightness": 15,
+    "purple_hue": 0,
+    "purple_saturation": 25,
+    "purple_lightness": 5,
+    "magenta_hue": 0,
+    "magenta_saturation": 10,
+    "magenta_lightness": 0
+  },
+  "metadata": {
+    "tags": ["冷色", "夜景", "雪景", "清冷"],
+    "thumbnail": ""
+  }
+}

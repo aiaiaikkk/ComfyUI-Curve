@@ -8,11 +8,13 @@
 
 from .base_node import BaseImageNode
 from .mask_utils import apply_mask_to_image, blur_mask, process_mask_for_batch, create_luminance_mask
+from .generic_preset_manager import GenericPresetManager
 
 __all__ = [
     'BaseImageNode',
     'apply_mask_to_image', 
     'blur_mask', 
     'process_mask_for_batch', 
-    'create_luminance_mask'
+    'create_luminance_mask',
+    'GenericPresetManager'
 ]

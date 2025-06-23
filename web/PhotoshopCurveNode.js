@@ -899,12 +899,34 @@ class CurveEditorModal {
             const containerHeight = editorContainer.clientHeight - 100; // 减去其他元素的高度
             
             // 创建一个新的曲线编辑器实例，专门用于模态弹窗
-            // 创建一个假节点对象，避免影响真实节点
+            // 创建一个假节点对象，但需要包含必要的widgets
             const fakeNode = {
                 id: this.node.id + '_modal',
                 widgets: [],
                 graph: null // 没有graph，避免触发更新
             };
+            
+            // 添加必要的widget以便曲线编辑器能正确初始化
+            fakeNode.widgets.push({
+                name: 'RGB Curve',
+                value: '[[0,0],[255,255]]',
+                type: 'string'
+            });
+            fakeNode.widgets.push({
+                name: 'R Curve',
+                value: '[[0,0],[255,255]]',
+                type: 'string'
+            });
+            fakeNode.widgets.push({
+                name: 'G Curve',
+                value: '[[0,0],[255,255]]',
+                type: 'string'
+            });
+            fakeNode.widgets.push({
+                name: 'B Curve',
+                value: '[[0,0],[255,255]]',
+                type: 'string'
+            });
             
             const modalCurveEditor = new PhotoshopCurveNodeWidget(fakeNode, {
                 addToNode: false,
@@ -947,19 +969,19 @@ class CurveEditorModal {
             // 保存真实节点的引用
             this.realNode = this.node;
             
-            // 同步原始编辑器的曲线数据到模态编辑器（但不同步当前通道）
-            if (this.node.curveEditor) {
+            // 同步原始编辑器的曲线数据到模态编辑器
+            if (this.node.curveEditor && this.node.curveEditor.channelCurves) {
                 console.log("🎨 同步原始编辑器曲线数据到模态编辑器");
                 
-                // 只同步通道曲线数据，不同步当前通道
-                if (this.node.curveEditor.channelCurves) {
-                    modalCurveEditor.channelCurves = JSON.parse(JSON.stringify(this.node.curveEditor.channelCurves));
-                }
+                // 复制通道曲线数据
+                modalCurveEditor.channelCurves = JSON.parse(JSON.stringify(this.node.curveEditor.channelCurves));
                 
                 // 设置RGB通道为当前通道的控制点（弹窗总是从RGB开始）
+                modalCurveEditor.currentChannel = 'RGB';
                 modalCurveEditor.controlPoints = modalCurveEditor.channelCurves['RGB'].map(p => ({x: p[0], y: p[1]}));
                 
                 console.log("🎨 模态编辑器初始通道: RGB");
+                console.log("🎨 模态编辑器通道曲线数据:", modalCurveEditor.channelCurves);
             }
             
             // 将曲线编辑器的容器添加到模态弹窗中
@@ -2360,17 +2382,37 @@ class CurveEditorModal {
                     ['RGB', 'R', 'G', 'B'].forEach(channel => {
                         if (preset.curves[channel]) {
                             try {
-                                // 解析曲线数据
-                                const curveData = typeof preset.curves[channel] === 'string' 
-                                    ? JSON.parse(preset.curves[channel]) 
-                                    : preset.curves[channel];
+                                let curveData;
+                                
+                                console.log(`🎨 解析${channel}通道预设数据:`, preset.curves[channel]);
+                                
+                                // 解析曲线数据 - 支持多种格式
+                                if (typeof preset.curves[channel] === 'string') {
+                                    // 检查是否是分号分隔的格式 "0,0;64,60;128,135"
+                                    if (preset.curves[channel].includes(';')) {
+                                        curveData = preset.curves[channel].split(';').map(point => {
+                                            const [x, y] = point.split(',').map(Number);
+                                            return [x, y];
+                                        });
+                                    } else {
+                                        // 尝试JSON解析
+                                        curveData = JSON.parse(preset.curves[channel]);
+                                    }
+                                } else {
+                                    curveData = preset.curves[channel];
+                                }
+                                
+                                console.log(`🎨 ${channel}通道解析后的曲线数据:`, curveData);
                                 
                                 // 存储到通道曲线数据中
                                 this.curveEditor.channelCurves[channel] = curveData;
                                 
                                 // 如果是当前通道，更新控制点
                                 if (channel === currentChannel) {
+                                    console.log(`🎨 更新当前通道${channel}的控制点`);
                                     this.curveEditor.controlPoints = curveData.map(p => ({x: p[0], y: p[1]}));
+                                    // 重新绘制曲线
+                                    this.curveEditor.drawCurve();
                                 }
                             } catch (e) {
                                 console.error(`解析${channel}通道曲线失败:`, e);
@@ -2378,9 +2420,22 @@ class CurveEditorModal {
                         }
                     });
                     
+                    // 确保当前通道正确显示
+                    if (this.curveEditor.channelCurves[currentChannel]) {
+                        this.curveEditor.controlPoints = this.curveEditor.channelCurves[currentChannel].map(p => ({
+                            x: p[0], 
+                            y: p[1]
+                        }));
+                    }
+                    
                     // 更新界面和widgets
                     this.curveEditor.updatePointsWidget();
                     this.curveEditor.drawCurve();
+                    
+                    // 更新通道按钮状态
+                    if (this.curveEditor.updateChannelButtons) {
+                        this.curveEditor.updateChannelButtons();
+                    }
                 }
                 
                 // 应用强度
@@ -2395,6 +2450,11 @@ class CurveEditorModal {
                 this.updatePreview();
                 
                 console.log('预设已加载:', preset.name);
+                
+                // 在下拉列表中显示已加载的预设名称
+                if (this.presetSelect) {
+                    this.presetSelect.value = presetId;
+                }
             }
         } catch (error) {
             console.error('加载预设失败:', error);
@@ -2447,6 +2507,7 @@ class CurveEditorModal {
     showPresetManager() {
         // 创建预设管理器模态窗口
         const managerModal = document.createElement('div');
+        managerModal.className = 'preset-manager-modal';
         managerModal.style.cssText = `
             position: fixed;
             top: 0;
@@ -2454,92 +2515,119 @@ class CurveEditorModal {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.8);
-            z-index: 10001;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
+            z-index: 100000;
         `;
         
-        const managerContainer = document.createElement('div');
-        managerContainer.style.cssText = `
-            background: #1a1a1a;
-            border-radius: 8px;
+        const managerContent = document.createElement('div');
+        managerContent.style.cssText = `
+            background: #2b2b2b;
             padding: 20px;
-            width: 600px;
+            border-radius: 8px;
+            max-width: 600px;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            color: white;
         `;
         
-        // 标题
-        const title = document.createElement('h2');
-        title.textContent = '预设管理器';
-        title.style.cssText = `
-            color: #fff;
-            margin: 0 0 20px 0;
-            font-size: 18px;
-            font-weight: 500;
-        `;
-        managerContainer.appendChild(title);
+        const title = document.createElement('h3');
+        title.textContent = '曲线预设管理器';
+        title.style.marginBottom = '20px';
+        managerContent.appendChild(title);
         
-        // 预设列表容器
-        const presetListContainer = document.createElement('div');
-        presetListContainer.style.cssText = `
+        // 预设列表
+        const presetList = document.createElement('div');
+        presetList.style.cssText = `
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid #333;
-            border-radius: 4px;
-            padding: 10px;
             margin-bottom: 20px;
         `;
         
-        // 加载并显示预设列表
-        this.loadPresetListForManager(presetListContainer);
+        // 加载预设列表
+        this.loadPresetListForManager(presetList);
         
-        managerContainer.appendChild(presetListContainer);
+        managerContent.appendChild(presetList);
         
-        // 按钮容器
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = `
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        `;
+        // 导入区域
+        const importSection = document.createElement('div');
+        importSection.style.marginBottom = '20px';
         
-        // 导入按钮
+        const importTitle = document.createElement('h4');
+        importTitle.textContent = '导入预设';
+        importSection.appendChild(importTitle);
+        
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.marginBottom = '10px';
+        
         const importBtn = document.createElement('button');
-        importBtn.textContent = '导入预设';
+        importBtn.textContent = '导入文件';
         importBtn.style.cssText = `
             padding: 8px 16px;
-            background: #4a7c4e;
-            color: #fff;
+            background: #1976d2;
             border: none;
             border-radius: 4px;
+            color: white;
             cursor: pointer;
-            font-size: 14px;
         `;
-        importBtn.onclick = () => this.importPreset();
+        importBtn.onclick = async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('请选择要导入的文件');
+                return;
+            }
+            
+            try {
+                const text = await file.text();
+                
+                const response = await fetch('/curve_presets/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: text })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('预设导入成功!');
+                    managerModal.remove();
+                    this.loadPresetList(this.presetSelect);
+                } else {
+                    alert('导入失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('导入失败: ' + error.message);
+            }
+        };
+        
+        importSection.appendChild(fileInput);
+        importSection.appendChild(importBtn);
+        managerContent.appendChild(importSection);
         
         // 关闭按钮
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '关闭';
         closeBtn.style.cssText = `
             padding: 8px 16px;
-            background: #555;
-            color: #fff;
+            background: #666;
             border: none;
             border-radius: 4px;
+            color: white;
             cursor: pointer;
-            font-size: 14px;
+            float: right;
         `;
         closeBtn.onclick = () => managerModal.remove();
+        managerContent.appendChild(closeBtn);
         
-        buttonContainer.appendChild(importBtn);
-        buttonContainer.appendChild(closeBtn);
-        managerContainer.appendChild(buttonContainer);
+        managerModal.appendChild(managerContent);
         
-        managerModal.appendChild(managerContainer);
-        document.body.appendChild(managerModal);
+        // 将预设管理器添加到dialog内部而不是body
+        this.modal.appendChild(managerModal);
         
         // 点击背景关闭
         managerModal.addEventListener('click', (e) => {
@@ -2555,43 +2643,107 @@ class CurveEditorModal {
             const response = await fetch('/curve_presets/list');
             const data = await response.json();
             
-            if (data.success && data.presets.length > 0) {
-                // 按类别分组显示
-                const categories = {};
+            if (data.success) {
+                // 清空容器
+                container.innerHTML = '';
+                
                 data.presets.forEach(preset => {
-                    const category = preset.category || 'custom';
-                    if (!categories[category]) {
-                        categories[category] = [];
+                    const presetItem = document.createElement('div');
+                    presetItem.style.cssText = `
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 10px;
+                        border: 1px solid #444;
+                        margin-bottom: 5px;
+                        border-radius: 4px;
+                    `;
+                    
+                    const presetInfo = document.createElement('div');
+                    presetInfo.innerHTML = `
+                        <strong>${preset.name}</strong><br>
+                        <small>${preset.description || '无描述'}</small>
+                    `;
+                    
+                    const presetActions = document.createElement('div');
+                    presetActions.style.cssText = 'display: flex; gap: 5px;';
+                    
+                    if (preset.type === 'user') {
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = '删除';
+                        deleteBtn.style.cssText = `
+                            padding: 4px 8px;
+                            background: #d32f2f;
+                            border: none;
+                            border-radius: 3px;
+                            color: white;
+                            cursor: pointer;
+                            font-size: 12px;
+                        `;
+                        deleteBtn.onclick = async () => {
+                            if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                                try {
+                                    const delResponse = await fetch(`/curve_presets/delete/${preset.id}`, {
+                                        method: 'DELETE'
+                                    });
+                                    const delResult = await delResponse.json();
+                                    
+                                    if (delResult.success) {
+                                        presetItem.remove();
+                                        this.loadPresetList(this.presetSelect);
+                                    } else {
+                                        alert('删除失败: ' + delResult.error);
+                                    }
+                                } catch (error) {
+                                    alert('删除失败: ' + error.message);
+                                }
+                            }
+                        };
+                        presetActions.appendChild(deleteBtn);
                     }
-                    categories[category].push(preset);
+                    
+                    const exportBtn = document.createElement('button');
+                    exportBtn.textContent = '导出';
+                    exportBtn.style.cssText = `
+                        padding: 4px 8px;
+                        background: #388e3c;
+                        border: none;
+                        border-radius: 3px;
+                        color: white;
+                        cursor: pointer;
+                        font-size: 12px;
+                    `;
+                    exportBtn.onclick = async () => {
+                        try {
+                            const expResponse = await fetch(`/curve_presets/export/${preset.id}`);
+                            const expResult = await expResponse.json();
+                            
+                            if (expResult.success) {
+                                // 创建下载
+                                const blob = new Blob([expResult.content], {
+                                    type: 'application/json'
+                                });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = expResult.filename;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }
+                        } catch (error) {
+                            alert('导出失败: ' + error.message);
+                        }
+                    };
+                    presetActions.appendChild(exportBtn);
+                    
+                    presetItem.appendChild(presetInfo);
+                    presetItem.appendChild(presetActions);
+                    container.appendChild(presetItem);
                 });
                 
-                // 显示每个类别
-                Object.entries(categories).forEach(([category, presets]) => {
-                    const categoryDiv = document.createElement('div');
-                    categoryDiv.style.marginBottom = '20px';
-                    
-                    const categoryTitle = document.createElement('h3');
-                    categoryTitle.textContent = this.getCategoryLabel(category);
-                    categoryTitle.style.cssText = `
-                        color: #ccc;
-                        font-size: 14px;
-                        margin: 0 0 10px 0;
-                        padding-bottom: 5px;
-                        border-bottom: 1px solid #333;
-                    `;
-                    categoryDiv.appendChild(categoryTitle);
-                    
-                    // 预设项
-                    presets.forEach(preset => {
-                        const presetItem = this.createPresetItem(preset);
-                        categoryDiv.appendChild(presetItem);
-                    });
-                    
-                    container.appendChild(categoryDiv);
-                });
-            } else {
-                container.innerHTML = '<p style="color: #888; text-align: center;">暂无预设</p>';
+                if (data.presets.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">暂无预设</p>';
+                }
             }
         } catch (error) {
             console.error('加载预设列表失败:', error);
@@ -2599,199 +2751,6 @@ class CurveEditorModal {
         }
     }
     
-    // 创建预设项
-    createPresetItem(preset) {
-        const item = document.createElement('div');
-        item.style.cssText = `
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px;
-            margin-bottom: 5px;
-            background: #2a2a2a;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        `;
-        
-        item.onmouseenter = () => item.style.background = '#333';
-        item.onmouseleave = () => item.style.background = '#2a2a2a';
-        
-        // 预设信息
-        const info = document.createElement('div');
-        
-        const name = document.createElement('div');
-        name.textContent = preset.name;
-        name.style.cssText = 'color: #fff; font-size: 14px; font-weight: 500;';
-        
-        const desc = document.createElement('div');
-        desc.textContent = preset.description || '无描述';
-        desc.style.cssText = 'color: #888; font-size: 12px; margin-top: 2px;';
-        
-        info.appendChild(name);
-        info.appendChild(desc);
-        
-        // 操作按钮
-        const actions = document.createElement('div');
-        actions.style.cssText = 'display: flex; gap: 5px;';
-        
-        // 应用按钮
-        const applyBtn = document.createElement('button');
-        applyBtn.textContent = '应用';
-        applyBtn.style.cssText = `
-            padding: 4px 12px;
-            background: #4a7c4e;
-            color: #fff;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        `;
-        applyBtn.onclick = (e) => {
-            e.stopPropagation();
-            this.loadPreset(preset.id);
-            // 关闭管理器
-            item.closest('[style*="position: fixed"]').remove();
-        };
-        
-        // 只有用户预设才能删除
-        if (preset.type === 'user') {
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = '删除';
-            deleteBtn.style.cssText = `
-                padding: 4px 12px;
-                background: #a44;
-                color: #fff;
-                border: none;
-                border-radius: 3px;
-                cursor: pointer;
-                font-size: 12px;
-            `;
-            deleteBtn.onclick = async (e) => {
-                e.stopPropagation();
-                if (confirm(`确定要删除预设"${preset.name}"吗？`)) {
-                    await this.deletePreset(preset.id);
-                    // 刷新列表
-                    this.loadPresetListForManager(item.parentElement.parentElement);
-                }
-            };
-            actions.appendChild(deleteBtn);
-        }
-        
-        // 导出按钮
-        const exportBtn = document.createElement('button');
-        exportBtn.textContent = '导出';
-        exportBtn.style.cssText = `
-            padding: 4px 12px;
-            background: #555;
-            color: #fff;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        `;
-        exportBtn.onclick = (e) => {
-            e.stopPropagation();
-            this.exportPreset(preset.id);
-        };
-        
-        actions.appendChild(applyBtn);
-        actions.appendChild(exportBtn);
-        
-        item.appendChild(info);
-        item.appendChild(actions);
-        
-        return item;
-    }
-    
-    // 删除预设
-    async deletePreset(presetId) {
-        try {
-            const response = await fetch(`/curve_presets/delete/${presetId}`, {
-                method: 'DELETE'
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                // 更新下拉列表
-                this.loadPresetList(this.presetSelect);
-            } else {
-                alert('删除失败: ' + result.error);
-            }
-        } catch (error) {
-            console.error('删除预设失败:', error);
-            alert('删除预设时出错');
-        }
-    }
-    
-    // 导出预设
-    async exportPreset(presetId) {
-        try {
-            const response = await fetch(`/curve_presets/export/${presetId}`);
-            const data = await response.json();
-            
-            if (data.success) {
-                // 创建下载链接
-                const blob = new Blob([data.content], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = data.filename;
-                a.click();
-                URL.revokeObjectURL(url);
-            }
-        } catch (error) {
-            console.error('导出预设失败:', error);
-            alert('导出预设时出错');
-        }
-    }
-    
-    // 导入预设
-    async importPreset() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        
-        input.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            try {
-                const content = await file.text();
-                
-                const response = await fetch('/curve_presets/import', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ content })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('预设导入成功！');
-                    // 刷新列表
-                    this.loadPresetList(this.presetSelect);
-                    // 关闭管理器并刷新
-                    const managerModal = document.querySelector('[style*="position: fixed"]');
-                    if (managerModal) {
-                        const container = managerModal.querySelector('[style*="overflow-y: auto"]');
-                        if (container) {
-                            this.loadPresetListForManager(container);
-                        }
-                    }
-                } else {
-                    alert('导入失败: ' + result.error);
-                }
-            } catch (error) {
-                console.error('导入预设失败:', error);
-                alert('导入预设时出错');
-            }
-        };
-        
-        input.click();
-    }
 }
 
 class PhotoshopCurveNodeWidget {
@@ -4347,29 +4306,12 @@ app.registerExtension({
             if (this.size[0] < 400) this.size[0] = 400;
             if (this.size[1] < 550) this.size[1] = 550;
             
-            // 添加跳过弹窗的选项
-            if (!this.widgets.find(w => w.name === 'use_modal')) {
-                this.addProperty('use_modal', true, 'boolean');
-                const modalWidget = this.addWidget('toggle', '使用弹窗编辑', true, function(v) {
-                    this.properties.use_modal = v;
-                });
-                modalWidget.name = 'use_modal';
-                
-                // 只添加属性，不添加控件
-                if (!this.properties.hasOwnProperty('modal_width')) {
-                    this.properties.modal_width = 1600;
-                }
-                if (!this.properties.hasOwnProperty('modal_height')) {
-                    this.properties.modal_height = 1200;
-                }
-            } else {
-                // 确保属性存在，即使在节点重载时也是如此
-                if (!this.properties.hasOwnProperty('modal_width')) {
-                    this.properties.modal_width = 1600;
-                }
-                if (!this.properties.hasOwnProperty('modal_height')) {
-                    this.properties.modal_height = 1200;
-                }
+            // 设置默认弹窗尺寸
+            if (!this.properties.hasOwnProperty('modal_width')) {
+                this.properties.modal_width = 1600;
+            }
+            if (!this.properties.hasOwnProperty('modal_height')) {
+                this.properties.modal_height = 1200;
             }
             
             // 删除可能存在的控件（以防刷新后出现）
@@ -4645,82 +4587,71 @@ app.registerExtension({
                 }
             }
             
-            // 检查是否使用模态弹窗
-            if (this.properties.use_modal) {
-                try {
-                    // 从消息中获取图像数据
-                    const imageData = message.bg_image || message.image;
-                    
-                    if (!imageData) {
-                        console.error("🎨 消息中没有图像数据");
-                        return;
-                    }
-                    
-                    // 获取遮罩数据（如果有）
-                    const maskData = message.mask;
-                    console.log("🎨 遮罩数据:", maskData ? "存在" : "不存在");
-                    
-                    // 添加更多的调试信息
-                    if (maskData) {
-                        console.log("🎨 遮罩数据类型:", typeof maskData);
-                        if (typeof maskData === 'string' && maskData.startsWith('data:')) {
-                            console.log("🎨 遮罩数据是 Data URL, 长度:", maskData.length);
-                            console.log("🎨 遮罩数据前缀:", maskData.substring(0, 50) + "...");
-                        } else if (maskData instanceof Image) {
-                            console.log("🎨 遮罩数据是 Image 对象, 尺寸:", maskData.width, "x", maskData.height);
-                        } else {
-                            console.log("🎨 遮罩数据是其他类型:", Object.prototype.toString.call(maskData));
-                        }
-                    }
-                    
-                    // 如果已经有模态弹窗，先关闭它
-                    if (this.curveEditorModal && this.curveEditorModal.isOpen) {
-                        console.log("🎨 关闭已存在的模态弹窗");
-                        this.curveEditorModal.close();
-                        // 删除旧的模态弹窗
-                        delete this.curveEditorModal;
-                        this.curveEditorModal = null;
-                    }
-                    
-                    // 创建模态弹窗（如果不存在）
-                    console.log("🎨 创建新的模态弹窗");
-                    
-                    // 固定使用1600×1200尺寸
-                    const modalWidth = 1600;
-                    const modalHeight = 1200;
-                    
-                    // 保存这些尺寸供下次使用
-                    this.properties.modal_width = modalWidth;
-                    this.properties.modal_height = modalHeight;
-                    
-                    // 更新UI小部件的值
-                    const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
-                    const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
-                    if (widgetWidth) widgetWidth.value = modalWidth;
-                    if (widgetHeight) widgetHeight.value = modalHeight;
-                    
-                    this.curveEditorModal = new CurveEditorModal(this, {
-                        width: modalWidth,
-                        height: modalHeight
-                    });
-                    
-                    // 打开模态弹窗，传递图像和遮罩数据
-                    console.log("🎨 打开模态弹窗");
-                    setTimeout(() => {
-                        this.curveEditorModal.open(imageData, maskData);
-                    }, 50);
-                } catch (error) {
-                    console.error("🎨 显示模态弹窗失败:", error);
+            // 默认使用模态弹窗
+            try {
+                // 从消息中获取图像数据
+                const imageData = message.bg_image || message.image;
+                
+                if (!imageData) {
+                    console.error("🎨 消息中没有图像数据");
+                    return;
                 }
-            } else {
-                console.log("🎨 跳过模态弹窗，直接处理图像");
-                // 直接在节点上编辑
-                if (this.curveEditor) {
-                    this.curveEditor.activate();
-                } else {
-                    console.log("🎨 创建节点上的曲线编辑器");
-                    this.curveEditor = new PhotoshopCurveNodeWidget(this);
+                
+                // 获取遮罩数据（如果有）
+                const maskData = message.mask;
+                console.log("🎨 遮罩数据:", maskData ? "存在" : "不存在");
+                
+                // 添加更多的调试信息
+                if (maskData) {
+                    console.log("🎨 遮罩数据类型:", typeof maskData);
+                    if (typeof maskData === 'string' && maskData.startsWith('data:')) {
+                        console.log("🎨 遮罩数据是 Data URL, 长度:", maskData.length);
+                        console.log("🎨 遮罩数据前缀:", maskData.substring(0, 50) + "...");
+                    } else if (maskData instanceof Image) {
+                        console.log("🎨 遮罩数据是 Image 对象, 尺寸:", maskData.width, "x", maskData.height);
+                    } else {
+                        console.log("🎨 遮罩数据是其他类型:", Object.prototype.toString.call(maskData));
+                    }
                 }
+                
+                // 如果已经有模态弹窗，先关闭它
+                if (this.curveEditorModal && this.curveEditorModal.isOpen) {
+                    console.log("🎨 关闭已存在的模态弹窗");
+                    this.curveEditorModal.close();
+                    // 删除旧的模态弹窗
+                    delete this.curveEditorModal;
+                    this.curveEditorModal = null;
+                }
+                
+                // 创建模态弹窗（如果不存在）
+                console.log("🎨 创建新的模态弹窗");
+                
+                // 固定使用1600×1200尺寸
+                const modalWidth = 1600;
+                const modalHeight = 1200;
+                
+                // 保存这些尺寸供下次使用
+                this.properties.modal_width = modalWidth;
+                this.properties.modal_height = modalHeight;
+                
+                // 更新UI小部件的值
+                const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
+                const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
+                if (widgetWidth) widgetWidth.value = modalWidth;
+                if (widgetHeight) widgetHeight.value = modalHeight;
+                
+                this.curveEditorModal = new CurveEditorModal(this, {
+                    width: modalWidth,
+                    height: modalHeight
+                });
+                
+                // 打开模态弹窗，传递图像和遮罩数据
+                console.log("🎨 打开模态弹窗");
+                setTimeout(() => {
+                    this.curveEditorModal.open(imageData, maskData);
+                }, 50);
+            } catch (error) {
+                console.error("🎨 显示模态弹窗失败:", error);
             }
         }
 
@@ -4730,29 +4661,27 @@ app.registerExtension({
                 {
                     content: "📊 打开曲线编辑器",
                     callback: () => {
-                        // 检查是否使用模态弹窗
-                        if (this.properties.use_modal) {
-                            // 创建并打开模态弹窗
-                            if (!this.curveEditorModal) {
-                                // 固定使用1600×1200尺寸
-                                const modalWidth = 1600;
-                                const modalHeight = 1200;
-                                
-                                // 保存这些尺寸供下次使用
-                                this.properties.modal_width = modalWidth;
-                                this.properties.modal_height = modalHeight;
-                                
-                                // 不再需要更新UI控件，因为它们已被移除
-                                // const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
-                                // const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
-                                // if (widgetWidth) widgetWidth.value = modalWidth;
-                                // if (widgetHeight) widgetHeight.value = modalHeight;
-                                
-                                this.curveEditorModal = new CurveEditorModal(this, {
-                                    width: modalWidth,
-                                    height: modalHeight
-                                });
-                            }
+                        // 创建并打开模态弹窗
+                        if (!this.curveEditorModal) {
+                            // 固定使用1600×1200尺寸
+                            const modalWidth = 1600;
+                            const modalHeight = 1200;
+                            
+                            // 保存这些尺寸供下次使用
+                            this.properties.modal_width = modalWidth;
+                            this.properties.modal_height = modalHeight;
+                            
+                            // 不再需要更新UI控件，因为它们已被移除
+                            // const widgetWidth = this.widgets.find(w => w.name === 'modal_width');
+                            // const widgetHeight = this.widgets.find(w => w.name === 'modal_height');
+                            // if (widgetWidth) widgetWidth.value = modalWidth;
+                            // if (widgetHeight) widgetHeight.value = modalHeight;
+                            
+                            this.curveEditorModal = new CurveEditorModal(this, {
+                                width: modalWidth,
+                                height: modalHeight
+                            });
+                        }
                             
                             // 请求获取输入图像
                             const inputLink = this.getInputLink(0);
@@ -4815,12 +4744,6 @@ app.registerExtension({
                             
                             // 打开模态弹窗，传递图像和遮罩
                             this.curveEditorModal.open(imageUrl, maskUrl);
-                        } else {
-                            // 直接激活节点上的编辑器
-                            if (this.curveEditor) {
-                                this.curveEditor.activate();
-                            }
-                        }
                     }
                 }
             );

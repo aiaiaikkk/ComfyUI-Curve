@@ -18,6 +18,10 @@ import base64
 
 from ..core.base_node import BaseImageNode
 from ..core.mask_utils import apply_mask_to_image, blur_mask
+from ..core.generic_preset_manager import GenericPresetManager
+
+# 创建Color Grading预设管理器实例
+color_grading_preset_manager = GenericPresetManager('color_grading')
 
 
 class ColorGradingNode(BaseImageNode):

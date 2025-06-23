@@ -1,0 +1,21 @@
+{
+  "id": "landscape_clarity",
+  "name": "风景清晰",
+  "description": "增强风景照片的清晰度和细节，去除薄雾效果",
+  "category": "landscape",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "camera_raw",
+  "parameters": {
+    "texture": 40,
+    "clarity": 35,
+    "dehaze": 50,
+    "blend": 90,
+    "overall_strength": 0.9
+  },
+  "metadata": {
+    "tags": ["风景", "清晰度", "去薄雾", "细节"],
+    "thumbnail": ""
+  }
+}

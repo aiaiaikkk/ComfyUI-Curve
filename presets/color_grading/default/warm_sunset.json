@@ -1,0 +1,29 @@
+{
+  "id": "warm_sunset",
+  "name": "温暖日落",
+  "description": "温暖的日落色调，增强橙红色和金黄色，营造黄昏氛围",
+  "category": "landscape",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "color_grading",
+  "parameters": {
+    "shadows_hue": 20,
+    "shadows_saturation": 30,
+    "shadows_luminance": -15,
+    "midtones_hue": 10,
+    "midtones_saturation": 25,
+    "midtones_luminance": 5,
+    "highlights_hue": 40,
+    "highlights_saturation": 35,
+    "highlights_luminance": 10,
+    "blend": 90,
+    "balance": 10,
+    "blend_mode": "soft_light",
+    "overall_strength": 0.85
+  },
+  "metadata": {
+    "tags": ["温暖", "日落", "黄昏", "风景"],
+    "thumbnail": ""
+  }
+}

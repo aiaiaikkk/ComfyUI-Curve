@@ -125,6 +125,72 @@ class CameraRawEnhanceEditor {
             align-items: center;
         `;
         
+        // 预设控制容器
+        const presetContainer = document.createElement("div");
+        presetContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-right: 20px;
+        `;
+        
+        // 预设下拉菜单
+        const presetSelect = document.createElement('select');
+        presetSelect.className = 'camera-raw-enhance-preset-select';
+        presetSelect.style.cssText = `
+            padding: 4px 8px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            min-width: 120px;
+        `;
+        presetSelect.innerHTML = '<option value="">选择预设...</option>';
+        
+        // 加载预设列表
+        this.loadCameraRawPresetList(presetSelect);
+        
+        // 预设选择事件
+        presetSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.loadCameraRawPreset(e.target.value);
+            }
+        });
+        
+        // 保存预设按钮
+        const savePresetBtn = document.createElement('button');
+        savePresetBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 12px;
+            background: #4a7c4e;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        `;
+        savePresetBtn.innerHTML = '💾 保存';
+        savePresetBtn.onclick = () => this.saveCameraRawPreset(presetSelect);
+        
+        // 管理预设按钮
+        const managePresetBtn = document.createElement('button');
+        managePresetBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 12px;
+            background: #555;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        `;
+        managePresetBtn.innerHTML = '⚙️ 管理';
+        managePresetBtn.onclick = () => this.showCameraRawPresetManager(presetSelect);
+        
+        presetContainer.appendChild(presetSelect);
+        presetContainer.appendChild(savePresetBtn);
+        presetContainer.appendChild(managePresetBtn);
+        
         // 设置按钮
         const settingsBtn = document.createElement("button");
         settingsBtn.className = "camera-raw-enhance-settings";
@@ -201,6 +267,7 @@ class CameraRawEnhanceEditor {
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         closeBtn.addEventListener('click', () => this.close());
         
+        buttonContainer.appendChild(presetContainer);
         buttonContainer.appendChild(settingsBtn);
         buttonContainer.appendChild(resetBtn);
         buttonContainer.appendChild(applyBtn);
@@ -977,6 +1044,387 @@ class CameraRawEnhanceEditor {
     updatePreview(data) {
         if (data && data.image) {
             this.displayImage(data.image);
+        }
+    }
+    
+    // Camera Raw预设管理功能
+    async loadCameraRawPresetList(selectElement) {
+        try {
+            const response = await fetch('/camera_raw_presets/list');
+            const data = await response.json();
+            
+            if (data.success) {
+                // 清空现有选项
+                selectElement.innerHTML = '<option value="">选择预设...</option>';
+                
+                // 按类别分组
+                const categories = {};
+                data.presets.forEach(preset => {
+                    const category = preset.category || 'custom';
+                    if (!categories[category]) {
+                        categories[category] = [];
+                    }
+                    categories[category].push(preset);
+                });
+                
+                // 添加分组选项
+                Object.entries(categories).forEach(([category, presets]) => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = this.getCategoryLabel(category);
+                    
+                    presets.forEach(preset => {
+                        const option = document.createElement('option');
+                        option.value = preset.id;
+                        option.textContent = preset.name;
+                        option.dataset.preset = JSON.stringify(preset);
+                        optgroup.appendChild(option);
+                    });
+                    
+                    selectElement.appendChild(optgroup);
+                });
+            }
+        } catch (error) {
+            console.error('加载Camera Raw预设列表失败:', error);
+        }
+    }
+    
+    getCategoryLabel(category) {
+        const labels = {
+            'default': '默认预设',
+            'enhance': '增强',
+            'portrait': '人像',
+            'landscape': '风景',
+            'custom': '自定义'
+        };
+        return labels[category] || category;
+    }
+    
+    async loadCameraRawPreset(presetId) {
+        try {
+            const response = await fetch(`/camera_raw_presets/load/${presetId}`);
+            const data = await response.json();
+            
+            if (data.success && data.preset) {
+                const preset = data.preset;
+                const parameters = preset.parameters;
+                
+                // 应用预设参数到enhanceData
+                this.enhanceData = {
+                    texture: parameters.texture || 0.0,
+                    clarity: parameters.clarity || 0.0,
+                    dehaze: parameters.dehaze || 0.0,
+                    blend: parameters.blend || 100.0,
+                    overall_strength: parameters.overall_strength || 1.0
+                };
+                
+                // 更新UI控件
+                this.updateUIFromEnhanceData();
+                
+                // 更新预览
+                this.applyEnhancement();
+                
+                console.log('Camera Raw预设加载成功:', preset.name);
+            }
+        } catch (error) {
+            console.error('加载Camera Raw预设失败:', error);
+            alert('加载预设失败: ' + error.message);
+        }
+    }
+    
+    updateUIFromEnhanceData() {
+        // 更新所有滑块的值
+        Object.entries(this.sliders).forEach(([paramName, sliderData]) => {
+            const value = this.enhanceData[paramName];
+            if (value !== undefined && sliderData.slider) {
+                sliderData.slider.value = value;
+                if (sliderData.valueSpan) {
+                    const unit = paramName === 'blend' ? '%' : '';
+                    sliderData.valueSpan.textContent = Math.round(value) + unit;
+                }
+            }
+        });
+        
+        // 特殊处理overall_strength（转换为百分比）
+        if (this.sliders.overall_strength) {
+            const strengthValue = this.enhanceData.overall_strength * 100;
+            this.sliders.overall_strength.slider.value = strengthValue;
+            if (this.sliders.overall_strength.valueSpan) {
+                this.sliders.overall_strength.valueSpan.textContent = Math.round(strengthValue) + '%';
+            }
+        }
+    }
+    
+    async saveCameraRawPreset(presetSelect) {
+        const name = prompt('请输入预设名称:');
+        if (!name) return;
+        
+        const description = prompt('请输入预设描述（可选）:') || '';
+        
+        try {
+            // 收集当前所有Camera Raw参数
+            const parameters = {
+                texture: this.enhanceData.texture,
+                clarity: this.enhanceData.clarity,
+                dehaze: this.enhanceData.dehaze,
+                blend: this.enhanceData.blend,
+                overall_strength: this.enhanceData.overall_strength
+            };
+            
+            const presetData = {
+                name: name,
+                description: description,
+                category: 'custom',
+                parameters: parameters,
+                tags: ['camera_raw', 'enhance', 'custom']
+            };
+            
+            const response = await fetch('/camera_raw_presets/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(presetData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('预设保存成功!');
+                // 重新加载预设列表
+                this.loadCameraRawPresetList(presetSelect);
+            } else {
+                alert('保存预设失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('保存Camera Raw预设失败:', error);
+            alert('保存预设失败: ' + error.message);
+        }
+    }
+    
+    async showCameraRawPresetManager(presetSelect) {
+        try {
+            // 获取预设列表
+            const response = await fetch('/camera_raw_presets/list');
+            const data = await response.json();
+            
+            if (!data.success) {
+                alert('获取预设列表失败');
+                return;
+            }
+            
+            // 创建预设管理器模态窗口
+            const managerModal = document.createElement('div');
+            managerModal.className = 'preset-manager-modal';
+            managerModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10001;
+            `;
+            
+            const managerContent = document.createElement('div');
+            managerContent.style.cssText = `
+                background: #2b2b2b;
+                padding: 20px;
+                border-radius: 8px;
+                max-width: 600px;
+                max-height: 80vh;
+                overflow-y: auto;
+                color: white;
+            `;
+            
+            const title = document.createElement('h3');
+            title.textContent = 'Camera Raw预设管理器';
+            title.style.marginBottom = '20px';
+            managerContent.appendChild(title);
+            
+            // 预设列表
+            const presetList = document.createElement('div');
+            presetList.style.cssText = `
+                max-height: 400px;
+                overflow-y: auto;
+                margin-bottom: 20px;
+            `;
+            
+            data.presets.forEach(preset => {
+                const presetItem = document.createElement('div');
+                presetItem.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px;
+                    border: 1px solid #444;
+                    margin-bottom: 5px;
+                    border-radius: 4px;
+                `;
+                
+                const presetInfo = document.createElement('div');
+                presetInfo.innerHTML = `
+                    <strong>${preset.name}</strong><br>
+                    <small>${preset.description || '无描述'}</small>
+                `;
+                
+                const presetActions = document.createElement('div');
+                presetActions.style.cssText = 'display: flex; gap: 5px;';
+                
+                if (preset.type === 'user') {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = '删除';
+                    deleteBtn.style.cssText = `
+                        padding: 4px 8px;
+                        background: #d32f2f;
+                        border: none;
+                        border-radius: 3px;
+                        color: white;
+                        cursor: pointer;
+                        font-size: 12px;
+                    `;
+                    deleteBtn.onclick = async () => {
+                        if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                            try {
+                                const delResponse = await fetch(`/camera_raw_presets/delete/${preset.id}`, {
+                                    method: 'DELETE'
+                                });
+                                const delResult = await delResponse.json();
+                                
+                                if (delResult.success) {
+                                    presetItem.remove();
+                                    this.loadCameraRawPresetList(presetSelect);
+                                } else {
+                                    alert('删除失败: ' + delResult.error);
+                                }
+                            } catch (error) {
+                                alert('删除失败: ' + error.message);
+                            }
+                        }
+                    };
+                    presetActions.appendChild(deleteBtn);
+                }
+                
+                const exportBtn = document.createElement('button');
+                exportBtn.textContent = '导出';
+                exportBtn.style.cssText = `
+                    padding: 4px 8px;
+                    background: #388e3c;
+                    border: none;
+                    border-radius: 3px;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 12px;
+                `;
+                exportBtn.onclick = async () => {
+                    try {
+                        const expResponse = await fetch(`/camera_raw_presets/export/${preset.id}`);
+                        const expResult = await expResponse.json();
+                        
+                        if (expResult.success) {
+                            // 创建下载
+                            const blob = new Blob([JSON.stringify(expResult.preset, null, 2)], {
+                                type: 'application/json'
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = expResult.filename;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }
+                    } catch (error) {
+                        alert('导出失败: ' + error.message);
+                    }
+                };
+                presetActions.appendChild(exportBtn);
+                
+                presetItem.appendChild(presetInfo);
+                presetItem.appendChild(presetActions);
+                presetList.appendChild(presetItem);
+            });
+            
+            managerContent.appendChild(presetList);
+            
+            // 导入区域
+            const importSection = document.createElement('div');
+            importSection.style.marginBottom = '20px';
+            
+            const importTitle = document.createElement('h4');
+            importTitle.textContent = '导入预设';
+            importSection.appendChild(importTitle);
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.style.marginBottom = '10px';
+            
+            const importBtn = document.createElement('button');
+            importBtn.textContent = '导入文件';
+            importBtn.style.cssText = `
+                padding: 8px 16px;
+                background: #1976d2;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+            `;
+            importBtn.onclick = async () => {
+                const file = fileInput.files[0];
+                if (!file) {
+                    alert('请选择要导入的文件');
+                    return;
+                }
+                
+                try {
+                    const text = await file.text();
+                    const presetData = JSON.parse(text);
+                    
+                    const impResponse = await fetch('/camera_raw_presets/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ preset_data: presetData })
+                    });
+                    
+                    const impResult = await impResponse.json();
+                    
+                    if (impResult.success) {
+                        alert('预设导入成功!');
+                        document.body.removeChild(managerModal);
+                        this.loadCameraRawPresetList(presetSelect);
+                    } else {
+                        alert('导入失败: ' + impResult.error);
+                    }
+                } catch (error) {
+                    alert('导入失败: ' + error.message);
+                }
+            };
+            
+            importSection.appendChild(fileInput);
+            importSection.appendChild(importBtn);
+            managerContent.appendChild(importSection);
+            
+            // 关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '关闭';
+            closeBtn.style.cssText = `
+                padding: 8px 16px;
+                background: #666;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                float: right;
+            `;
+            closeBtn.onclick = () => document.body.removeChild(managerModal);
+            managerContent.appendChild(closeBtn);
+            
+            managerModal.appendChild(managerContent);
+            document.body.appendChild(managerModal);
+            
+        } catch (error) {
+            console.error('显示Camera Raw预设管理器失败:', error);
+            alert('显示预设管理器失败: ' + error.message);
         }
     }
 }

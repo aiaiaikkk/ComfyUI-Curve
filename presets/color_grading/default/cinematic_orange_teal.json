@@ -1,0 +1,29 @@
+{
+  "id": "cinematic_orange_teal",
+  "name": "电影橙青调",
+  "description": "经典的电影级橙青色调，暖色阴影与冷色高光形成强烈对比",
+  "category": "cinematic",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "color_grading",
+  "parameters": {
+    "shadows_hue": 30,
+    "shadows_saturation": 40,
+    "shadows_luminance": -10,
+    "midtones_hue": 0,
+    "midtones_saturation": 10,
+    "midtones_luminance": 0,
+    "highlights_hue": 180,
+    "highlights_saturation": 30,
+    "highlights_luminance": 5,
+    "blend": 80,
+    "balance": -20,
+    "blend_mode": "normal",
+    "overall_strength": 0.9
+  },
+  "metadata": {
+    "tags": ["电影", "橙青", "色调分离", "对比"],
+    "thumbnail": ""
+  }
+}

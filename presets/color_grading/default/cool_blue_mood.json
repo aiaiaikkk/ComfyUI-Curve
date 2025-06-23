@@ -1,0 +1,29 @@
+{
+  "id": "cool_blue_mood",
+  "name": "冷色蓝调",
+  "description": "清冷的蓝色调，营造忧郁或宁静的氛围，适合夜景和情绪片",
+  "category": "cinematic",
+  "created_at": "2025-06-23T00:00:00.000Z",
+  "author": "ComfyUI-Curve",
+  "version": "1.0",
+  "node_type": "color_grading",
+  "parameters": {
+    "shadows_hue": 220,
+    "shadows_saturation": 35,
+    "shadows_luminance": -20,
+    "midtones_hue": 210,
+    "midtones_saturation": 20,
+    "midtones_luminance": -5,
+    "highlights_hue": 200,
+    "highlights_saturation": 25,
+    "highlights_luminance": 0,
+    "blend": 75,
+    "balance": -10,
+    "blend_mode": "overlay",
+    "overall_strength": 0.8
+  },
+  "metadata": {
+    "tags": ["冷色", "蓝调", "夜景", "忧郁"],
+    "thumbnail": ""
+  }
+}
