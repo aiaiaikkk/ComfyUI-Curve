@@ -7,3 +7,6 @@ scipy>=1.7.0
 
 # 预设系统依赖
 aiofiles>=0.8.0
+
+# 图表生成依赖
+matplotlib>=3.4.0

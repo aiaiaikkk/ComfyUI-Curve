@@ -11,21 +11,18 @@
 
 ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶调整功能，支持70+种预设风格、高级遮罩和Lightroom风格的色彩分级功能。
 
-### 📅 最新更新 (2025-06-24)
+### 📅 最新更新 (2025-06-25)
 
-#### 🎨 PS Curve预设系统增强
-- ✅ 完善预设管理功能，支持保存、加载、删除、导出、导入操作
-- ✅ 修复默认预设（人像增强、电影风格、风景鲜艳）加载问题
-- ✅ 扩大遮罩羽化范围至0-50，提供更细腻的边缘过渡效果
+#### 📊 PS Curve直方图增强
+- ✅ **通道独立直方图**：每个通道（RGB/R/G/B）显示对应的直方图背景
+- ✅ **双输出支持**：PS Curve节点现在输出处理后的图像和曲线分析图表
+- ✅ **实时直方图更新**：工作流执行后自动使用处理后的图像更新直方图
+- ✅ **弹窗支持**：节点和弹窗编辑器都支持直方图显示
 
-#### 🎯 HSL预设系统优化
-- ✅ 新增完整的预设管理功能
-- ✅ 支持自定义HSL预设的保存和分享
-- ✅ 优化预设加载性能
-
-#### 🔧 遮罩功能修复 (2025-06-23)
-- ✅ 修复所有节点的遮罩功能，恢复选择性调整能力
-- ✅ 优化遮罩边缘处理，确保自然过渡效果
+#### 🔧 问题修复
+- ✅ 修复Histogram Analysis节点批处理输出问题
+- ✅ 修复弹窗模态直方图不显示的问题  
+- ✅ 优化直方图缓存机制，提升性能
 
 ### 🌟 主要功能
 
@@ -35,8 +32,9 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 ![Photoshop Curve Node](images/PS_Curve.png)
 - 类似Photoshop的专业曲线调整，支持多种插值方式
 - **双击节点进入实时调整界面**：在弹出窗口中直接拖动控制点，即刻观察图像变化效果
-- 实时曲线图表，可选直方图背景显示
+- **通道独立直方图背景**：每个通道显示对应的直方图，便于精确调整
 - 支持RGB整体或单独R/G/B通道调整
+- **双输出功能**：主图像输出 + 曲线/直方图分析图表
 - 可调曲线效果强度（0-200%）
 - **弹窗内调整立即应用**：所有曲线修改无需重新运行工作流即可在弹窗内实时查看效果
 - **支持自定义预设**：可保存、加载、管理和分享您的曲线预设
@@ -274,32 +272,23 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 
 ### 🆕 历史更新
 
-#### 2025-06-22 - 模块化重构与功能完善
-- **项目架构重构**：
-  - 将单体文件重构为模块化架构
-  - 8个专业节点分布在不同功能模块中
-- **PS Curve节点预设系统**：
-  - 支持保存和加载曲线预设
-  - 预设分类管理（默认/用户/共享）
-  - 预设导入/导出功能
-  - 预设管理器UI界面
-  - 预设缩略图生成
-- **PhotoshopLevelsNode直接预览修复**：
-  - 修复了连接Load Image节点时需要先运行工作流才能显示图像的问题
-  - 现在可以直接在弹窗中预览Load Image的图像
+#### 2025-06-25 - PS Curve直方图增强
+- **通道独立直方图**：每个曲线通道显示对应的直方图
+- **双输出支持**：新增curve_chart输出，显示曲线和直方图分析
+- **实时更新**：工作流执行后自动更新直方图
+- **问题修复**：修复Histogram Analysis批处理输出和弹窗直方图显示问题
 
-#### 2025-06-21 - Camera Raw增强节点
-- **新增CameraRawEnhanceNode节点**：
-  - 集成Adobe Camera Raw的三个核心增强功能
-  - 纹理(Texture)：增强中等大小细节的对比度
-  - 清晰度(Clarity)：增强中间调对比度
-  - 去薄雾(Dehaze)：减少或增加大气雾霾效果
+#### 2025-06-24 - 预设系统增强
+- **PS Curve预设**：完整的预设管理功能，支持保存/加载/导出
+- **HSL预设**：为HSL调整添加预设支持
+- **遮罩改进**：扩大羽化范围至0-50像素
+- **问题修复**：修复默认预设加载问题
 
-#### 2024-12-21 - 初始版本
-- **Color Grading节点增强**：
-  - 添加Lightroom风格的blend和balance控件
-- **输入方式优化**：
-  - 所有数值参数改为数字输入框
+#### 2025-06-22 - 完整模块化重构
+- **架构升级**：重构为清晰的模块化架构（18个Python模块）
+- **更好的组织**：节点按功能类型分类
+- **代码复用**：BaseImageNode消除重复代码
+- **易于维护**：每个节点独立文件
 
 ### 📄 许可证
 
@@ -311,21 +300,18 @@ MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
 
 Professional color adjustment extension for ComfyUI with Photoshop-like Curve, HSL, and Levels adjustment functionality, 70+ preset styles, advanced mask support, and Lightroom-style Color Grading. **The standout feature is the ability to double-click nodes to open popup windows with real-time preview that allows you to color grade with the precision of professional image editing software.**
 
-### 📅 Latest Updates (2025-06-24)
+### 📅 Latest Updates (2025-06-25)
 
-#### 🎨 PS Curve Preset System Enhancement
-- ✅ Complete preset management functionality with save, load, delete, export, and import operations
-- ✅ Fixed default preset loading issues (Portrait Enhance, Cinematic, Landscape Vivid)
-- ✅ Expanded mask feathering range to 0-50 for finer edge transitions
+#### 📊 PS Curve Histogram Enhancement
+- ✅ **Channel-specific histograms**: Each channel (RGB/R/G/B) now shows its corresponding histogram in the curve editor background
+- ✅ **Dual output support**: PS Curve node now outputs both processed image and curve analysis chart
+- ✅ **Live histogram updates**: Histograms update automatically after workflow execution using the processed image
+- ✅ **Modal support**: Histogram display works in both node and popup modal editors
 
-#### 🎯 HSL Preset System Optimization
-- ✅ Added complete preset management functionality
-- ✅ Support for saving and sharing custom HSL presets
-- ✅ Optimized preset loading performance
-
-#### 🔧 Mask Functionality Fix (2025-06-23)
-- ✅ Fixed mask functionality for all nodes, restored selective adjustment capability
-- ✅ Optimized mask edge processing for natural transition effects
+#### 🔧 Bug Fixes
+- ✅ Fixed Histogram Analysis node batch processing output issue
+- ✅ Fixed popup modal histogram display not showing
+- ✅ Optimized histogram caching for better performance
 
 ### 🌟 Key Features
 
@@ -333,8 +319,9 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 ![Photoshop Curve Node](images/PS_Curve.png)
 - Professional Photoshop-style curve adjustment with multiple interpolation methods
 - **Double-click node for real-time adjustment interface**: Directly drag control points in the popup window and instantly see image changes
-- Real-time curve chart with optional histogram background display
+- **Channel-specific histogram backgrounds**: Each channel displays its corresponding histogram for precise adjustments
 - Support for RGB overall or individual R/G/B channel adjustment
+- **Dual outputs**: Main image output + curve/histogram analysis chart
 - Adjustable curve effect intensity (0-200%)
 - **Popup window adjustments apply immediately**: All curve modifications can be viewed in real-time within the popup without re-running the workflow
 - **Custom preset support**: Save, load, manage and share your curve presets
@@ -586,17 +573,23 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 
 ### 🆕 Recent Updates
 
-#### 2025-06-22 - Complete Modular Refactoring
-- **Architecture Upgrade**: Refactored 3591-line monolithic nodes.py file into clear modular architecture
-- **Code Organization**: Created 6 functional modules (core, photoshop, lightroom, camera_raw, effects, analysis, presets)
-- **Maintainability Enhancement**: Each node in independent file, easy to maintain and extend
-- **Code Reuse**: Eliminated duplicate code through BaseImageNode base class
-- **Performance Optimization**: Fixed PhotoshopLevelsNode preview issue, added direct preview functionality
+#### 2025-06-25 - PS Curve Histogram Enhancement
+- **Channel-specific histograms**: Each curve channel now displays its corresponding histogram
+- **Dual output support**: Added curve_chart output showing curves and histogram analysis
+- **Live updates**: Histograms update automatically after workflow execution
+- **Bug fixes**: Fixed Histogram Analysis batch output and modal histogram display issues
 
-#### 2025-06-21 - New Camera Raw Enhance Node
-- Integrated three core Adobe Camera Raw enhancement features: Texture, Clarity, Dehaze
-- Supports -100 to 100 adjustment range for professional-grade image enhancement
-- Includes complete frontend real-time preview interface
+#### 2025-06-24 - Preset System Enhancement
+- **PS Curve presets**: Complete preset management with save/load/export functionality
+- **HSL presets**: Added preset support for HSL adjustments
+- **Mask improvements**: Expanded feathering range to 0-50 pixels
+- **Bug fixes**: Fixed default preset loading issues
+
+#### 2025-06-22 - Complete Modular Refactoring
+- **Architecture upgrade**: Refactored into clear modular architecture (18 Python modules)
+- **Better organization**: Nodes categorized by function type
+- **Code reuse**: BaseImageNode eliminates duplicate code
+- **Easy maintenance**: Each node in its own file
 
 #### Major Color Grading Improvements
 - **Fixed -100 saturation color cast issue**: -100 saturation now achieves complete grayscale effect without cyan or other color casts

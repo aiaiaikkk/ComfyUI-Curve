@@ -75,7 +75,8 @@ class PhotoshopCurveNode(BaseImageNode):
             }
         }
     
-    RETURN_TYPES = ('IMAGE',)
+    RETURN_TYPES = ('IMAGE', 'IMAGE')
+    RETURN_NAMES = ('image', 'curve_chart')
     FUNCTION = 'apply_curve_adjustment'
     CATEGORY = 'Image/Adjustments'
     OUTPUT_NODE = False
@@ -93,23 +94,45 @@ class PhotoshopCurveNode(BaseImageNode):
             
             # 支持批处理
             if len(image.shape) == 4:
-                return (self.process_batch_images(
+                processed_image = self.process_batch_images(
                     image, 
                     self._process_single_image,
                     rgb_curve, red_curve, green_curve, blue_curve, curve_type,
                     mask, mask_blur, invert_mask
-                ),)
+                )
+                # 使用第一张图像生成曲线图表
+                curve_chart = self._generate_curve_chart(
+                    processed_image[0], rgb_curve, red_curve, green_curve, blue_curve, curve_type
+                )
+                # 确保curve_chart有正确的批次维度
+                if len(curve_chart.shape) == 3:
+                    curve_chart = curve_chart.unsqueeze(0)
+                return (processed_image, curve_chart)
             else:
                 result = self._process_single_image(
                     image, rgb_curve, red_curve, green_curve, blue_curve, curve_type,
                     mask, mask_blur, invert_mask
                 )
-                return (result,)
+                # 生成曲线图表
+                curve_chart = self._generate_curve_chart(
+                    result, rgb_curve, red_curve, green_curve, blue_curve, curve_type
+                )
+                # 确保curve_chart有正确的批次维度
+                if len(curve_chart.shape) == 3:
+                    curve_chart = curve_chart.unsqueeze(0)
+                return (result.unsqueeze(0) if len(result.shape) == 3 else result, curve_chart)
         except Exception as e:
             print(f"PhotoshopCurveNode error: {e}")
             import traceback
             traceback.print_exc()
-            return (image,)
+            # 错误时返回原图和空白图表
+            blank_chart = self._create_blank_chart()
+            if len(blank_chart.shape) == 3:
+                blank_chart = blank_chart.unsqueeze(0)
+            # 确保image也有正确的批次维度
+            if len(image.shape) == 3:
+                image = image.unsqueeze(0)
+            return (image, blank_chart)
     
     def _process_single_image(self, image, rgb_curve, red_curve, green_curve, blue_curve, curve_type,
                               mask, mask_blur, invert_mask):
@@ -233,3 +256,178 @@ class PhotoshopCurveNode(BaseImageNode):
         lut = np.clip(lut, 0, 255).astype(np.uint8)
         
         return lut
+    
+    def _create_blank_chart(self):
+        """创建空白图表"""
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        
+        fig, ax = plt.subplots(figsize=(5, 5), facecolor='#1a1a1a')
+        ax.set_facecolor('#2a2a2a')
+        ax.text(0.5, 0.5, 'No Data', ha='center', va='center', 
+                color='white', fontsize=20, transform=ax.transAxes)
+        ax.set_xlim(0, 255)
+        ax.set_ylim(0, 255)
+        
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw()
+        buf = canvas.buffer_rgba()
+        w, h = canvas.get_width_height()
+        chart_np = np.frombuffer(buf, np.uint8).reshape(h, w, 4)[:, :, :3]
+        plt.close(fig)
+        
+        # 确保返回正确的形状 [H, W, C]
+        chart_tensor = torch.from_numpy(chart_np.astype(np.float32) / 255.0)
+        return chart_tensor
+    
+    def _generate_curve_chart(self, image, rgb_curve, red_curve, green_curve, blue_curve, curve_type):
+        """生成曲线与直方图的复合图表"""
+        import json
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib.patches as mpatches
+        
+        # 设置matplotlib样式
+        plt.style.use('dark_background')
+        
+        try:
+            # 解析曲线数据
+            rgb_points = json.loads(rgb_curve) if isinstance(rgb_curve, str) else rgb_curve
+            red_points = json.loads(red_curve) if isinstance(red_curve, str) else red_curve
+            green_points = json.loads(green_curve) if isinstance(green_curve, str) else green_curve
+            blue_points = json.loads(blue_curve) if isinstance(blue_curve, str) else blue_curve
+        except:
+            rgb_points = [[0,0],[255,255]]
+            red_points = [[0,0],[255,255]]
+            green_points = [[0,0],[255,255]]
+            blue_points = [[0,0],[255,255]]
+        
+        # 创建图形
+        fig = plt.figure(figsize=(8, 8), facecolor='#0a0a0a', dpi=100)
+        ax = fig.add_subplot(111)
+        ax.set_facecolor('#141414')
+        
+        # 计算处理后图像的直方图
+        img_np = (image.detach().cpu().numpy() * 255.0).astype(np.uint8)
+        
+        # 计算RGB通道直方图
+        hist_r, _ = np.histogram(img_np[:,:,0], bins=256, range=(0, 256))
+        hist_g, _ = np.histogram(img_np[:,:,1], bins=256, range=(0, 256))
+        hist_b, _ = np.histogram(img_np[:,:,2], bins=256, range=(0, 256))
+        
+        # 计算亮度直方图
+        luminance = (0.299 * img_np[:,:,0] + 0.587 * img_np[:,:,1] + 0.114 * img_np[:,:,2]).astype(np.uint8)
+        hist_lum, _ = np.histogram(luminance, bins=256, range=(0, 256))
+        
+        # 归一化直方图到0-255范围
+        max_val = max(hist_r.max(), hist_g.max(), hist_b.max())
+        if max_val > 0:
+            scale_factor = 180 / max_val  # 最大高度180像素
+            hist_r = hist_r.astype(float) * scale_factor
+            hist_g = hist_g.astype(float) * scale_factor
+            hist_b = hist_b.astype(float) * scale_factor
+            hist_lum = hist_lum.astype(float) * scale_factor
+        
+        # 绘制网格 - 更细致的网格
+        for i in range(0, 256, 32):
+            ax.axvline(i, color='#2a2a2a', linewidth=0.5, alpha=0.5)
+            ax.axhline(i, color='#2a2a2a', linewidth=0.5, alpha=0.5)
+        
+        # 主要网格线
+        for i in [0, 64, 128, 192, 255]:
+            ax.axvline(i, color='#3a3a3a', linewidth=1, alpha=0.7)
+            ax.axhline(i, color='#3a3a3a', linewidth=1, alpha=0.7)
+        
+        # 绘制对角线参考
+        ax.plot([0, 255], [0, 255], color='#555555', linewidth=1.5, alpha=0.8, linestyle='--')
+        
+        # 绘制直方图 - 使用渐变效果
+        x = np.arange(256)
+        
+        # 绘制RGB通道直方图
+        ax.fill_between(x, 0, hist_r, color='#ff4444', alpha=0.2)
+        ax.fill_between(x, 0, hist_g, color='#44ff44', alpha=0.2)
+        ax.fill_between(x, 0, hist_b, color='#4444ff', alpha=0.2)
+        
+        # 绘制亮度直方图轮廓
+        ax.plot(x, hist_lum, color='#888888', linewidth=1, alpha=0.5)
+        
+        # 绘制曲线 - 使用更鲜艳的颜色
+        curves_drawn = []
+        
+        # RGB曲线
+        if not self._is_identity_curve(rgb_points):
+            rgb_lut = self._create_lut(rgb_points, curve_type)
+            ax.plot(x, rgb_lut, color='#ffffff', linewidth=3, label='RGB', zorder=10)
+            curves_drawn.append(('RGB', '#ffffff'))
+        
+        # 单独通道曲线
+        if not self._is_identity_curve(red_points):
+            red_lut = self._create_lut(red_points, curve_type)
+            ax.plot(x, red_lut, color='#ff6666', linewidth=2.5, label='R', zorder=9)
+            curves_drawn.append(('R', '#ff6666'))
+        
+        if not self._is_identity_curve(green_points):
+            green_lut = self._create_lut(green_points, curve_type)
+            ax.plot(x, green_lut, color='#66ff66', linewidth=2.5, label='G', zorder=9)
+            curves_drawn.append(('G', '#66ff66'))
+        
+        if not self._is_identity_curve(blue_points):
+            blue_lut = self._create_lut(blue_points, curve_type)
+            ax.plot(x, blue_lut, color='#6666ff', linewidth=2.5, label='B', zorder=9)
+            curves_drawn.append(('B', '#6666ff'))
+        
+        # 设置轴
+        ax.set_xlim(-5, 260)
+        ax.set_ylim(-5, 260)
+        ax.set_xlabel('Input', color='#cccccc', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Output', color='#cccccc', fontsize=14, fontweight='bold')
+        
+        # 设置标题
+        ax.set_title('Curve Adjustment Analysis', color='#ffffff', fontsize=18, 
+                    fontweight='bold', pad=20)
+        
+        # 设置刻度
+        ax.set_xticks([0, 64, 128, 192, 255])
+        ax.set_yticks([0, 64, 128, 192, 255])
+        ax.tick_params(colors='#999999', labelsize=11)
+        
+        # 自定义图例
+        if curves_drawn:
+            legend_elements = [mpatches.Patch(facecolor=color, edgecolor=color, label=name) 
+                             for name, color in curves_drawn]
+            legend = ax.legend(handles=legend_elements, loc='upper left', 
+                             framealpha=0.9, facecolor='#1a1a1a', 
+                             edgecolor='#444444', fontsize=12)
+            legend.get_frame().set_linewidth(1.5)
+            
+            # 设置图例文字颜色
+            for text in legend.get_texts():
+                text.set_color('#ffffff')
+        
+        # 添加边框
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#444444')
+            spine.set_linewidth(1.5)
+        
+        # 调整布局
+        plt.tight_layout(pad=2.0)
+        
+        # 渲染图形到numpy数组
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw()
+        buf = canvas.buffer_rgba()
+        w, h = canvas.get_width_height()
+        
+        # 转换为numpy数组
+        chart_np = np.frombuffer(buf, np.uint8).reshape(h, w, 4)
+        chart_np = chart_np[:, :, :3]  # 移除alpha通道
+        
+        # 转换为torch tensor
+        chart_tensor = torch.from_numpy(chart_np.astype(np.float32) / 255.0).to(image.device)
+        
+        # 清理
+        plt.close(fig)
+        plt.style.use('default')  # 恢复默认样式
+        
+        return chart_tensor
