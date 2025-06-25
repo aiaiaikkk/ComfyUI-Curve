@@ -895,20 +895,105 @@ class CurveEditorModal {
                 editorContainer.removeChild(editorContainer.firstChild);
             }
             
-            // 添加操作提示
+            // 添加操作提示 - 简化版本
             const helpTip = document.createElement('div');
             helpTip.className = 'curve-editor-help';
-            helpTip.innerHTML = '单击/双击：添加点 | 右键：删除点 | 拖动：移动点';
+            helpTip.innerHTML = '单击：添加点 | 右键：删除点 | 拖动：移动点 | <span style="color: #4ecdc4; cursor: pointer;" onclick="this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display = this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display === \'none\' ? \'block\' : \'none\'">🎯 数值输入</span>';
             helpTip.style.cssText = `
-                padding: 8px;
+                padding: 6px;
                 background: #333;
                 border-radius: 4px;
-                margin-bottom: 10px;
+                margin-bottom: 8px;
                 text-align: center;
                 color: #fff;
-                font-size: 12px;
+                font-size: 11px;
             `;
             editorContainer.appendChild(helpTip);
+
+            // 创建简化的快速输入区域 - 默认隐藏
+            const quickInputContainer = document.createElement('div');
+            quickInputContainer.className = 'quick-input-container';
+            quickInputContainer.style.cssText = `
+                display: none;
+                background: #2a2a2a;
+                border-radius: 4px;
+                padding: 8px;
+                margin-bottom: 6px;
+                border: 1px solid #444;
+            `;
+
+            // 简化的输入行
+            const inputRow = document.createElement('div');
+            inputRow.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 11px;
+            `;
+
+            // 简化输入控件
+            const xInput = document.createElement('input');
+            xInput.type = 'number';
+            xInput.min = '0';
+            xInput.max = '255';
+            xInput.placeholder = 'X';
+            xInput.style.cssText = `
+                width: 45px;
+                padding: 3px 4px;
+                background: #1a1a1a;
+                border: 1px solid #555;
+                border-radius: 2px;
+                color: #fff;
+                font-size: 11px;
+            `;
+
+            const yInput = document.createElement('input');
+            yInput.type = 'number';
+            yInput.min = '0';
+            yInput.max = '255';
+            yInput.placeholder = 'Y';
+            yInput.style.cssText = `
+                width: 45px;
+                padding: 3px 4px;
+                background: #1a1a1a;
+                border: 1px solid #555;
+                border-radius: 2px;
+                color: #fff;
+                font-size: 11px;
+            `;
+
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '添加';
+            addBtn.style.cssText = `
+                padding: 3px 8px;
+                background: #0078d4;
+                color: #fff;
+                border: none;
+                border-radius: 2px;
+                font-size: 11px;
+                cursor: pointer;
+            `;
+
+            const batchBtn = document.createElement('button');
+            batchBtn.textContent = '批量';
+            batchBtn.style.cssText = `
+                padding: 3px 8px;
+                background: #6b3fa0;
+                color: #fff;
+                border: none;
+                border-radius: 2px;
+                font-size: 11px;
+                cursor: pointer;
+            `;
+
+            inputRow.appendChild(document.createTextNode('坐标: '));
+            inputRow.appendChild(xInput);
+            inputRow.appendChild(document.createTextNode(','));
+            inputRow.appendChild(yInput);
+            inputRow.appendChild(addBtn);
+            inputRow.appendChild(batchBtn);
+            quickInputContainer.appendChild(inputRow);
+            editorContainer.appendChild(quickInputContainer);
             
             // 创建曲线编辑器
             console.log("🎨 在模态弹窗中创建曲线编辑器");
@@ -1232,6 +1317,9 @@ class CurveEditorModal {
         }
         
         console.log("🎨 曲线编辑器事件设置完成");
+        
+        // 设置数值输入功能
+        this.setupPointInputControls();
     }
     
     // 检查是否为默认对角线曲线
@@ -1279,6 +1367,121 @@ class CurveEditorModal {
         
         console.log("🎨 所有通道都是默认状态，跳过预览更新");
         return true; // 所有通道都是默认状态
+    }
+    
+    // 设置简化的数值输入功能
+    setupPointInputControls() {
+        console.log("🎨 设置简化数值输入控件");
+        
+        // 获取简化的输入控件
+        const quickContainer = this.modal.querySelector('.quick-input-container');
+        if (!quickContainer) {
+            console.error("🎨 无法找到快速输入容器");
+            return;
+        }
+        
+        const inputs = quickContainer.querySelectorAll('input[type="number"]');
+        const xInput = inputs[0];
+        const yInput = inputs[1];
+        const buttons = quickContainer.querySelectorAll('button');
+        const addBtn = buttons[0];
+        const batchBtn = buttons[1];
+        
+        if (!xInput || !yInput || !addBtn || !batchBtn) {
+            console.error("🎨 无法找到输入控件");
+            return;
+        }
+        
+        // 添加点功能 - 简化版
+        const addPointFromInput = () => {
+            if (!this.curveEditor) return;
+            
+            const x = parseInt(xInput.value);
+            const y = parseInt(yInput.value);
+            
+            if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
+                alert('请输入有效坐标 (0-255)');
+                return;
+            }
+            
+            // 检查重复X坐标
+            const existingPoint = this.curveEditor.controlPoints.find(p => Math.abs(p.x - x) < 2);
+            if (existingPoint) {
+                existingPoint.y = y;
+            } else {
+                this.curveEditor.controlPoints.push({x, y});
+                this.curveEditor.controlPoints.sort((a, b) => a.x - b.x);
+            }
+            
+            // 更新通道数据
+            if (this.curveEditor.channelCurves && this.curveEditor.currentChannel) {
+                this.curveEditor.channelCurves[this.curveEditor.currentChannel] = 
+                    this.curveEditor.controlPoints.map(p => [p.x, p.y]);
+            }
+            
+            this.curveEditor.drawCurve();
+            this.updatePreview();
+            
+            // 清空输入框
+            xInput.value = '';
+            yInput.value = '';
+            
+            console.log(`🎨 添加控制点: (${x}, ${y})`);
+        };
+        
+        // 批量输入功能 - 保持原有
+        const openBatchInput = () => {
+            const currentPoints = this.curveEditor.controlPoints.map(p => `${p.x},${p.y}`).join(';');
+            const input = prompt(
+                '批量输入控制点\n格式：x1,y1;x2,y2;x3,y3...\n例如：0,0;64,80;128,128;192,200;255,255',
+                currentPoints
+            );
+            
+            if (input === null) return;
+            
+            try {
+                const points = input.split(';').map(pointStr => {
+                    const [x, y] = pointStr.trim().split(',').map(v => parseInt(v.trim()));
+                    if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
+                        throw new Error(`无效坐标: ${pointStr}`);
+                    }
+                    return {x, y};
+                });
+                
+                if (points.length < 2) {
+                    throw new Error('至少需要2个控制点');
+                }
+                
+                points.sort((a, b) => a.x - b.x);
+                this.curveEditor.controlPoints = points;
+                
+                if (this.curveEditor.channelCurves && this.curveEditor.currentChannel) {
+                    this.curveEditor.channelCurves[this.curveEditor.currentChannel] = 
+                        this.curveEditor.controlPoints.map(p => [p.x, p.y]);
+                }
+                
+                this.curveEditor.drawCurve();
+                this.updatePreview();
+                
+                console.log(`🎨 批量设置: ${points.length}个点`);
+                
+            } catch (error) {
+                alert(`输入错误: ${error.message}`);
+            }
+        };
+        
+        // 绑定事件
+        addBtn.onclick = addPointFromInput;
+        batchBtn.onclick = openBatchInput;
+        
+        // 回车键添加点
+        xInput.onkeypress = yInput.onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                addPointFromInput();
+            }
+        };
+        
+        console.log("🎨 简化数值输入控件设置完成");
     }
     
     async updatePreview() {

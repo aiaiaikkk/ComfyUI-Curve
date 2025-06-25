@@ -37,6 +37,8 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **双输出功能**：主图像输出 + 曲线/直方图分析图表
 - 可调曲线效果强度（0-200%）
 - **弹窗内调整立即应用**：所有曲线修改无需重新运行工作流即可在弹窗内实时查看效果
+- **简化数值输入**：点击"🎯 数值输入"显示精确坐标输入工具，不影响曲线编辑器操作
+- **内置70+种预设风格**：人像、风景、电影、复古等多种风格，可直接从下拉列表选择应用
 - **支持自定义预设**：可保存、加载、管理和分享您的曲线预设
 
 #### 🎭 HSL调整 (Photoshop HSL)
@@ -93,10 +95,6 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - 包含完整的前端JavaScript界面，支持实时预览
 - **支持自定义预设**：可保存、加载、管理和分享您的增强预设
 
-#### 🖼️ 预设风格 (Curve Preset)
-- 70+种专业调色预设
-- 涵盖人像、风景、电影、复古等多种风格
-- 一键应用，快速实现专业调色效果
 
 #### 🎯 高级遮罩支持
 - 选择性调整特定区域
@@ -142,6 +140,8 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
    - 在弹窗内删除控制点：**右键点击**控制点
    - 在弹窗内切换通道：点击**RGB、R、G、B**按钮切换不同通道曲线
    - 在弹窗内调整强度：移动**强度滑块**即时查看不同强度效果
+   - **数值输入控制点**：点击帮助栏中的"🎯 数值输入"显示坐标输入工具，输入X,Y值后点击"添加"
+   - **批量输入控制点**：在数值输入工具中点击"批量"按钮，输入格式：0,0;64,80;128,128;192,200;255,255
    - 完成后点击弹窗中的**应用**按钮，参数将自动同步到节点
 
 2. **HSL调整实时预览**：
@@ -324,6 +324,8 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Dual outputs**: Main image output + curve/histogram analysis chart
 - Adjustable curve effect intensity (0-200%)
 - **Popup window adjustments apply immediately**: All curve modifications can be viewed in real-time within the popup without re-running the workflow
+- **Simplified numerical input**: Click "🎯 数值输入" to show precise coordinate input tools without affecting curve editor operation
+- **Built-in 70+ preset styles**: Portrait, landscape, cinematic, vintage and more, directly selectable from dropdown
 - **Custom preset support**: Save, load, manage and share your curve presets
 
 #### 🎭 HSL Adjustment (Photoshop HSL)
@@ -380,10 +382,6 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - Includes complete frontend JavaScript interface with real-time preview
 - **Custom preset support**: Save, load, manage and share your enhancement presets
 
-#### 🖼️ Preset Styles (Curve Preset)
-- 70+ professional color grading presets
-- Covers portrait, landscape, cinematic, vintage, and more
-- One-click application for quick professional color grading
 
 #### 🎯 Advanced Mask Support
 - Selective adjustment of specific areas
