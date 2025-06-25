@@ -1574,6 +1574,12 @@ app.registerExtension({
                                         return;
                                     }
                                     
+                                    // 饱和度阈值过滤（匹配后端实现）
+                                    const SATURATION_THRESHOLD = 15;
+                                    if (adjustedHSV[1] < SATURATION_THRESHOLD) {
+                                        return; // 跳过低饱和度像素
+                                    }
+                                    
                                     // 检查像素是否在当前颜色范围内
                                     let inRange = false;
                                     for (const range of ranges) {
@@ -1587,32 +1593,27 @@ app.registerExtension({
                                     if (inRange) {
                                         // 应用调整（修复为匹配PS和后端算法）
                                         if (colorParams.hue !== 0) {
-                                            // 基于实际测试的精确查找表映射
+                                            // 匹配后端的线性映射：-100到+100映射到-60到+60度
                                             function getPreciseHueMapping(inputDegrees) {
-                                                // 保持符号，只用绝对值判断范围
-                                                const absDegrees = Math.abs(inputDegrees);
-                                                const sign = inputDegrees >= 0 ? 1 : -1;
-                                                
-                                                // 实验数据：输入 -> 需要的OpenCV调整
-                                                // 负值需要更大的映射以确保可见效果
-                                                if (absDegrees <= 15) {
-                                                    return sign * absDegrees / 4;  // 增大小角度映射
-                                                } else if (absDegrees <= 30) {
-                                                    return sign * absDegrees / 3;  // 增大30度范围映射
-                                                } else if (absDegrees <= 60) {
-                                                    return sign * absDegrees / 4;  // 中等角度（已验证正确）
-                                                } else {
-                                                    return sign * absDegrees / 4;  // 大角度
-                                                }
+                                                // 直接线性映射：-100到+100 映射到 -60到+60
+                                                // 与后端nodes/photoshop/hsl.py完全一致
+                                                return inputDegrees * 0.6;
                                             }
                                             
                                             const hueAdjustment = getPreciseHueMapping(colorParams.hue);
-                                            let newHue = adjustedHSV[0] + hueAdjustment;
                                             
-                                            // 正确处理色相环绕（确保结果在0-179范围内）
-                                            // 使用与Python相同的模运算处理，对负值也有效
-                                            newHue = newHue % 180;
-                                            if (newHue < 0) newHue += 180;
+                                            // 匹配后端的色相计算逻辑
+                                            // 先转换当前色相到360度范围，进行调整，再转回OpenCV范围
+                                            const currentHue360 = adjustedHSV[0] * 2;  // 转换到360度范围
+                                            let adjustedHue360 = currentHue360 + hueAdjustment;  // 应用调整
+                                            
+                                            // 环绕处理：确保在0-360范围内（使用模运算）
+                                            adjustedHue360 = adjustedHue360 % 360;
+                                            if (adjustedHue360 < 0) {
+                                                adjustedHue360 += 360;
+                                            }
+                                            
+                                            const newHue = adjustedHue360 / 2;  // 转回OpenCV范围(0-179)
                                             
                                             adjustedHSV[0] = newHue;
                                         }

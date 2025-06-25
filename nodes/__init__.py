@@ -24,6 +24,8 @@ from .effects.gaussian_blur import GaussianBlurNode
 
 from .analysis.histogram import HistogramAnalysisNode
 
+from .presets.curve_preset import CurvePresetNode
+
 
 # 节点映射
 NODE_CLASS_MAPPINGS = {
@@ -34,6 +36,7 @@ NODE_CLASS_MAPPINGS = {
     "CameraRawEnhanceNode": CameraRawEnhanceNode,
     "GaussianBlurNode": GaussianBlurNode,
     "HistogramAnalysisNode": HistogramAnalysisNode,
+    "CurvePresetNode": CurvePresetNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -44,6 +47,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CameraRawEnhanceNode": "📷 Camera Raw Enhance",
     "GaussianBlurNode": "🔀 Gaussian Blur with Mask",
     "HistogramAnalysisNode": "📊 Histogram Analysis",
+    "CurvePresetNode": "📐 Curve Presets",
 }
 
 # JS文件映射
@@ -55,6 +59,7 @@ NODE_CLASS_TO_JS_FILE = {
     "CameraRawEnhanceNode": "CameraRawEnhanceNode.js",
     "GaussianBlurNode": "GaussianBlurNode.js",
     "HistogramAnalysisNode": "HistogramAnalysisNode.js",
+    "CurvePresetNode": "CurvePresetNode.js",
 }
 
 # Web目录设置

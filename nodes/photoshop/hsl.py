@@ -705,6 +705,13 @@ class PhotoshopHSLNode(BaseImageNode):
         # 创建遮罩
         mask = np.zeros((h, w), dtype=np.float32)
         
+        # 获取饱和度通道，用于过滤低饱和度像素
+        saturation_channel = img_hsv[:,:,1]
+        
+        # 定义饱和度阈值 - 匹配Photoshop行为
+        # 低于此阈值的像素被认为是"灰色"，不应该受色相调整影响
+        SATURATION_THRESHOLD = 15  # 可以根据需要调整，PS大约在10-20之间
+        
         # 对每个范围创建遮罩
         for r in ranges:
             lower, upper = r
@@ -718,6 +725,11 @@ class PhotoshopHSLNode(BaseImageNode):
             else:
                 range_mask = np.logical_and(hue_channel >= lower, hue_channel <= upper).astype(np.float32)
             
+            # 重要修复：只对饱和度足够高的像素应用遮罩
+            # 这样可以避免对灰色像素进行不必要的色相调整
+            saturation_mask = (saturation_channel >= SATURATION_THRESHOLD).astype(np.float32)
+            range_mask = range_mask * saturation_mask
+            
             # 添加到总遮罩
             mask = np.maximum(mask, range_mask)
         
@@ -729,23 +741,13 @@ class PhotoshopHSLNode(BaseImageNode):
             mask_indices = mask > 0
             
             if hue_shift != 0:
-                # 基于实际测试的精确查找表映射
+                # 基于Photoshop行为的色相映射
                 def get_precise_hue_mapping(input_degrees):
-                    """基于实际测试结果的精确映射，正确处理正负值"""
-                    # 保持符号，只用绝对值判断范围
-                    abs_degrees = abs(input_degrees)
-                    sign = 1 if input_degrees >= 0 else -1
-                    
-                    # 实验数据：输入 -> 需要的OpenCV调整
-                    # 负值需要更大的映射以确保可见效果
-                    if abs_degrees <= 15:
-                        return sign * abs_degrees / 4  # 增大小角度映射
-                    elif abs_degrees <= 30:
-                        return sign * abs_degrees / 3  # 增大30度范围映射
-                    elif abs_degrees <= 60:
-                        return sign * abs_degrees / 4  # 中等角度（已验证正确）
-                    else:
-                        return sign * abs_degrees / 4  # 大角度
+                    """将-100到+100的输入映射到实际的色相变化
+                    Photoshop中，-100到+100通常对应约-60到+60度的色相变化"""
+                    # 直接线性映射：-100到+100 映射到 -60到+60
+                    # 这样用户输入-100时会得到-60度的旋转，更符合预期
+                    return input_degrees * 0.6
                 
                 hue_adjustment = get_precise_hue_mapping(hue_shift)
                 
@@ -753,8 +755,14 @@ class PhotoshopHSLNode(BaseImageNode):
                 new_hue = current_hue + hue_adjustment
                 
                 # 正确处理色相环绕（确保结果在0-179范围内）
-                # 使用模运算处理环绕，对负值也有效
-                new_hue = new_hue % 180
+                # 先转换当前色相到360度范围，进行调整，再转回OpenCV范围
+                current_hue_360 = current_hue * 2  # 转换到360度范围
+                adjusted_hue_360 = current_hue_360 + hue_adjustment  # 应用调整
+                
+                # 环绕处理：确保在0-360范围内（使用模运算）
+                adjusted_hue_360 = adjusted_hue_360 % 360
+                
+                new_hue = adjusted_hue_360 / 2  # 转回OpenCV范围(0-179)
                 
                 result[mask_indices, 0] = new_hue
             

@@ -53,6 +53,14 @@ class PhotoshopCurveNode(BaseImageNode):
                 }),
             },
             'optional': {
+                'preset_curve_points': ('STRING', {
+                    'default': None,
+                    'tooltip': '来自CurvePresetNode的预设曲线点，格式：x1,y1;x2,y2;...'
+                }),
+                'preset_suggested_channel': ('STRING', {
+                    'default': None,
+                    'tooltip': '来自CurvePresetNode的建议通道：RGB/Red/Green/Blue'
+                }),
                 'mask': ('MASK', {
                     'default': None,
                     'tooltip': '可选遮罩，调整仅对遮罩区域有效'
@@ -84,10 +92,54 @@ class PhotoshopCurveNode(BaseImageNode):
     def apply_curve_adjustment(self, image, rgb_curve='[[0,0],[255,255]]', 
                                red_curve='[[0,0],[255,255]]', green_curve='[[0,0],[255,255]]', 
                                blue_curve='[[0,0],[255,255]]', curve_type='cubic',
+                               preset_curve_points=None, preset_suggested_channel=None,
                                mask=None, mask_blur=0.0, invert_mask=False, unique_id=None, **kwargs):
         """应用曲线调整"""
         
         try:
+            # 参数验证和类型转换
+            try:
+                if isinstance(mask_blur, str):
+                    mask_blur = float(mask_blur) if mask_blur.strip() else 0.0
+                elif mask_blur is None:
+                    mask_blur = 0.0
+            except (ValueError, AttributeError):
+                mask_blur = 0.0
+                
+            # 验证 invert_mask 参数
+            if isinstance(invert_mask, str):
+                invert_mask = invert_mask.lower() in ('true', '1', 'yes', 'on')
+            elif invert_mask is None:
+                invert_mask = False
+                
+            # 处理来自CurvePresetNode的预设曲线点
+            if preset_curve_points is not None and preset_curve_points.strip():
+                converted_curve = self._convert_preset_points_to_curve_format(preset_curve_points)
+                
+                # 根据建议通道自动应用到对应通道
+                if preset_suggested_channel and preset_suggested_channel.strip():
+                    channel = preset_suggested_channel.strip()
+                    if channel == 'RGB':
+                        rgb_curve = converted_curve
+                        print(f"📐 预设曲线应用到RGB通道: {preset_curve_points}")
+                    elif channel == 'Red':
+                        red_curve = converted_curve
+                        print(f"📐 预设曲线应用到红色通道: {preset_curve_points}")
+                    elif channel == 'Green':
+                        green_curve = converted_curve
+                        print(f"📐 预设曲线应用到绿色通道: {preset_curve_points}")
+                    elif channel == 'Blue':
+                        blue_curve = converted_curve
+                        print(f"📐 预设曲线应用到蓝色通道: {preset_curve_points}")
+                    else:
+                        # 默认应用到RGB通道
+                        rgb_curve = converted_curve
+                        print(f"📐 预设曲线应用到RGB通道(默认): {preset_curve_points}")
+                else:
+                    # 没有建议通道，默认应用到RGB通道
+                    rgb_curve = converted_curve
+                    print(f"📐 预设曲线应用到RGB通道(无建议): {preset_curve_points}")
+            
             # 发送预览到前端
             if unique_id is not None:
                 self.send_preview_to_frontend(image, unique_id, "photoshop_curve_preview", mask)
@@ -431,3 +483,34 @@ class PhotoshopCurveNode(BaseImageNode):
         plt.style.use('default')  # 恢复默认样式
         
         return chart_tensor
+    
+    def _convert_preset_points_to_curve_format(self, preset_points):
+        """
+        将CurvePresetNode的格式转换为PhotoshopCurveNode的格式
+        输入格式: 'x1,y1;x2,y2;x3,y3;...'
+        输出格式: '[[x1,y1],[x2,y2],[x3,y3],...]'
+        """
+        try:
+            # 解析预设点格式：'0,0;64,85;128,155;...'
+            points = []
+            
+            # 分割各个点
+            point_pairs = preset_points.split(';')
+            
+            for pair in point_pairs:
+                if ',' in pair:
+                    x_str, y_str = pair.split(',')
+                    x = int(float(x_str.strip()))
+                    y = int(float(y_str.strip()))
+                    points.append([x, y])
+            
+            # 转换为JSON格式字符串
+            import json
+            curve_format = json.dumps(points)
+            
+            print(f"🔄 曲线格式转换: {preset_points} -> {curve_format}")
+            return curve_format
+            
+        except Exception as e:
+            print(f"❌ 曲线格式转换失败: {e}")
+            return '[[0,0],[255,255]]'  # 返回默认直线

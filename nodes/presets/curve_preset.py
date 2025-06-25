@@ -85,8 +85,8 @@ class CurvePresetNode(BaseImageNode):
             'hidden': {'unique_id': 'UNIQUE_ID'}
         }
     
-    RETURN_TYPES = ('STRING',)
-    RETURN_NAMES = ('curve_points',)
+    RETURN_TYPES = ('STRING', 'STRING')
+    RETURN_NAMES = ('curve_points', 'suggested_channel')
     FUNCTION = 'get_preset_curve'
     CATEGORY = 'Image/Presets'
     OUTPUT_NODE = False
@@ -199,15 +199,123 @@ class CurvePresetNode(BaseImageNode):
             '未来主义': '0,10;48,40;96,85;160,185;224,240;255,255',  # 未来感
         }
 
+    def get_suggested_channels(self):
+        """定义每种风格的建议通道"""
+        return {
+            'Linear (无调整)': 'RGB',
+            
+            # === 基础风格 ===
+            '人像专用': 'RGB',          # RGB总体调整适合人像
+            '风景专用': 'RGB',          # RGB适合整体风景
+            '夜景专用': 'RGB',          # RGB适合夜景整体提亮
+            
+            # === 对比度系列 ===
+            '高对比度': 'RGB',         # RGB通道增强整体对比
+            '超高对比': 'RGB',         # RGB通道强烈对比
+            '柔和对比': 'RGB',         # RGB通道柔和对比
+            '暗调风格': 'RGB',         # RGB通道整体压暗
+            '亮调风格': 'RGB',         # RGB通道整体提亮
+            
+            # === 电影级调色 ===
+            '电影蓝橙': 'Blue',        # 蓝色通道强化蓝橙对比
+            '赛博朋克': 'Blue',        # 蓝色通道突出科幻冷调
+            '末日废土': 'Red',         # 红色通道营造荒凉感
+            '复古电影': 'Red',         # 红色通道复古暖调
+            '现代电影': 'Blue',        # 蓝色通道现代冷调
+            
+            # === 胶片风格 ===
+            'VSCO经典': 'RGB',         # RGB经典胶片效果
+            '柯达胶片': 'Red',         # 红色通道暖调胶片
+            '富士胶片': 'Green',       # 绿色通道清新胶片
+            '宝丽来': 'RGB',           # RGB复古即时成像
+            '黑白胶片': 'RGB',         # RGB黑白质感
+            
+            # === 日系风格 ===
+            '日系清新': 'Green',       # 绿色通道清新自然
+            '日系通透': 'RGB',         # RGB通透明亮
+            '日系奶油': 'Red',         # 红色通道奶油质感
+            '日系森系': 'Green',       # 绿色通道森系自然
+            
+            # === 港风系列 ===
+            '港风经典': 'Red',         # 红色通道经典港片
+            '港风暗调': 'RGB',         # RGB深沉港风
+            '港风霓虹': 'Blue',        # 蓝色通道霓虹夜景
+            
+            # === 社交媒体风格 ===
+            '小红书': 'Red',           # 红色通道温暖明亮
+            'Instagram': 'RGB',        # RGB时尚现代
+            'TikTok流行': 'RGB',       # RGB年轻活力
+            
+            # === 时尚摄影 ===
+            '时尚杂志': 'RGB',         # RGB时尚大片
+            '高级灰': 'RGB',           # RGB高级灰调
+            '莫兰迪色': 'RGB',         # RGB莫兰迪色调
+            '奶茶色': 'Red',           # 红色通道温暖奶茶色
+            
+            # === 艺术风格 ===
+            '油画质感': 'Red',         # 红色通道油画厚重感
+            '水彩画': 'RGB',           # RGB水彩透明感
+            '素描风格': 'RGB',         # RGB素描对比
+            '版画效果': 'RGB',         # RGB版画质感
+            
+            # === 特殊效果 ===
+            '梦幻紫调': 'Blue',        # 蓝色通道梦幻感
+            '青春活力': 'Green',       # 绿色通道活力四射
+            '商业摄影': 'RGB',         # RGB商业质感
+            '婚纱摄影': 'RGB',         # RGB浪漫梦幻
+            '街拍风格': 'RGB',         # RGB街头感
+            
+            # === 季节主题 ===
+            '春日暖阳': 'Red',         # 红色通道温暖春日
+            '夏日清凉': 'Blue',        # 蓝色通道夏日清爽
+            '秋日金黄': 'Red',         # 红色通道秋日金色
+            '冬日雪景': 'Blue',        # 蓝色通道冬日冷峻
+            
+            # === 极端效果 ===
+            '极端提亮': 'RGB',         # RGB极端提亮
+            '极端压暗': 'RGB',         # RGB极端压暗
+            '反转效果': 'RGB',         # RGB反转色调
+            'S型增强': 'RGB',          # RGB强烈S型
+            
+            # === 人像摄影 ===
+            '人像美颜': 'Red',         # 红色通道柔和美颜
+            '人像质感': 'RGB',         # RGB质感人像
+            '人像柔光': 'RGB',         # RGB柔光效果
+            
+            # === 风景摄影 ===
+            '风景增强': 'Green',       # 绿色通道风景对比
+            '自然风光': 'Green',       # 绿色通道自然色彩
+            '山水画意': 'RGB',         # RGB山水意境
+            
+            # === 电影风格 ===
+            '电影胶片': 'RGB',         # RGB胶片质感
+            '电影冷调': 'Blue',        # 蓝色通道冷色调
+            '电影暖调': 'Red',         # 红色通道暖色调
+            
+            # === 复古风格 ===
+            '复古胶片': 'Red',         # 红色通道复古胶片
+            '复古暖调': 'Red',         # 红色通道复古暖色
+            '怀旧色调': 'RGB',         # RGB怀旧感
+            
+            # === 现代风格 ===
+            '现代简约': 'RGB',         # RGB简约现代
+            '科技感': 'Blue',          # 蓝色通道科技冷峻
+            '未来主义': 'Blue',        # 蓝色通道未来感
+        }
+
     def get_preset_curve(self, preset_style, unique_id=None):
-        """获取预设曲线"""
+        """获取预设曲线和建议通道"""
         try:
             # 获取预设曲线点
             preset_curves = self.get_preset_curves()
             curve_points = preset_curves.get(preset_style, '0,0;255,255')
             
-            return (curve_points,)
+            # 获取建议通道
+            suggested_channels = self.get_suggested_channels()
+            suggested_channel = suggested_channels.get(preset_style, 'RGB')
+            
+            return (curve_points, suggested_channel)
             
         except Exception as e:
             print(f"CurvePresetNode error: {e}")
-            return ('0,0;255,255',)
+            return ('0,0;255,255', 'RGB')
