@@ -111,12 +111,12 @@ class ColorGradingNode(BaseImageNode):
                 }),
                 # 混合控制 (Blend)
                 'blend': ('FLOAT', {
-                    'default': 100.0,
+                    'default': 50.0,  # 修改为与Lightroom一致的默认值
                     'min': 0.0,
                     'max': 100.0,
                     'step': 1.0,
                     'display': 'number',
-                    'tooltip': '控制色彩分级效果的混合程度（0-100%）'
+                    'tooltip': '控制色彩分级效果的混合程度（0-100%，Lightroom默认50）'
                 }),
                 # 平衡控制 (Balance)
                 'balance': ('FLOAT', {
@@ -185,7 +185,7 @@ class ColorGradingNode(BaseImageNode):
                            shadows_hue=0.0, shadows_saturation=0.0, shadows_luminance=0.0,
                            midtones_hue=0.0, midtones_saturation=0.0, midtones_luminance=0.0,
                            highlights_hue=0.0, highlights_saturation=0.0, highlights_luminance=0.0,
-                           blend=100.0, balance=0.0,
+                           blend=50.0, balance=0.0,
                            blend_mode='normal', overall_strength=1.0,
                            mask=None, mask_blur=0.0, invert_mask=False, unique_id=None):
         """
@@ -195,6 +195,7 @@ class ColorGradingNode(BaseImageNode):
         if (shadows_hue == 0 and shadows_saturation == 0 and shadows_luminance == 0 and
             midtones_hue == 0 and midtones_saturation == 0 and midtones_luminance == 0 and
             highlights_hue == 0 and highlights_saturation == 0 and highlights_luminance == 0 and
+            blend == 50.0 and balance == 0.0 and blend_mode == 'normal' and overall_strength == 1.0 and
             mask is None):
             return (image,)
         
@@ -217,15 +218,21 @@ class ColorGradingNode(BaseImageNode):
             
             # 处理图像
             if len(image.shape) == 4:
-                return (self.process_batch_images(
-                    image, 
-                    self._process_single_image,
-                    shadows_hue, shadows_saturation, shadows_luminance,
-                    midtones_hue, midtones_saturation, midtones_luminance,
-                    highlights_hue, highlights_saturation, highlights_luminance,
-                    blend, balance, blend_mode, overall_strength,
-                    mask, mask_blur, invert_mask
-                ),)
+                # 自定义批处理，避免BaseImageNode错误地处理mask参数
+                batch_size = image.shape[0]
+                result = torch.zeros_like(image)
+                
+                for i in range(batch_size):
+                    result[i] = self._process_single_image(
+                        image[i],
+                        shadows_hue, shadows_saturation, shadows_luminance,
+                        midtones_hue, midtones_saturation, midtones_luminance,
+                        highlights_hue, highlights_saturation, highlights_luminance,
+                        blend, balance, blend_mode, overall_strength,
+                        mask, mask_blur, invert_mask
+                    )
+                
+                return (result,)
             else:
                 # 单张图像
                 result = self._process_single_image(
@@ -239,7 +246,6 @@ class ColorGradingNode(BaseImageNode):
                 return (result,)
                 
         except Exception as e:
-            print(f"ColorGradingNode error: {e}")
             import traceback
             traceback.print_exc()
             return (image,)
@@ -292,18 +298,17 @@ class ColorGradingNode(BaseImageNode):
                     
                     send_data["mask"] = f"data:image/png;base64,{mask_base64}"
                 except Exception as mask_error:
-                    print(f"处理色彩分级遮罩时出错: {mask_error}")
+                    pass
             
             # 发送事件到前端
             try:
                 from server import PromptServer
                 PromptServer.instance.send_sync("color_grading_preview", send_data)
-                print(f"✅ 已发送色彩分级预览数据到前端，节点ID: {unique_id}")
             except ImportError:
-                print("PromptServer不可用，跳过前端预览")
+                pass
             
         except Exception as preview_error:
-            print(f"发送色彩分级预览时出错: {preview_error}")
+            pass
     
     def _process_single_image(self, image,
                              shadows_hue, shadows_saturation, shadows_luminance,
@@ -312,7 +317,6 @@ class ColorGradingNode(BaseImageNode):
                              blend, balance, blend_mode, overall_strength,
                              mask, mask_blur, invert_mask):
         """处理单张图像的色彩分级 - 使用更接近Lightroom的算法"""
-        
         device = image.device
         
         # 将图像转换为numpy数组，范围0-1（保持精度）
@@ -327,93 +331,114 @@ class ColorGradingNode(BaseImageNode):
             alpha_channel = img_np[:,:,3]
             img_np = img_np[:,:,:3]  # 只保留RGB通道
         
-        # 检查是否有实际的调整
+        # 检查是否有实际的调整（包括所有影响参数）
         has_adjustment = (shadows_hue != 0 or shadows_saturation != 0 or shadows_luminance != 0 or
                          midtones_hue != 0 or midtones_saturation != 0 or midtones_luminance != 0 or
-                         highlights_hue != 0 or highlights_saturation != 0 or highlights_luminance != 0)
+                         highlights_hue != 0 or highlights_saturation != 0 or highlights_luminance != 0 or
+                         blend != 50.0 or balance != 0.0 or overall_strength != 1.0)
         
-        # 如果没有调整且blend_mode是normal，直接返回原图
+        # 如果没有调整且blend_mode是normal且没有遮罩，直接返回原图
         if not has_adjustment and blend_mode == 'normal' and mask is None:
             return image
         
-        # 转换为Lab色彩空间（更接近人眼感知，Lightroom使用的色彩空间）
-        img_bgr = cv2.cvtColor((img_np * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
-        img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+        # 直接在RGB空间工作，完全匹配前端算法
+        # 转换为RGB numpy数组
+        img_rgb = img_np.copy()
         
-        # 修复OpenCV Lab值范围问题
-        l_max = np.max(img_lab[:,:,0])
-        if l_max > 100:
-            # OpenCV返回的是0-255范围的L通道
-            img_lab[:,:,0] = img_lab[:,:,0] / 255.0  # L: 0-255 -> 0-1
-            img_lab[:,:,1] = img_lab[:,:,1] / 255.0  # a: 0-255 -> 0-1
-            img_lab[:,:,2] = img_lab[:,:,2] / 255.0  # b: 0-255 -> 0-1
-        else:
-            # 标准Lab格式：L: 0-100, a/b: -128-127
-            img_lab[:,:,0] = img_lab[:,:,0] / 100.0  # L: 0-100 -> 0-1
-            img_lab[:,:,1] = (img_lab[:,:,1] + 128.0) / 255.0  # a: -128-127 -> 0-1
-            img_lab[:,:,2] = (img_lab[:,:,2] + 128.0) / 255.0  # b: -128-127 -> 0-1
-        
-        # 使用L通道（亮度）创建更精确的遮罩
-        luminance = img_lab[:,:,0]
+        # 使用感知亮度创建遮罩
+        luminance = img_rgb[:,:,0] * 0.299 + img_rgb[:,:,1] * 0.587 + img_rgb[:,:,2] * 0.114
         
         # 创建改进的亮度遮罩
         shadows_mask = self._create_improved_luminance_mask(luminance, 'shadows', balance)
         midtones_mask = self._create_improved_luminance_mask(luminance, 'midtones', balance)
         highlights_mask = self._create_improved_luminance_mask(luminance, 'highlights', balance)
         
-        # 保存原始亮度（重要：保持亮度不变）
-        original_luminance = img_lab[:,:,0].copy()
+        # 初始化RGB增量
+        delta_r = np.zeros_like(img_rgb[:,:,0])
+        delta_g = np.zeros_like(img_rgb[:,:,0])
+        delta_b = np.zeros_like(img_rgb[:,:,0])
         
-        # 应用色彩分级到Lab空间的a和b通道
-        result_lab = img_lab.copy()
+        # 处理每个区域（完全模拟前端算法）
+        regions = [
+            (shadows_mask, shadows_hue, shadows_saturation, shadows_luminance),
+            (midtones_mask, midtones_hue, midtones_saturation, midtones_luminance),
+            (highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
+        ]
         
-        # 应用各区域的色彩调整
-        result_lab = self._apply_region_adjustment(
-            result_lab, shadows_mask, shadows_hue, shadows_saturation, shadows_luminance, 'shadows'
-        )
-        result_lab = self._apply_region_adjustment(
-            result_lab, midtones_mask, midtones_hue, midtones_saturation, midtones_luminance, 'midtones'
-        )
-        result_lab = self._apply_region_adjustment(
-            result_lab, highlights_mask, highlights_hue, highlights_saturation, highlights_luminance, 'highlights'
-        )
+        for region_mask, hue, sat, lum in regions:
+            
+            if hue != 0 or sat != 0:
+                # 计算强度（包含overall_strength）
+                strength = region_mask * overall_strength
+                
+                if sat >= 0:
+                    # 正饱和度：添加颜色
+                    hue_rad = np.deg2rad(hue)
+                    sat_normalized = sat / 100.0
+                    
+                    # 模拟前端的Lab偏移计算（增强到匹配Lightroom强度）
+                    max_offset = 0.7
+                    offset_a = np.cos(hue_rad) * sat_normalized * max_offset
+                    offset_b = np.sin(hue_rad) * sat_normalized * max_offset
+                    
+                    # 应用颜色敏感度调整（完全匹配前端）
+                    # 将负角度转换为正角度
+                    hue_normalized = hue % 360
+                    
+                    if (hue_normalized >= 330) or (hue_normalized <= 30):  # 红色区域 (330-360, 0-30)
+                        offset_a *= 1.1
+                    elif 150 <= hue_normalized <= 210:  # 青色区域
+                        offset_a *= 0.9
+                    elif 60 <= hue_normalized <= 120:  # 绿色区域
+                        offset_b *= 0.95
+                    elif 240 <= hue_normalized <= 300:  # 蓝色区域
+                        offset_b *= 1.05
+                    
+                    # 将Lab偏移转换为RGB调整（完全匹配前端的权重）
+                    delta_r_contrib = (offset_a * 0.6 + offset_b * 0.3) * strength
+                    delta_g_contrib = (-offset_a * 0.5 + offset_b * 0.2) * strength
+                    delta_b_contrib = (-offset_a * 0.1 - offset_b * 0.8) * strength
+                    
+                    delta_r += delta_r_contrib
+                    delta_g += delta_g_contrib
+                    delta_b += delta_b_contrib
+                    
+                else:
+                    # 负饱和度：朝向灰度混合
+                    desat_strength = abs(sat) / 100.0 * strength
+                    
+                    # 计算灰度值
+                    gray = img_rgb[:,:,0] * 0.299 + img_rgb[:,:,1] * 0.587 + img_rgb[:,:,2] * 0.114
+                    
+                    # 朝向灰度混合
+                    delta_r += (gray - img_rgb[:,:,0]) * desat_strength
+                    delta_g += (gray - img_rgb[:,:,1]) * desat_strength
+                    delta_b += (gray - img_rgb[:,:,2]) * desat_strength
+            
+            # 亮度调整
+            if lum != 0:
+                lum_factor = lum / 100.0 * region_mask * overall_strength
+                lum_adjust = lum_factor * 0.2  # 降低强度以获得更自然的效果
+                delta_r += lum_adjust
+                delta_g += lum_adjust
+                delta_b += lum_adjust
         
-        # 保持原始亮度（如果没有明度调整）
-        if shadows_luminance == 0 and midtones_luminance == 0 and highlights_luminance == 0:
-            result_lab[:,:,0] = original_luminance
+        # 应用调整（不裁剪，允许负值和超过1的值）
+        result_rgb = np.zeros_like(img_rgb)
+        result_rgb[:,:,0] = img_rgb[:,:,0] + delta_r
+        result_rgb[:,:,1] = img_rgb[:,:,1] + delta_g
+        result_rgb[:,:,2] = img_rgb[:,:,2] + delta_b
         
-        # 应用整体强度和混合
-        if overall_strength != 1.0:
-            result_lab[:,:,1] = img_lab[:,:,1] + (result_lab[:,:,1] - img_lab[:,:,1]) * overall_strength
-            result_lab[:,:,2] = img_lab[:,:,2] + (result_lab[:,:,2] - img_lab[:,:,2]) * overall_strength
-        
-        if blend != 100.0:
+        # 应用blend参数
+        if blend < 100.0:
             blend_factor = blend / 100.0
-            result_lab[:,:,1] = img_lab[:,:,1] + (result_lab[:,:,1] - img_lab[:,:,1]) * blend_factor
-            result_lab[:,:,2] = img_lab[:,:,2] + (result_lab[:,:,2] - img_lab[:,:,2]) * blend_factor
+            result_rgb = img_rgb * (1.0 - blend_factor) + result_rgb * blend_factor
         
-        # 转换回RGB
-        result_lab_cv = result_lab.copy()
-        if l_max > 100:
-            # 转换回OpenCV期望的0-255范围
-            result_lab_cv[:,:,0] = result_lab_cv[:,:,0] * 255.0
-            result_lab_cv[:,:,1] = result_lab_cv[:,:,1] * 255.0
-            result_lab_cv[:,:,2] = result_lab_cv[:,:,2] * 255.0
-        else:
-            # 转换回标准Lab范围
-            result_lab_cv[:,:,0] = result_lab_cv[:,:,0] * 100.0
-            result_lab_cv[:,:,1] = result_lab_cv[:,:,1] * 255.0 - 128.0
-            result_lab_cv[:,:,2] = result_lab_cv[:,:,2] * 255.0 - 128.0
-        
-        # 限制Lab值在有效范围内
-        result_lab_cv = np.clip(result_lab_cv, 0, 255)
-        
-        # 转换回RGB
-        result_bgr = cv2.cvtColor(result_lab_cv.astype(np.uint8), cv2.COLOR_LAB2BGR)
-        result_rgb = cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
+        # 在最后才裁剪到有效范围
+        result_rgb = np.clip(result_rgb, 0, 1)
         
         # 转换为tensor
-        result = torch.from_numpy(result_rgb.astype(np.float32) / 255.0).to(device)
+        result = torch.from_numpy(result_rgb.astype(np.float32)).to(device)
         
         # 恢复Alpha通道
         if has_alpha:
@@ -426,79 +451,44 @@ class ColorGradingNode(BaseImageNode):
         
         # 应用遮罩
         if mask is not None:
+            # 确保mask是tensor
+            if not isinstance(mask, torch.Tensor):
+                mask = torch.from_numpy(mask).to(device)
+            
+            # 应用遮罩模糊
             if mask_blur > 0:
                 mask = blur_mask(mask, mask_blur)
+            
+            # 应用遮罩到图像
             result = apply_mask_to_image(image, result, mask, invert_mask)
         
         return result
     
     def _create_improved_luminance_mask(self, luminance, region, balance):
-        """创建改进的亮度遮罩"""
-        balance_factor = balance / 100.0
+        """创建改进的亮度遮罩 - 完全匹配前端的Sigmoid算法"""
+        balance_normalized = balance / 100.0  # -1.0 to 1.0
         
         if region == 'shadows':
-            # 阴影：0-0.3的亮度范围，平衡控制向高光偏移
-            center = 0.15 + balance_factor * 0.1
-            mask = np.exp(-((luminance - center) / 0.15) ** 2)
-            mask = np.where(luminance < center + 0.2, mask, 0)
+            # 使用Sigmoid函数（与前端完全一致）
+            threshold = 0.25 + balance_normalized * 0.2  # 0.05 to 0.45
+            transition = 0.15
+            mask = 1 / (1 + np.exp(-(threshold - luminance) / transition))
             
-        elif region == 'midtones':
-            # 中间调：0.2-0.8的亮度范围，平衡控制影响中心点
-            center = 0.5 + balance_factor * 0.2
-            mask = np.exp(-((luminance - center) / 0.25) ** 2)
+        elif region == 'highlights':
+            # 使用Sigmoid函数（与前端完全一致）
+            threshold = 0.75 - balance_normalized * 0.2  # 0.55 to 0.95
+            transition = 0.15
+            mask = 1 / (1 + np.exp(-(luminance - threshold) / transition))
             
-        else:  # highlights
-            # 高光：0.7-1.0的亮度范围，平衡控制向阴影偏移
-            center = 0.85 - balance_factor * 0.1
-            mask = np.exp(-((luminance - center) / 0.15) ** 2)
-            mask = np.where(luminance > center - 0.2, mask, 0)
+        else:  # midtones
+            # 使用高斯函数（与前端完全一致）
+            center = 0.5 + balance_normalized * 0.1  # 0.4 to 0.6
+            width = 0.35
+            mask = np.exp(-0.5 * ((luminance - center) / width) ** 2) * 1.2
         
         # 确保遮罩值在0-1范围内
         return np.clip(mask, 0, 1)
     
-    def _apply_region_adjustment(self, lab_img, mask, hue_shift, sat_shift, lum_shift, region_name):
-        """应用区域调整到Lab图像"""
-        if hue_shift == 0 and sat_shift == 0 and lum_shift == 0:
-            return lab_img
-        
-        result = lab_img.copy()
-        
-        # 明度调整
-        if lum_shift != 0:
-            lum_factor = 1.0 + lum_shift / 100.0
-            result[:,:,0] = result[:,:,0] * (1.0 + (lum_factor - 1.0) * mask[:,:,np.newaxis] if mask.ndim == 2 else mask)
-        
-        # 色相和饱和度调整
-        if hue_shift != 0 or sat_shift != 0:
-            # 将a, b通道转换为极坐标（色相、饱和度）
-            a = result[:,:,1] - 0.5  # 中心化
-            b = result[:,:,2] - 0.5
-            
-            # 计算当前的色相和饱和度
-            current_hue = np.arctan2(b, a)
-            current_sat = np.sqrt(a**2 + b**2)
-            
-            # 应用调整
-            if hue_shift != 0:
-                hue_rad = np.deg2rad(hue_shift)
-                new_hue = current_hue + hue_rad * mask
-            else:
-                new_hue = current_hue
-            
-            if sat_shift != 0:
-                sat_factor = 1.0 + sat_shift / 100.0
-                new_sat = current_sat * (1.0 + (sat_factor - 1.0) * mask)
-            else:
-                new_sat = current_sat
-            
-            # 转换回笛卡尔坐标
-            new_a = new_sat * np.cos(new_hue) + 0.5
-            new_b = new_sat * np.sin(new_hue) + 0.5
-            
-            result[:,:,1] = new_a
-            result[:,:,2] = new_b
-        
-        return result
     
     def _apply_blend_mode(self, base, overlay, mode):
         """应用混合模式"""

@@ -939,6 +939,19 @@ app.registerExtension({
                 resetBtn.textContent = "重置";
                 resetBtn.onclick = () => {
                     this.resetAllParameters();
+                    
+                    // 直接重置所有输入框的值
+                    const allRangeInputs = controlsContainer.querySelectorAll("input[type='range']");
+                    const allValueInputs = controlsContainer.querySelectorAll(".hsl-value-input");
+                    
+                    allRangeInputs.forEach(input => {
+                        input.value = 0;
+                    });
+                    
+                    allValueInputs.forEach(input => {
+                        input.value = 0;
+                    });
+                    
                     this.updateModalControls(controlsContainer);
                     updatePreviewImage();
                 };

@@ -304,7 +304,7 @@ class ColorGradingEditor {
             object-fit: contain;
             border-radius: 5px;
         `;
-        this.previewContext = this.previewCanvas.getContext('2d');
+        this.previewContext = this.previewCanvas.getContext('2d', { willReadFrequently: true });
         canvasContainer.appendChild(this.previewCanvas);
         
         // 加载提示
@@ -440,7 +440,7 @@ class ColorGradingEditor {
         // 存储色轮引用
         this.colorWheels[region.key] = {
             canvas: wheelCanvas,
-            context: wheelCanvas.getContext('2d'),
+            context: wheelCanvas.getContext('2d', { willReadFrequently: true }),
             region: region.key
         };
         
@@ -451,7 +451,7 @@ class ColorGradingEditor {
     }
     
     drawColorWheel(canvas, regionKey) {
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const radius = Math.min(centerX, centerY) - 5;
@@ -490,13 +490,18 @@ class ColorGradingEditor {
     }
     
     drawWheelIndicator(canvas, regionKey) {
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const radius = Math.min(centerX, centerY) - 5;
         
         const data = this.gradingData[regionKey];
         if (!data) return;
+        
+        // 如果饱和度为0且色相为0，不绘制指示器（重置状态）
+        if (data.saturation === 0 && data.hue === 0) {
+            return;
+        }
         
         // 将色相和饱和度转换为坐标
         const hue = data.hue * Math.PI / 180;
@@ -570,6 +575,11 @@ class ColorGradingEditor {
             if (isDragging) {
                 handleMouseEvent(e);
             }
+        });
+        
+        // 防止鼠标离开时的伪影
+        canvas.addEventListener('mouseout', () => {
+            isDragging = false;
         });
         
         canvas.addEventListener('mouseup', () => {
@@ -1334,7 +1344,7 @@ class ColorGradingEditor {
             const maskCanvas = document.createElement('canvas');
             maskCanvas.width = this.previewCanvas.width;
             maskCanvas.height = this.previewCanvas.height;
-            const maskCtx = maskCanvas.getContext('2d');
+            const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
             maskCtx.drawImage(this.currentMask, 0, 0, maskCanvas.width, maskCanvas.height);
             const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
             maskData = maskImageData.data;
@@ -1387,20 +1397,21 @@ class ColorGradingEditor {
                         const hueRad = region.data.hue * Math.PI / 180;
                         const satNormalized = region.data.saturation / 100;
                         
-                        // 模拟Lab空间的a和b通道偏移（与后端保持一致）
-                        const maxOffset = 0.3;
+                        // 模拟Lab空间的a和b通道偏移（增强到匹配Lightroom强度）
+                        const maxOffset = 0.7;
                         let offsetA = Math.cos(hueRad) * satNormalized * maxOffset;
                         let offsetB = Math.sin(hueRad) * satNormalized * maxOffset;
                         
                         // 应用颜色敏感度调整（与后端一致）
                         const hueDeg = region.data.hue;
-                        if (hueDeg >= -30 && hueDeg <= 30) { // 红色区域
+                        const hueNormalized = ((hueDeg % 360) + 360) % 360; // 确保正值
+                        if ((hueNormalized >= 330) || (hueNormalized <= 30)) { // 红色区域 (330-360, 0-30)
                             offsetA *= 1.1;
-                        } else if (hueDeg >= 150 && hueDeg <= 210) { // 青色区域
+                        } else if (hueNormalized >= 150 && hueNormalized <= 210) { // 青色区域
                             offsetA *= 0.9;
-                        } else if (hueDeg >= 60 && hueDeg <= 120) { // 绿色区域
+                        } else if (hueNormalized >= 60 && hueNormalized <= 120) { // 绿色区域
                             offsetB *= 0.95;
-                        } else if (hueDeg >= 240 && hueDeg <= 300) { // 蓝色区域
+                        } else if (hueNormalized >= 240 && hueNormalized <= 300) { // 蓝色区域
                             offsetB *= 1.05;
                         }
                         
@@ -1658,6 +1669,14 @@ class ColorGradingEditor {
                 slider.value = 100; // 强度默认100%
                 const valueDisplay = slider.parentElement.querySelector('span');
                 if (valueDisplay) valueDisplay.textContent = '100%';
+            } else if (slider.id === 'blend') {
+                slider.value = 100; // blend默认100%
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) valueDisplay.textContent = '100%';
+            } else if (slider.id === 'balance') {
+                slider.value = 0; // balance默认0
+                const valueDisplay = slider.parentElement.querySelector('span');
+                if (valueDisplay) valueDisplay.textContent = '0';
             } else {
                 slider.value = 0;
                 const valueDisplay = slider.parentElement.querySelector('span');
@@ -1777,9 +1796,9 @@ class ColorGradingEditor {
         // 触发图形更新
         if (app.graph) {
             app.graph.setDirtyCanvas(true, true);
-            // 强制触发onChange事件
-            if (app.canvas) {
-                app.canvas.onNodeChanged(this.node);
+            // 触发节点重新绘制
+            if (this.node) {
+                this.node.setDirtyCanvas(true, true);
             }
         }
     }

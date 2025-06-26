@@ -426,6 +426,36 @@ class PhotoshopHSLNode(BaseImageNode):
                     'tooltip': '品红 - 明度调整 (-100 ~ +100)'
                 }),
 
+                # 全局HSL控制参数（前端JavaScript需要）
+                'hue': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '全局色相调整 (-100 ~ +100)'
+                }),
+                'saturation': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '全局饱和度调整 (-100 ~ +100)'
+                }),
+                'lightness': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '全局明度调整 (-100 ~ +100)'
+                }),
+                'colorize': ('BOOLEAN', {
+                    'default': False,
+                    'tooltip': '启用彩色化模式'
+                }),
+
             },
             'optional': {
                 # 遮罩支持
@@ -499,13 +529,14 @@ class PhotoshopHSLNode(BaseImageNode):
                   blue_hue=0.0, blue_saturation=0.0, blue_lightness=0.0,
                   purple_hue=0.0, purple_saturation=0.0, purple_lightness=0.0,
                   magenta_hue=0.0, magenta_saturation=0.0, magenta_lightness=0.0,
+                  hue=0.0, saturation=0.0, lightness=0.0, colorize=False,
                   unique_id=None, **kwargs):
         mask = kwargs.get('mask', None)
         mask_blur = kwargs.get('mask_blur', 0.0)
         invert_mask = kwargs.get('invert_mask', False)
         
         mask_hash = "none" if mask is None else str(hash(mask.data.tobytes()) if hasattr(mask, 'data') else hash(str(mask)))
-        return f"{red_hue}_{red_saturation}_{red_lightness}_{orange_hue}_{orange_saturation}_{orange_lightness}_{yellow_hue}_{yellow_saturation}_{yellow_lightness}_{green_hue}_{green_saturation}_{green_lightness}_{cyan_hue}_{cyan_saturation}_{cyan_lightness}_{blue_hue}_{blue_saturation}_{blue_lightness}_{purple_hue}_{purple_saturation}_{purple_lightness}_{magenta_hue}_{magenta_saturation}_{magenta_lightness}_{mask_hash}_{mask_blur}_{invert_mask}"
+        return f"{red_hue}_{red_saturation}_{red_lightness}_{orange_hue}_{orange_saturation}_{orange_lightness}_{yellow_hue}_{yellow_saturation}_{yellow_lightness}_{green_hue}_{green_saturation}_{green_lightness}_{cyan_hue}_{cyan_saturation}_{cyan_lightness}_{blue_hue}_{blue_saturation}_{blue_lightness}_{purple_hue}_{purple_saturation}_{purple_lightness}_{magenta_hue}_{magenta_saturation}_{magenta_lightness}_{hue}_{saturation}_{lightness}_{colorize}_{mask_hash}_{mask_blur}_{invert_mask}"
     
     def apply_hsl_adjustment(self, image, 
                              red_hue=0.0, red_saturation=0.0, red_lightness=0.0,
@@ -516,9 +547,17 @@ class PhotoshopHSLNode(BaseImageNode):
                              blue_hue=0.0, blue_saturation=0.0, blue_lightness=0.0,
                              purple_hue=0.0, purple_saturation=0.0, purple_lightness=0.0,
                              magenta_hue=0.0, magenta_saturation=0.0, magenta_lightness=0.0,
+                             hue=0.0, saturation=0.0, lightness=0.0, colorize=False,
                              **kwargs):
         """应用PS风格的HSL调整"""
-        # 性能优化：如果所有参数都是默认值，直接返回原图
+        # 获取遮罩信息
+        mask = kwargs.get('mask', None)
+        
+        # 调试：打印接收到的参数
+        print(f"HSL参数调试 - 绿色通道: hue={green_hue}, sat={green_saturation}, light={green_lightness}")
+        print(f"HSL参数调试 - 全局: hue={hue}, sat={saturation}, light={lightness}, colorize={colorize}")
+        
+        # 性能优化：如果所有参数都是默认值且无遮罩，直接返回原图
         if (red_hue == 0 and red_saturation == 0 and red_lightness == 0 and
             orange_hue == 0 and orange_saturation == 0 and orange_lightness == 0 and
             yellow_hue == 0 and yellow_saturation == 0 and yellow_lightness == 0 and
@@ -526,7 +565,10 @@ class PhotoshopHSLNode(BaseImageNode):
             cyan_hue == 0 and cyan_saturation == 0 and cyan_lightness == 0 and
             blue_hue == 0 and blue_saturation == 0 and blue_lightness == 0 and
             purple_hue == 0 and purple_saturation == 0 and purple_lightness == 0 and
-            magenta_hue == 0 and magenta_saturation == 0 and magenta_lightness == 0):
+            magenta_hue == 0 and magenta_saturation == 0 and magenta_lightness == 0 and
+            hue == 0 and saturation == 0 and lightness == 0 and not colorize and
+            mask is None):
+            print("HSL参数调试 - 所有参数为默认值，返回原图")
             return (image,)
         
         try:
@@ -556,6 +598,7 @@ class PhotoshopHSLNode(BaseImageNode):
                     blue_hue, blue_saturation, blue_lightness,
                     purple_hue, purple_saturation, purple_lightness,
                     magenta_hue, magenta_saturation, magenta_lightness,
+                    hue, saturation, lightness, colorize,
                     mask, mask_blur, invert_mask
                 ),)
             else:
@@ -570,6 +613,7 @@ class PhotoshopHSLNode(BaseImageNode):
                     blue_hue, blue_saturation, blue_lightness,
                     purple_hue, purple_saturation, purple_lightness,
                     magenta_hue, magenta_saturation, magenta_lightness,
+                    hue, saturation, lightness, colorize,
                     mask, mask_blur, invert_mask
                 )
                 return (result,)
@@ -588,6 +632,7 @@ class PhotoshopHSLNode(BaseImageNode):
                              blue_hue, blue_saturation, blue_lightness,
                              purple_hue, purple_saturation, purple_lightness,
                              magenta_hue, magenta_saturation, magenta_lightness,
+                             hue, saturation, lightness, colorize,
                              mask, mask_blur, invert_mask):
         """处理单张图像的HSL调整"""
         
@@ -620,20 +665,16 @@ class PhotoshopHSLNode(BaseImageNode):
             cyan_hue != 0 or cyan_saturation != 0 or cyan_lightness != 0 or
             blue_hue != 0 or blue_saturation != 0 or blue_lightness != 0 or
             purple_hue != 0 or purple_saturation != 0 or purple_lightness != 0 or
-            magenta_hue != 0 or magenta_saturation != 0 or magenta_lightness != 0
+            magenta_hue != 0 or magenta_saturation != 0 or magenta_lightness != 0 or
+            hue != 0 or saturation != 0 or lightness != 0 or colorize
         )
         
+        print(f"HSL调试 - 需要处理: {needs_processing}, 有遮罩: {mask is not None}")
+        
         if not needs_processing and mask is None:
-            # 如果没有任何调整且没有遮罩，直接转换回RGB并返回
-            img_bgr = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
-            if has_alpha:
-                img_rgba = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGBA)
-                img_rgba[:,:,3] = alpha_channel
-                result = torch.from_numpy(img_rgba.astype(np.float32) / 255.0).to(device)
-            else:
-                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                result = torch.from_numpy(img_rgb.astype(np.float32) / 255.0).to(device)
-            return result
+            # 如果没有任何调整且没有遮罩，直接返回原图
+            print("HSL调试 - 跳过处理，返回原图")
+            return image
         
         # 基于OpenCV HSV真实分布的精确颜色范围定义
         # OpenCV HSV: 0°=红, 30°=黄, 60°=绿, 90°=青, 120°=蓝, 150°=洋红
@@ -666,6 +707,52 @@ class PhotoshopHSLNode(BaseImageNode):
                     img_hsv, color_ranges[color_name], 
                     hue_shift, sat_shift, light_shift
                 )
+        
+        # 应用全局HSL调整
+        if hue != 0 or saturation != 0 or lightness != 0 or colorize:
+            if colorize:
+                # 彩色化模式：将图像转为灰度，然后应用单一色相
+                # 计算灰度值（明度）
+                grayscale = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+                grayscale = cv2.cvtColor(grayscale, cv2.COLOR_BGR2GRAY)
+                
+                # 创建彩色化的HSV图像
+                h, w = grayscale.shape
+                colorized_hsv = np.zeros((h, w, 3), dtype=np.float32)
+                
+                # 设置色相（将-100到+100映射到0-179）
+                target_hue = ((hue + 100) / 200.0) * 179
+                colorized_hsv[:,:,0] = target_hue
+                
+                # 设置饱和度
+                target_saturation = max(0, min(255, (saturation + 100) / 100.0 * 255 / 2))
+                colorized_hsv[:,:,1] = target_saturation
+                
+                # 使用原始亮度信息
+                colorized_hsv[:,:,2] = grayscale.astype(np.float32)
+                
+                # 应用明度调整
+                if lightness != 0:
+                    colorized_hsv[:,:,2] = self._apply_ps_lightness_adjustment(colorized_hsv[:,:,2], lightness)
+                
+                img_hsv = colorized_hsv
+            else:
+                # 常规全局HSL调整
+                if hue != 0:
+                    # 对所有像素应用色相调整
+                    hue_adjustment = hue * 0.6  # 匹配前端映射
+                    current_hue_360 = img_hsv[:,:,0] * 2
+                    adjusted_hue_360 = (current_hue_360 + hue_adjustment) % 360
+                    img_hsv[:,:,0] = adjusted_hue_360 / 2
+                
+                if saturation != 0:
+                    # 对所有像素应用饱和度调整
+                    sat_factor = self._calculate_ps_saturation_factor(saturation)
+                    img_hsv[:,:,1] = np.clip(img_hsv[:,:,1] * sat_factor, 0, 255)
+                
+                if lightness != 0:
+                    # 对所有像素应用明度调整
+                    img_hsv[:,:,2] = self._apply_ps_lightness_adjustment(img_hsv[:,:,2], lightness)
         
         # 将HSV值限制在有效范围内
         img_hsv[:,:,0] = np.clip(img_hsv[:,:,0], 0, 179)  # H: 0-179
