@@ -281,137 +281,74 @@ class CameraRawEnhanceNode(BaseImageNode):
         return np.clip(enhanced, 0, 1)
     
     def _ps_style_dehaze(self, image, strength):
-        """PS风格的去薄雾 - 最终优化版"""
+        """PS风格的去薄雾 - 简化稳定版（最佳效果）"""
         # 转换为0-255范围
         img_uint8 = (image * 255).astype(np.uint8)
         
-        # 1. 先进行初步的去雾处理
-        # 使用改进的暗通道方法估计透射率
+        # 1. 标准暗通道去雾
         dark_channel = self._get_simple_dark_channel(img_uint8)
-        
-        # 估计大气光（更准确的方法）
         atmospheric_light = self._estimate_atmospheric_light_simple(img_uint8, dark_channel)
         
-        # 平衡的去雾参数
-        transmission = 1 - 0.82 * dark_channel / 255.0  # 精调到0.82
-        transmission = np.maximum(transmission, 0.32)  # 防止过暗
+        # 标准去雾参数
+        transmission = 1 - 0.85 * dark_channel / 255.0
+        transmission = np.maximum(transmission, 0.3)
         
         # 恢复场景
         result = np.zeros_like(img_uint8, dtype=np.float32)
         for i in range(3):
             result[:, :, i] = (img_uint8[:, :, i].astype(np.float32) - atmospheric_light[i]) / transmission + atmospheric_light[i]
         
-        # 2. PS风格的自动色阶调整
-        for i in range(3):
-            channel = result[:, :, i]
-            
-            # PS风格的百分位裁剪
-            p_low, p_high = np.percentile(channel, [3, 97])  # 平衡的百分位
-            
-            # PS风格的部分拉伸
-            if p_high - p_low > 25:
-                # 目标是PS的亮度范围（约65-70的均值）
-                scale_factor = 210.0 / (p_high - p_low)  # 不完全拉伸
-                offset = 25  # 保留暗部细节
-                channel_stretched = (channel - p_low) * scale_factor + offset
-                result[:, :, i] = np.clip(channel_stretched, 0, 255)
+        # 2. 简单的色阶调整
+        result = np.clip(result, 0, 255)
         
-        # 3. 转换到LAB进行更精细的处理
-        lab = cv2.cvtColor(result.astype(np.uint8), cv2.COLOR_RGB2LAB).astype(np.float32)
-        l, a, b = lab[:, :, 0], lab[:, :, 1], lab[:, :, 2]
+        # 3. 转换到HSV进行饱和度和亮度调整
+        result_uint8 = result.astype(np.uint8)
+        hsv = cv2.cvtColor(result_uint8, cv2.COLOR_RGB2HSV).astype(np.float32)
+        h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
         
-        # 4. 增强亮度对比度
-        # 使用CLAHE进行局部对比度增强
-        clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))  # 适中的对比度增强
-        l_clahe = clahe.apply(l.astype(np.uint8)).astype(np.float32)
+        # 关键：根据PS分析，饱和度需要增加约5.6倍
+        # 但由于去雾已经增加了一些饱和度，这里只需要额外增加2-3倍
+        s_enhanced = s * 2.5 * strength  # 适度增强
+        s_enhanced = np.clip(s_enhanced, 0, 255)
         
-        # 智能亮度调整 - 匹配PS的亮度降低效果
-        # PS将亮度降到约0.62倍，但我们使用更自然的方法
-        l_mean = l.mean()
-        target_brightness = 85  # 目标亮度（基于PS分析）
-        brightness_ratio = target_brightness / l_mean if l_mean > 0 else 1.0
-        brightness_ratio = np.clip(brightness_ratio, 0.75, 0.9)  # 限制调整范围
+        # 亮度调整 - PS降低了亮度
+        # 从原图108.7降到72.5，约0.67倍
+        v_adjusted = v * 0.75  # 降低亮度
+        v_adjusted = np.clip(v_adjusted, 0, 255)
         
-        # 应用亮度调整
-        l_adjusted = l * brightness_ratio
+        # 重组HSV
+        hsv_enhanced = np.stack([h, s_enhanced, v_adjusted], axis=2)
+        result_rgb = cv2.cvtColor(hsv_enhanced.astype(np.uint8), cv2.COLOR_HSV2RGB)
         
-        # 混合原始和CLAHE结果
-        l_enhanced = l_adjusted * 0.6 + l_clahe * 0.4  # 更多保留调整后的亮度
+        # 4. 简单的对比度增强
+        # 使用CLAHE
+        lab = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2LAB)
+        l_channel = lab[:, :, 0]
         
-        # 温和的对比度增强
-        l_norm = l_enhanced / 255.0
-        l_curve = l_norm + strength * 0.08 * l_norm * (1 - l_norm) * (2 * l_norm - 1)
-        l_final = np.clip(l_curve * 255, 0, 255)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l_enhanced = clahe.apply(l_channel)
         
-        # 5. 增强色彩饱和度（特别是暖色调）
-        # 计算色彩角度
-        color_angle = np.arctan2(b - 128, a - 128)
+        lab[:, :, 0] = l_enhanced
+        result_rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
         
-        # 暖色调区域（红橙黄）获得更多增强
-        warm_mask = np.cos(color_angle) > 0
-        
-        # PS风格的饱和度增强 - 基于实际测量
-        saturation = np.sqrt((a - 128) ** 2 + (b - 128) ** 2)
-        sat_mean = saturation.mean()
-        
-        # PS将饱和度从11.7提升到65.3（约5.6倍）
-        # 但我们需要智能调整，避免过饱和
-        if sat_mean < 15:  # 非常低饱和度（如薄雾图）
-            base_factor = 3.0  # 大幅提升
-        elif sat_mean < 30:  # 低饱和度
-            base_factor = 2.2
-        elif sat_mean < 50:  # 中等饱和度
-            base_factor = 1.5
-        else:  # 高饱和度
-            base_factor = 1.2
-        
-        # 对不同饱和度区域使用不同增强
-        sat_norm = saturation / 100.0
-        saturation_factor = np.where(sat_norm < 0.15, base_factor, base_factor * 0.8)
-        saturation_factor = np.where(sat_norm > 0.5, base_factor * 0.6, saturation_factor)
-        
-        # 暖色调轻微额外增强
-        saturation_factor = np.where(warm_mask, saturation_factor * 1.1, saturation_factor)
-        
-        # 应用饱和度增强
-        a_enhanced = 128 + (a - 128) * saturation_factor * strength
-        b_enhanced = 128 + (b - 128) * saturation_factor * strength
-        
-        # 确保在有效范围内
-        a_enhanced = np.clip(a_enhanced, 0, 255)
-        b_enhanced = np.clip(b_enhanced, 0, 255)
-        
-        # 6. 重组LAB并转回RGB
-        lab_enhanced = np.stack([l_final, a_enhanced, b_enhanced], axis=2)
-        result_rgb = cv2.cvtColor(lab_enhanced.astype(np.uint8), cv2.COLOR_LAB2RGB)
-        
-        # 7. 最终的颜色调整
+        # 5. 色彩平衡调整
         result_float = result_rgb.astype(np.float32) / 255.0
         
-        # PS风格的颜色平衡 - 基于实测数据
-        # PS显示：R降40.5，G降39.1，B降45.1（相对原图）
-        # 但由于我们已经调整了亮度，这里只需要微调色彩平衡
+        # 基于PS分析的色彩调整
+        # 蓝色通道需要降低更多
         result_float[:, :, 0] *= 1.00  # 红色保持
-        result_float[:, :, 1] *= 0.97  # 绿色轻微降低
-        result_float[:, :, 2] *= 0.91  # 蓝色明显降低（减少蓝色偏移）
+        result_float[:, :, 1] *= 0.98  # 绿色轻微降低  
+        result_float[:, :, 2] *= 0.88  # 蓝色明显降低
         
-        # 8. 最终gamma调整
-        gamma = 1.0 - strength * 0.12  # 轻微的gamma调整
-        result_gamma = np.power(np.clip(result_float, 0, 1), gamma)
+        # 6. 最终输出
+        result_float = np.clip(result_float, 0, 1)
         
-        # 9. 细节增强
-        # 使用unsharp mask进行细节增强
-        blur = cv2.GaussianBlur(result_gamma, (0, 0), sigmaX=1.2)
-        detail_mask = result_gamma - blur
-        sharpened = result_gamma + strength * 0.25 * detail_mask  # 温和的细节增强
-        
-        # 10. 与原图混合
-        # PS效果看起来是几乎完全处理，只保留很少原图
-        blend = min(strength * 0.92, 0.92)  # 92%的处理效果
-        final = image * (1 - blend) + sharpened * blend
+        # 与原图混合
+        blend = 0.9 * strength
+        final = image * (1 - blend) + result_float * blend
         
         return np.clip(final, 0, 1)
-    
+
     def _get_simple_dark_channel(self, img):
         """简化的暗通道计算"""
         b, g, r = cv2.split(img)

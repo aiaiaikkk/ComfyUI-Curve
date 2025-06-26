@@ -682,29 +682,82 @@ class CameraRawEnhanceEditor {
                 b = Math.min(255, Math.max(0, b * factor));
             }
             
-            // 简化的去薄雾效果（调整饱和度和对比度）
+            // 去薄雾效果 - 更接近后端算法
             if (dehaze !== 0) {
-                const satFactor = 1 + dehaze * 0.2;
-                const contrastFactor = 1 + dehaze * 0.1;
+                const dehazeStrength = dehaze / 100.0;
                 
-                // 转换为HSV进行饱和度调整（简化版本）
-                const max = Math.max(r, g, b);
-                const min = Math.min(r, g, b);
-                const delta = max - min;
-                
-                if (delta > 0) {
-                    const saturation = delta / max * satFactor;
-                    const factor = Math.min(1, saturation);
+                if (dehazeStrength > 0) {
+                    // 正向去薄雾 - 简化版暗通道算法效果
+                    // 1. 增强饱和度（接近后端的2.5倍）
+                    const satFactor = 1 + dehazeStrength * 1.5; // 最大2.5倍
                     
-                    r = min + (r - min) * factor;
-                    g = min + (g - min) * factor;
-                    b = min + (b - min) * factor;
+                    // 简化的饱和度增强
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    const delta = max - min;
+                    
+                    if (delta > 0) {
+                        const gray = (r + g + b) / 3;
+                        r = gray + (r - gray) * satFactor;
+                        g = gray + (g - gray) * satFactor;
+                        b = gray + (b - gray) * satFactor;
+                    }
+                    
+                    // 2. 降低亮度（接近后端的0.75）
+                    const brightnessFactor = 1 - dehazeStrength * 0.25; // 最低0.75
+                    r *= brightnessFactor;
+                    g *= brightnessFactor;
+                    b *= brightnessFactor;
+                    
+                    // 3. 增强对比度（模拟CLAHE效果）
+                    const contrastFactor = 1 + dehazeStrength * 0.3;
+                    r = (r - 128) * contrastFactor + 128;
+                    g = (g - 128) * contrastFactor + 128;
+                    b = (b - 128) * contrastFactor + 128;
+                    
+                    // 4. 色彩平衡（模拟后端的通道调整）
+                    // 后端：R=1.0, G=0.98, B=0.88
+                    r *= 1.0;
+                    g *= (1.0 - dehazeStrength * 0.02); // 最低0.98
+                    b *= (1.0 - dehazeStrength * 0.12); // 最低0.88
+                    
+                    // 5. 与原图混合（后端使用0.9混合）
+                    const blend = 0.9 * dehazeStrength;
+                    const origR = imageData.data[idx];
+                    const origG = imageData.data[idx + 1];
+                    const origB = imageData.data[idx + 2];
+                    
+                    r = origR * (1 - blend) + r * blend;
+                    g = origG * (1 - blend) + g * blend;
+                    b = origB * (1 - blend) + b * blend;
+                } else {
+                    // 负向去薄雾 - 添加雾霾效果
+                    const hazeStrength = -dehazeStrength;
+                    
+                    // 降低对比度
+                    const gamma = 1 + hazeStrength * 0.5;
+                    r = Math.pow(r / 255, gamma) * 255;
+                    g = Math.pow(g / 255, gamma) * 255;
+                    b = Math.pow(b / 255, gamma) * 255;
+                    
+                    // 降低饱和度
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const desatFactor = 1 - hazeStrength * 0.3;
+                    r = r * desatFactor + gray * (1 - desatFactor);
+                    g = g * desatFactor + gray * (1 - desatFactor);
+                    b = b * desatFactor + gray * (1 - desatFactor);
+                    
+                    // 添加大气光
+                    const atmosphericLight = 204; // 0.8 * 255
+                    r += (atmosphericLight - r) * hazeStrength * 0.2;
+                    g += (atmosphericLight - g) * hazeStrength * 0.2;
+                    b += (atmosphericLight - b) * hazeStrength * 0.2;
                 }
                 
-                // 应用对比度
-                r = Math.min(255, Math.max(0, (r - 128) * contrastFactor + 128));
-                g = Math.min(255, Math.max(0, (g - 128) * contrastFactor + 128));
-                b = Math.min(255, Math.max(0, (b - 128) * contrastFactor + 128));
+                // 确保值在有效范围内
+                r = Math.min(255, Math.max(0, r));
+                g = Math.min(255, Math.max(0, g));
+                b = Math.min(255, Math.max(0, b));
             }
             
             data[i] = r;

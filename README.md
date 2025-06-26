@@ -13,6 +13,12 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 ### 📅 最新更新 (2025-06-26)
 
+#### 🔧 系统优化与算法对齐
+- ✅ **前后端算法同步**：修复Camera Raw去薄雾算法前后端不一致问题，现在预览效果更接近实际处理结果
+- ✅ **错误修复**：修复GaussianBlurNode参数传递错误，提升系统稳定性
+- ⚠️ **去薄雾算法持续优化中**：当前已基本实现算法对齐，但与PS Camera Raw效果仍有差距，继续调试中
+- 🧹 **项目清理**：删除临时测试文件，保持项目结构整洁
+
 #### 🎯 CurvePreset智能联动功能
 - ✅ **智能通道识别**：每个预设风格都配置了基于色彩理论的最佳适用通道
 - ✅ **自动应用机制**：PS Curve节点自动将预设应用到建议通道，无需手动选择
@@ -306,11 +312,11 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 
 ### 🆕 历史更新
 
-#### 2025-06-26 - CurvePreset智能联动功能
-- **智能通道识别**：每个预设风格配置最佳适用通道
-- **自动应用机制**：PS Curve自动将预设应用到建议通道
-- **专业工作流程**：CurvePresetNode → PS Curve一步到位
-- **70+风格智能映射**：基于色彩理论的专业通道建议
+#### 2025-06-26 - 系统优化与算法对齐
+- **前后端算法同步**：修复Camera Raw去薄雾算法不一致问题
+- **错误修复**：修复GaussianBlurNode参数传递错误
+- **项目清理**：删除临时测试文件，保持结构整洁
+- **CurvePreset智能联动**：实现预设与PS Curve的智能通道映射
 
 #### 2025-06-25 - PS Curve直方图增强
 - **通道独立直方图**：每个曲线通道显示对应的直方图
@@ -341,6 +347,12 @@ MIT许可证 - 查看 [LICENSE](LICENSE) 文件。
 Professional color adjustment extension for ComfyUI with Photoshop-like Curve, HSL, and Levels adjustment functionality, 70+ preset styles, advanced mask support, and Lightroom-style Color Grading. **The standout feature is the ability to double-click nodes to open popup windows with real-time preview that allows you to color grade with the precision of professional image editing software.**
 
 ### 📅 Latest Updates (2025-06-26)
+
+#### 🔧 System Optimization & Algorithm Alignment
+- ✅ **Frontend-Backend Algorithm Sync**: Fixed Camera Raw dehaze algorithm inconsistency between frontend and backend, preview effects now match actual processing results more closely
+- ✅ **Bug Fix**: Fixed GaussianBlurNode parameter passing error, improved system stability
+- ⚠️ **Dehaze Algorithm Ongoing Optimization**: Currently achieved basic algorithm alignment, but still has gaps with PS Camera Raw effects, continue debugging
+- 🧹 **Project Cleanup**: Removed temporary test files, maintaining clean project structure
 
 #### 🎯 CurvePreset Smart Linking Feature
 - ✅ **Intelligent channel recognition**: Each preset style is configured with optimal color channel based on color theory
@@ -644,6 +656,12 @@ git clone https://github.com/aiaiaikkk/ComfyUI-Curve.git
 - Large areas: Recommended 8-15 pixel feathering
 
 ### 🆕 Recent Updates
+
+#### 2025-06-26 - System Optimization & Algorithm Alignment
+- **Frontend-Backend Algorithm Sync**: Fixed Camera Raw dehaze algorithm inconsistency
+- **Bug Fix**: Fixed GaussianBlurNode parameter passing error
+- **Project Cleanup**: Removed temporary test files, maintaining clean structure
+- **CurvePreset Smart Linking**: Implemented intelligent channel mapping between presets and PS Curve
 
 #### 2025-06-25 - PS Curve Histogram Enhancement
 - **Channel-specific histograms**: Each curve channel now displays its corresponding histogram
