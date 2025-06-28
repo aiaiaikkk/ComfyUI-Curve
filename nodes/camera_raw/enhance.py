@@ -32,7 +32,94 @@ class CameraRawEnhanceNode(BaseImageNode):
         return {
             'required': {
                 'image': ('IMAGE',),
-                # 纹理控制
+                
+                # === 曝光调整 ===
+                'exposure': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -5.0,
+                    'max': 5.0,
+                    'step': 0.1,
+                    'display': 'number',
+                    'tooltip': '曝光度调整，控制整体亮度'
+                }),
+                'highlights': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '高光调整，控制过曝区域'
+                }),
+                'shadows': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '阴影调整，提亮暗部细节'
+                }),
+                'whites': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '白色调整，调整白场点'
+                }),
+                'blacks': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '黑色调整，调整黑场点'
+                }),
+                
+                # === 色彩调整 ===
+                'temperature': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '色温调整，控制冷暖色调'
+                }),
+                'tint': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '色调调整，绿品偏向'
+                }),
+                'vibrance': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '自然饱和度，智能饱和度调整'
+                }),
+                'saturation': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '饱和度调整，整体饱和度'
+                }),
+                
+                # === 基本调整 ===
+                'contrast': ('FLOAT', {
+                    'default': 0.0,
+                    'min': -100.0,
+                    'max': 100.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '对比度调整，整体对比度'
+                }),
+                
+                # === 增强功能 ===
                 'texture': ('FLOAT', {
                     'default': 0.0,
                     'min': -100.0,
@@ -41,7 +128,6 @@ class CameraRawEnhanceNode(BaseImageNode):
                     'display': 'number',
                     'tooltip': '纹理增强，增强中等大小细节的对比度'
                 }),
-                # 清晰度控制
                 'clarity': ('FLOAT', {
                     'default': 0.0,
                     'min': -100.0,
@@ -50,7 +136,6 @@ class CameraRawEnhanceNode(BaseImageNode):
                     'display': 'number',
                     'tooltip': '清晰度调整，增强中间调对比度'
                 }),
-                # 去薄雾控制
                 'dehaze': ('FLOAT', {
                     'default': 0.0,
                     'min': -100.0,
@@ -59,7 +144,8 @@ class CameraRawEnhanceNode(BaseImageNode):
                     'display': 'number',
                     'tooltip': '去薄雾效果，减少或增加大气雾霾'
                 }),
-                # 混合控制
+                
+                # === 混合控制 ===
                 'blend': ('FLOAT', {
                     'default': 100.0,
                     'min': 0.0,
@@ -68,7 +154,6 @@ class CameraRawEnhanceNode(BaseImageNode):
                     'display': 'number',
                     'tooltip': '控制增强效果的混合程度（0-100%）'
                 }),
-                # 整体强度
                 'overall_strength': ('FLOAT', {
                     'default': 1.0,
                     'min': 0.0,
@@ -117,12 +202,27 @@ class CameraRawEnhanceNode(BaseImageNode):
                     cache_params.append(f"{key}:{value}")
         return "_".join(cache_params)
     
-    def apply_camera_raw_enhance(self, image, texture=0.0, clarity=0.0, dehaze=0.0, 
+    def apply_camera_raw_enhance(self, image, 
+                                # 曝光调整
+                                exposure=0.0, highlights=0.0, shadows=0.0, whites=0.0, blacks=0.0,
+                                # 色彩调整  
+                                temperature=0.0, tint=0.0, vibrance=0.0, saturation=0.0,
+                                # 基本调整
+                                contrast=0.0,
+                                # 增强功能
+                                texture=0.0, clarity=0.0, dehaze=0.0,
+                                # 混合控制
                                 blend=100.0, overall_strength=1.0,
+                                # 遮罩
                                 mask=None, mask_blur=0.0, invert_mask=False, unique_id=None):
         """应用Camera Raw增强效果"""
         # 性能优化：如果所有参数都是默认值且没有遮罩，直接返回原图
-        if (texture == 0 and clarity == 0 and dehaze == 0 and mask is None):
+        all_params_default = (
+            exposure == 0 and highlights == 0 and shadows == 0 and whites == 0 and blacks == 0 and
+            temperature == 0 and tint == 0 and vibrance == 0 and saturation == 0 and
+            contrast == 0 and texture == 0 and clarity == 0 and dehaze == 0
+        )
+        if all_params_default and mask is None:
             return (image,)
         
         try:
@@ -132,11 +232,17 @@ class CameraRawEnhanceNode(BaseImageNode):
             # 发送预览数据到前端
             if unique_id is not None:
                 enhance_data = {
-                    "texture": texture,
-                    "clarity": clarity,
-                    "dehaze": dehaze,
-                    "blend": blend,
-                    "overall_strength": overall_strength
+                    # 曝光调整
+                    "exposure": exposure, "highlights": highlights, "shadows": shadows, 
+                    "whites": whites, "blacks": blacks,
+                    # 色彩调整
+                    "temperature": temperature, "tint": tint, "vibrance": vibrance, "saturation": saturation,
+                    # 基本调整
+                    "contrast": contrast,
+                    # 增强功能
+                    "texture": texture, "clarity": clarity, "dehaze": dehaze,
+                    # 混合控制
+                    "blend": blend, "overall_strength": overall_strength
                 }
                 self.send_preview_to_frontend(image, unique_id, "camera_raw_enhance_preview", mask)
             
@@ -145,12 +251,16 @@ class CameraRawEnhanceNode(BaseImageNode):
                 return (self.process_batch_images(
                     image,
                     self._process_single_image,
-                    texture, clarity, dehaze, blend, overall_strength,
+                    exposure, highlights, shadows, whites, blacks,
+                    temperature, tint, vibrance, saturation,
+                    contrast, texture, clarity, dehaze, blend, overall_strength,
                     mask, mask_blur, invert_mask
                 ),)
             else:
                 result = self._process_single_image(
-                    image, texture, clarity, dehaze, blend, overall_strength,
+                    image, exposure, highlights, shadows, whites, blacks,
+                    temperature, tint, vibrance, saturation,
+                    contrast, texture, clarity, dehaze, blend, overall_strength,
                     mask, mask_blur, invert_mask
                 )
                 return (result,)
@@ -161,7 +271,10 @@ class CameraRawEnhanceNode(BaseImageNode):
             traceback.print_exc()
             return (image,)
     
-    def _process_single_image(self, image, texture, clarity, dehaze, blend, overall_strength,
+    def _process_single_image(self, image, 
+                             exposure, highlights, shadows, whites, blacks,
+                             temperature, tint, vibrance, saturation,
+                             contrast, texture, clarity, dehaze, blend, overall_strength,
                              mask, mask_blur, invert_mask):
         """处理单张图像的Camera Raw增强"""
         device = image.device
@@ -173,21 +286,53 @@ class CameraRawEnhanceNode(BaseImageNode):
         original = img_np.copy()
         
         # 检查是否需要处理
-        needs_processing = (texture != 0 or clarity != 0 or dehaze != 0 or 
-                          overall_strength != 1.0 or blend < 100.0)
+        needs_processing = (
+            exposure != 0 or highlights != 0 or shadows != 0 or whites != 0 or blacks != 0 or
+            temperature != 0 or tint != 0 or vibrance != 0 or saturation != 0 or
+            contrast != 0 or texture != 0 or clarity != 0 or dehaze != 0 or
+            overall_strength != 1.0 or blend < 100.0
+        )
         
         if not needs_processing and mask is None:
             return image
         
-        # 应用纹理增强
+        # === 第一步：曝光调整 ===
+        if exposure != 0:
+            img_np = self._apply_exposure(img_np, exposure)
+        
+        if highlights != 0:
+            img_np = self._apply_highlights(img_np, highlights)
+        
+        if shadows != 0:
+            img_np = self._apply_shadows(img_np, shadows)
+        
+        if whites != 0:
+            img_np = self._apply_whites(img_np, whites)
+        
+        if blacks != 0:
+            img_np = self._apply_blacks(img_np, blacks)
+        
+        # === 第二步：色彩调整 ===
+        if temperature != 0 or tint != 0:
+            img_np = self._apply_white_balance(img_np, temperature, tint)
+        
+        if vibrance != 0:
+            img_np = self._apply_vibrance(img_np, vibrance)
+        
+        if saturation != 0:
+            img_np = self._apply_saturation(img_np, saturation)
+        
+        # === 第三步：基本调整 ===
+        if contrast != 0:
+            img_np = self._apply_contrast(img_np, contrast)
+        
+        # === 第四步：增强功能（保持原有算法不变）===
         if texture != 0:
             img_np = self._apply_texture(img_np, texture)
         
-        # 应用清晰度增强
         if clarity != 0:
             img_np = self._apply_clarity(img_np, clarity)
         
-        # 应用去薄雾效果
         if dehaze != 0:
             img_np = self._apply_dehaze(img_np, dehaze)
         
@@ -257,6 +402,277 @@ class CameraRawEnhanceNode(BaseImageNode):
         enhanced = np.clip(enhanced, 0, 255) / 255.0
         
         return enhanced
+    
+    # === 新增的Camera Raw调整算法 ===
+    
+    def _apply_exposure(self, image, exposure_value):
+        """应用曝光调整 - 与PS Camera Raw一致"""
+        if exposure_value == 0:
+            return image
+        
+        # 曝光调整使用2的幂次方，与PS一致
+        exposure_factor = 2 ** exposure_value
+        result = image * exposure_factor
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_highlights(self, image, highlights_value):
+        """应用高光调整 - 控制过曝区域，更接近PS Camera Raw"""
+        if highlights_value == 0:
+            return image
+        
+        # 计算亮度
+        luminance = np.dot(image, [0.299, 0.587, 0.114])
+        
+        # 创建更精确的高光遮罩，类似PS的处理方式
+        # 使用S形曲线确定高光区域
+        highlight_threshold = 0.7  # 高光阈值
+        highlight_mask = np.zeros_like(luminance)
+        
+        # 对于高于阈值的区域使用渐变遮罩
+        above_threshold = luminance > highlight_threshold
+        highlight_mask[above_threshold] = (luminance[above_threshold] - highlight_threshold) / (1.0 - highlight_threshold)
+        highlight_mask = np.power(highlight_mask, 1.5)  # 让过渡更平滑
+        
+        # 扩展到RGB三通道
+        highlight_mask = highlight_mask[..., np.newaxis]
+        
+        # 调整强度，更接近PS的响应曲线
+        adjustment = highlights_value / 100.0
+        
+        if highlights_value < 0:
+            # 负值：压制高光，使用更激进的衰减
+            factor = np.power(1.0 + adjustment, 1.2)  # 非线性衰减
+            result = image * (1 - highlight_mask) + image * factor * highlight_mask
+        else:
+            # 正值：恢复高光细节，更温和的处理
+            factor = 1.0 + adjustment * 0.3  # 降低正向调整的强度
+            result = image * (1 - highlight_mask) + image * factor * highlight_mask
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_shadows(self, image, shadows_value):
+        """应用阴影调整 - 提亮暗部细节，更接近PS Camera Raw"""
+        if shadows_value == 0:
+            return image
+        
+        # 计算亮度
+        luminance = np.dot(image, [0.299, 0.587, 0.114])
+        
+        # 创建更精确的阴影遮罩，类似PS的处理方式
+        shadow_threshold = 0.3  # 阴影阈值
+        shadow_mask = np.zeros_like(luminance)
+        
+        # 对于低于阈值的区域使用渐变遮罩
+        below_threshold = luminance < shadow_threshold
+        shadow_mask[below_threshold] = (shadow_threshold - luminance[below_threshold]) / shadow_threshold
+        shadow_mask = np.power(shadow_mask, 1.2)  # 让过渡更平滑
+        
+        # 扩展到RGB三通道
+        shadow_mask = shadow_mask[..., np.newaxis]
+        
+        # 调整强度
+        adjustment = shadows_value / 100.0
+        
+        if shadows_value > 0:
+            # 正值：提亮阴影，使用更自然的提亮曲线
+            # 使用类似gamma校正的方式
+            lift_factor = 1.0 + adjustment * 0.8
+            # 对阴影区域进行非线性提亮
+            lifted_image = np.power(image, 1.0 / lift_factor)
+            result = image * (1 - shadow_mask) + lifted_image * shadow_mask
+        else:
+            # 负值：压暗阴影，使用更强的压暗
+            factor = np.power(1.0 + adjustment, 0.8)  # 非线性压暗
+            result = image * (1 - shadow_mask) + image * factor * shadow_mask
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_whites(self, image, whites_value):
+        """应用白色调整 - 调整白场点，更接近PS Camera Raw"""
+        if whites_value == 0:
+            return image
+        
+        # 白色调整主要影响亮部，使用更精确的曲线
+        adjustment = whites_value / 100.0
+        
+        # 计算亮度
+        luminance = np.dot(image, [0.299, 0.587, 0.114])
+        
+        # 创建白色权重遮罩，主要影响中间调到高光
+        # 使用S形曲线，更符合PS的处理方式
+        white_weight = np.power(luminance, 2.0)  # 强调亮部
+        white_weight = white_weight[..., np.newaxis]
+        
+        if whites_value > 0:
+            # 正值：扩展白场，提升亮部
+            # 使用更激进的提升
+            factor = 1.0 + adjustment * 0.8 * white_weight
+        else:
+            # 负值：压缩白场，降低亮部
+            # 使用更温和的压缩
+            factor = 1.0 + adjustment * 0.4 * white_weight
+        
+        result = image * factor
+        return np.clip(result, 0, 1)
+    
+    def _apply_blacks(self, image, blacks_value):
+        """应用黑色调整 - 调整黑场点，更接近PS Camera Raw"""
+        if blacks_value == 0:
+            return image
+        
+        # 黑色调整主要影响暗部，使用更精确的曲线
+        adjustment = blacks_value / 100.0
+        
+        # 计算亮度
+        luminance = np.dot(image, [0.299, 0.587, 0.114])
+        
+        # 创建黑色权重遮罩，主要影响阴影到中间调
+        # 使用反向S形曲线，强调暗部
+        black_weight = 1.0 - np.power(luminance, 0.5)  # 强调暗部
+        black_weight = np.power(black_weight, 1.5)  # 让过渡更平滑
+        black_weight = black_weight[..., np.newaxis]
+        
+        if blacks_value > 0:
+            # 正值：提升黑场，减少深黑色，类似lift操作
+            # 使用加法操作，更自然
+            lift_amount = adjustment * 0.4 * black_weight
+            result = image + lift_amount
+        else:
+            # 负值：压暗黑场，增加深黑色
+            # 使用乘法操作，保持黑色的纯净度
+            factor = 1.0 + adjustment * 0.6 * black_weight
+            result = image * factor
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_white_balance(self, image, temperature, tint):
+        """应用白平衡调整 - 色温和色调，更接近PS Camera Raw"""
+        if temperature == 0 and tint == 0:
+            return image
+        
+        # 更精确的色温映射，基于黑体辐射曲线
+        temp_factor = temperature / 100.0
+        tint_factor = tint / 100.0
+        
+        # PS Camera Raw风格的色温调整
+        # 使用更复杂的色温曲线，更接近真实的色温变化
+        if temp_factor != 0:
+            if temp_factor > 0:
+                # 正值：暖色调（增加红色，减少蓝色）
+                # 使用非线性曲线模拟真实色温变化
+                temp_intensity = np.power(temp_factor, 0.8)
+                r_mult = 1.0 + temp_intensity * 0.4
+                g_mult = 1.0 + temp_intensity * 0.15
+                b_mult = 1.0 - temp_intensity * 0.25
+            else:
+                # 负值：冷色调（减少红色，增加蓝色）
+                temp_intensity = np.power(-temp_factor, 0.8)
+                r_mult = 1.0 - temp_intensity * 0.3
+                g_mult = 1.0 - temp_intensity * 0.1
+                b_mult = 1.0 + temp_intensity * 0.35
+        else:
+            r_mult = g_mult = b_mult = 1.0
+        
+        # PS Camera Raw风格的色调调整
+        # 更精确地模拟绿-品红轴的调整
+        if tint_factor != 0:
+            if tint_factor > 0:
+                # 正值：偏绿
+                tint_intensity = np.power(tint_factor, 0.9)
+                g_mult *= 1.0 + tint_intensity * 0.25
+                r_mult *= 1.0 - tint_intensity * 0.12
+                b_mult *= 1.0 - tint_intensity * 0.12
+            else:
+                # 负值：偏品红
+                tint_intensity = np.power(-tint_factor, 0.9)
+                g_mult *= 1.0 - tint_intensity * 0.2
+                r_mult *= 1.0 + tint_intensity * 0.1
+                b_mult *= 1.0 + tint_intensity * 0.1
+        
+        # 应用调整
+        result = image.copy()
+        result[:, :, 0] *= r_mult  # Red
+        result[:, :, 1] *= g_mult  # Green
+        result[:, :, 2] *= b_mult  # Blue
+        
+        # 轻微的归一化，防止过度饱和
+        max_channel = np.max(result, axis=2, keepdims=True)
+        over_saturated = max_channel > 1.0
+        result[over_saturated] = result[over_saturated] / max_channel[over_saturated]
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_vibrance(self, image, vibrance_value):
+        """应用自然饱和度调整 - 智能饱和度"""
+        if vibrance_value == 0:
+            return image
+        
+        # 转换到HSV空间进行处理
+        img_uint8 = (image * 255).astype(np.uint8)
+        hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV).astype(np.float32)
+        h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        
+        # 自然饱和度的特点：对已经饱和的颜色影响较小
+        adjustment = vibrance_value / 100.0
+        
+        # 创建保护遮罩：已经高饱和度的区域受到保护
+        saturation_mask = 1.0 - (s / 255.0) ** 2  # 高饱和度区域权重小
+        
+        # 肤色保护：减少对肤色的影响
+        # 肤色在HSV中大约在色相10-25度范围
+        skin_mask = np.ones_like(h)
+        skin_hue_range = ((h >= 5) & (h <= 30)) | ((h >= 160) & (h <= 180))
+        skin_mask[skin_hue_range] = 0.3  # 肤色区域减少影响
+        
+        # 综合遮罩
+        final_mask = saturation_mask * skin_mask
+        
+        if adjustment > 0:
+            # 正值：增加自然饱和度
+            s_enhanced = s + adjustment * 120 * final_mask
+        else:
+            # 负值：减少饱和度
+            s_enhanced = s + adjustment * 255 * final_mask
+        
+        s_enhanced = np.clip(s_enhanced, 0, 255)
+        
+        # 重新组合HSV
+        hsv_enhanced = np.stack([h, s_enhanced, v], axis=2)
+        result_uint8 = cv2.cvtColor(hsv_enhanced.astype(np.uint8), cv2.COLOR_HSV2RGB)
+        
+        return result_uint8.astype(np.float32) / 255.0
+    
+    def _apply_saturation(self, image, saturation_value):
+        """应用饱和度调整 - 整体饱和度"""
+        if saturation_value == 0:
+            return image
+        
+        # 计算灰度版本
+        gray = np.dot(image, [0.299, 0.587, 0.114])
+        
+        # 饱和度调整
+        adjustment = saturation_value / 100.0
+        saturation_factor = 1.0 + adjustment
+        
+        # 混合彩色和灰度
+        result = gray[..., np.newaxis] * (1 - saturation_factor) + image * saturation_factor
+        
+        return np.clip(result, 0, 1)
+    
+    def _apply_contrast(self, image, contrast_value):
+        """应用对比度调整"""
+        if contrast_value == 0:
+            return image
+        
+        # 对比度调整
+        adjustment = contrast_value / 100.0
+        contrast_factor = 1.0 + adjustment
+        
+        # 以0.5为中心点进行对比度调整
+        result = (image - 0.5) * contrast_factor + 0.5
+        
+        return np.clip(result, 0, 1)
     
     def _apply_dehaze(self, image, dehaze_strength):
         """应用去薄雾效果 - 简化版，与前端算法保持一致"""
