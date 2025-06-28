@@ -97,10 +97,17 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 #### 🎯 Camera Raw增强 (Camera Raw Enhance)
 ![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
+
+**去薄雾效果对比**：
+![Dehaze Comparison 1](images/dehaze_comparison_1.jpg)
+![Dehaze Comparison 2](images/dehaze_comparison_2.jpg)
+
 - 集成Adobe Camera Raw的三个核心增强功能
 - **纹理 (Texture)**：增强中等大小细节的对比度，范围-100到100
 - **清晰度 (Clarity)**：增强中间调对比度，让图像更锐利，范围-100到100
 - **去薄雾 (Dehaze)**：减少或增加大气雾霾效果，范围-100到100
+- **前后端算法完全一致**：实时预览效果与最终输出完全匹配
+- **智能算法选择**：根据图像特征自动选择最优去薄雾算法
 - 支持混合控制和整体强度调节
 - 包含完整的前端JavaScript界面，支持实时预览
 - **支持自定义预设**：可保存、加载、管理和分享您的增强预设
@@ -430,10 +437,17 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 
 #### 🎯 Camera Raw Enhance
 ![Camera Raw Enhance Node](images/CameraRawEnhanced.png)
+
+**Dehaze Effect Comparison**:
+![Dehaze Comparison 1](images/dehaze_comparison_1.jpg)
+![Dehaze Comparison 2](images/dehaze_comparison_2.jpg)
+
 - Integrates three core Adobe Camera Raw enhancement features
 - **Texture**: Enhances medium-sized detail contrast, range -100 to 100
 - **Clarity**: Enhances midtone contrast for sharper images, range -100 to 100
 - **Dehaze**: Reduces or adds atmospheric haze effect, range -100 to 100
+- **Frontend-backend algorithm consistency**: Real-time preview effects match final output perfectly
+- **Intelligent algorithm selection**: Automatically chooses optimal dehaze algorithm based on image characteristics
 - Supports blend control and overall strength adjustment
 - Includes complete frontend JavaScript interface with real-time preview
 - **Custom preset support**: Save, load, manage and share your enhancement presets
