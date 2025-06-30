@@ -51,6 +51,14 @@ class PhotoshopCurveNode(BaseImageNode):
                     'default': 'cubic',
                     'tooltip': '曲线插值类型'
                 }),
+                'strength': ('FLOAT', {
+                    'default': 100.0,
+                    'min': 0.0,
+                    'max': 200.0,
+                    'step': 1.0,
+                    'display': 'number',
+                    'tooltip': '调整效果强度，100为完整效果，0为无效果'
+                }),
             },
             'optional': {
                 'preset_curve_points': ('STRING', {
@@ -91,7 +99,7 @@ class PhotoshopCurveNode(BaseImageNode):
     
     def apply_curve_adjustment(self, image, rgb_curve='[[0,0],[255,255]]', 
                                red_curve='[[0,0],[255,255]]', green_curve='[[0,0],[255,255]]', 
-                               blue_curve='[[0,0],[255,255]]', curve_type='cubic',
+                               blue_curve='[[0,0],[255,255]]', curve_type='cubic', strength=100.0,
                                preset_curve_points=None, preset_suggested_channel=None,
                                mask=None, mask_blur=0.0, invert_mask=False, unique_id=None, **kwargs):
         """应用曲线调整"""
@@ -149,7 +157,7 @@ class PhotoshopCurveNode(BaseImageNode):
                 processed_image = self.process_batch_images(
                     image, 
                     self._process_single_image,
-                    rgb_curve, red_curve, green_curve, blue_curve, curve_type,
+                    rgb_curve, red_curve, green_curve, blue_curve, curve_type, strength,
                     mask, mask_blur, invert_mask
                 )
                 # 使用第一张图像生成曲线图表
@@ -162,7 +170,7 @@ class PhotoshopCurveNode(BaseImageNode):
                 return (processed_image, curve_chart)
             else:
                 result = self._process_single_image(
-                    image, rgb_curve, red_curve, green_curve, blue_curve, curve_type,
+                    image, rgb_curve, red_curve, green_curve, blue_curve, curve_type, strength,
                     mask, mask_blur, invert_mask
                 )
                 # 生成曲线图表
@@ -186,7 +194,7 @@ class PhotoshopCurveNode(BaseImageNode):
                 image = image.unsqueeze(0)
             return (image, blank_chart)
     
-    def _process_single_image(self, image, rgb_curve, red_curve, green_curve, blue_curve, curve_type,
+    def _process_single_image(self, image, rgb_curve, red_curve, green_curve, blue_curve, curve_type, strength,
                               mask, mask_blur, invert_mask):
         """处理单张图像的曲线调整"""
         import json
@@ -247,6 +255,11 @@ class PhotoshopCurveNode(BaseImageNode):
         
         # 转换回tensor
         result = torch.from_numpy(result_np.astype(np.float32) / 255.0).to(device)
+        
+        # 应用强度混合
+        if strength < 100.0:
+            strength_ratio = strength / 100.0
+            result = image * (1.0 - strength_ratio) + result * strength_ratio
         
         # 应用遮罩
         if mask is not None:

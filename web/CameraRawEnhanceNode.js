@@ -946,207 +946,69 @@ class CameraRawEnhanceEditor {
             g = g255 / 255;
             b = b255 / 255;
             
-            // 去薄雾效果 - 与后端最优混合算法完全一致
+            // 去薄雾效果 - 简化版，与后端效果匹配
             if (dehaze !== 0) {
-                // 转换为255范围用于去薄雾算法
-                let r255 = r * 255;
-                let g255 = g * 255;
-                let b255 = b * 255;
+                const dehazeStrength = Math.abs(dehaze);
                 
-                const dehazeStrength = dehaze;  // dehaze已经在第792行除以100了
-                
-                if (dehazeStrength > 0) {
-                    // 使用后端相同的最优混合算法（简化版）
-                    // 分析图像特征（简化版）
-                    const brightness = (r255 + g255 + b255) / (3 * 255);  // 归一化亮度
-                    const contrast = Math.abs(r255 - g255) + Math.abs(g255 - b255) + Math.abs(r255 - b255); // 简化对比度
-                    const maxRGB = Math.max(r255, g255, b255);
-                    const minRGB = Math.min(r255, g255, b255);
-                    const saturation = maxRGB > 0 ? ((maxRGB - minRGB) / maxRGB) * 255 : 0; // 简化饱和度
+                if (dehaze > 0) {
+                    // 正向去薄雾 - 基于后端测试验证的最佳效果
+                    // 1. 饱和度增强 (1 + strength * 1.5，最大2.5倍)
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const saturationBoost = 1 + dehazeStrength * 1.5;
+                    r = gray + (r - gray) * saturationBoost;
+                    g = gray + (g - gray) * saturationBoost;
+                    b = gray + (b - gray) * saturationBoost;
                     
-                    // 智能选择算法（与后端逻辑一致）
-                    const is_foggy_type = (contrast < 25.5 && saturation < 40);  // 对应后端的0.1和40
-                    const is_clear_type = (contrast > 38.25 && saturation > 60); // 对应后端的0.15和60
+                    // 2. 亮度降低 (1 - strength * 0.25，最低0.75)
+                    const brightnessReduction = 1 - dehazeStrength * 0.25;
+                    r *= brightnessReduction;
+                    g *= brightnessReduction;
+                    b *= brightnessReduction;
                     
-                    let processed_r = r, processed_g = g, processed_b = b;
+                    // 3. 对比度增强 (1 + strength * 0.3)
+                    const contrastBoost = 1 + dehazeStrength * 0.3;
+                    r = (r - 0.5) * contrastBoost + 0.5;
+                    g = (g - 0.5) * contrastBoost + 0.5;
+                    b = (b - 0.5) * contrastBoost + 0.5;
                     
-                    if (is_foggy_type) {
-                        // V2算法 - 适合低饱和度薄雾图像
-                        let stretch_params, power_params, global_scale;
-                        
-                        if (saturation < 30) {
-                            stretch_params = [[0.018, 0.985, 0.618], [0.013, 0.988, 0.636], [0.023, 0.980, 0.570]];
-                            power_params = [1.12, 1.06, 1.28];
-                            global_scale = 1.04;
-                        } else if (saturation > 70) {
-                            stretch_params = [[0.010, 0.995, 0.75], [0.008, 0.996, 0.78], [0.015, 0.990, 0.70]];
-                            power_params = [1.03, 1.01, 1.10];
-                            global_scale = 1.01;
-                        } else {
-                            stretch_params = [[0.014, 0.990, 0.68], [0.010, 0.992, 0.70], [0.019, 0.986, 0.63]];
-                            power_params = [1.07, 1.03, 1.18];
-                            global_scale = 1.025;
-                        }
-                        
-                        // 根据强度调整参数
-                        const channels = [r255, g255, b255];
-                        for (let ch = 0; ch < 3; ch++) {
-                            const [low_p, high_p, scale] = stretch_params[ch];
-                            const power = power_params[ch];
-                            
-                            // 简化的百分位数计算
-                            const normalized = channels[ch] / 255.0;
-                            const adj_low = low_p * dehazeStrength + (1.0 - dehazeStrength) * 0.01;
-                            const adj_high = high_p * dehazeStrength + (1.0 - dehazeStrength) * 0.99;
-                            const adj_scale = scale * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                            const adj_power = power * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                            
-                            // 简化的拉伸和幂函数
-                            let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                            processed = Math.pow(processed * adj_scale, adj_power);
-                            
-                            if (ch === 0) processed_r = processed * 255;
-                            else if (ch === 1) processed_g = processed * 255;
-                            else processed_b = processed * 255;
-                        }
-                        
-                        // 应用全局缩放
-                        const adj_global = global_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        processed_r *= adj_global;
-                        processed_g *= adj_global;
-                        processed_b *= adj_global;
-                        
-                    } else if (is_clear_type) {
-                        // V3算法 - 适合高对比度图像
-                        const brightness_factor = Math.max(0.5, Math.min(1.5, 1.0 / brightness));
-                        const contrast_factor = Math.max(0.5, Math.min(1.5, 25.5 / contrast));
-                        const saturation_factor = Math.max(0.5, Math.min(1.5, 50.0 / saturation));
-                        let overall_factor = Math.max(0.6, Math.min(1.4, (brightness_factor + contrast_factor + saturation_factor) / 3.0));
-                        
-                        // 根据强度调整overall_factor
-                        overall_factor = overall_factor * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        
-                        const base_stretch = [[0.016, 0.988, 0.68], [0.012, 0.990, 0.70], [0.022, 0.984, 0.62]];
-                        const base_power = [1.08, 1.04, 1.20];
-                        const base_global = 1.03;
-                        
-                        const channels = [r255, g255, b255];
-                        for (let ch = 0; ch < 3; ch++) {
-                            const [low_p, high_p, scale] = base_stretch[ch];
-                            const power = base_power[ch];
-                            
-                            const normalized = channels[ch] / 255.0;
-                            let adj_low = low_p * (2.0 - overall_factor);
-                            let adj_high = high_p + (1.0 - high_p) * (overall_factor - 1.0) * 0.5;
-                            let adj_scale = scale * (0.8 + 0.4 * overall_factor);
-                            let adj_power = power * (0.7 + 0.6 * overall_factor);
-                            
-                            // 确保强度为0时回到原始状态
-                            adj_low = adj_low * dehazeStrength + 0.01 * (1.0 - dehazeStrength);
-                            adj_high = adj_high * dehazeStrength + 0.99 * (1.0 - dehazeStrength);
-                            adj_scale = adj_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            adj_power = adj_power * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            
-                            let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                            processed = Math.pow(processed * adj_scale, adj_power);
-                            
-                            if (ch === 0) processed_r = processed * 255;
-                            else if (ch === 1) processed_g = processed * 255;
-                            else processed_b = processed * 255;
-                        }
-                        
-                        const adj_global = (base_global * (0.8 + 0.4 * overall_factor)) * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        processed_r *= adj_global;
-                        processed_g *= adj_global;
-                        processed_b *= adj_global;
-                        
-                    } else {
-                        // 选择更接近的类型（使用V2作为默认）
-                        const type1_similarity = Math.abs(contrast - 14.535) + Math.abs(saturation - 11.7) / 10; // 对应0.057
-                        const type2_similarity = Math.abs(contrast - 49.725) + Math.abs(saturation - 83.0) / 10; // 对应0.195
-                        
-                        if (type1_similarity < type2_similarity) {
-                            // 使用V2算法（已在上面实现）
-                            const stretch_params = [[0.014, 0.990, 0.68], [0.010, 0.992, 0.70], [0.019, 0.986, 0.63]];
-                            const power_params = [1.07, 1.03, 1.18];
-                            const global_scale = 1.025;
-                            
-                            const channels = [r255, g255, b255];
-                            for (let ch = 0; ch < 3; ch++) {
-                                const [low_p, high_p, scale] = stretch_params[ch];
-                                const power = power_params[ch];
-                                
-                                const normalized = channels[ch] / 255.0;
-                                const adj_low = low_p * dehazeStrength + (1.0 - dehazeStrength) * 0.01;
-                                const adj_high = high_p * dehazeStrength + (1.0 - dehazeStrength) * 0.99;
-                                const adj_scale = scale * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                                const adj_power = power * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                                
-                                let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                                processed = Math.pow(processed * adj_scale, adj_power);
-                                
-                                if (ch === 0) processed_r = processed * 255;
-                                else if (ch === 1) processed_g = processed * 255;
-                                else processed_b = processed * 255;
-                            }
-                            
-                            const adj_global = global_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            processed_r *= adj_global;
-                            processed_g *= adj_global;
-                            processed_b *= adj_global;
-                        } else {
-                            // 使用V3算法（简化版）
-                            const satFactor = 1 + dehazeStrength * 0.4; // 较温和的饱和度增强
-                            const gray = (r255 + g255 + b255) / 3;
-                            processed_r = gray + (r255 - gray) * satFactor;
-                            processed_g = gray + (g255 - gray) * satFactor;
-                            processed_b = gray + (b255 - gray) * satFactor;
-                            
-                            // 轻微的对比度增强
-                            const contrastFactor = 1 + dehazeStrength * 0.2;
-                            processed_r = (processed_r - 128) * contrastFactor + 128;
-                            processed_g = (processed_g - 128) * contrastFactor + 128;
-                            processed_b = (processed_b - 128) * contrastFactor + 128;
-                        }
-                    }
+                    // 4. 色彩平衡调整
+                    r *= 1.0;   // 红色保持不变
+                    g *= 0.98;  // 绿色稍微降低
+                    b *= 0.88;  // 蓝色明显降低（减少雾霾的蓝色调）
                     
-                    r255 = processed_r;
-                    g255 = processed_g;
-                    b255 = processed_b;
+                    // 5. 与原图混合 (混合强度: 0.9 * strength)
+                    const originalR = data[i] / 255.0;
+                    const originalG = data[i + 1] / 255.0;
+                    const originalB = data[i + 2] / 255.0;
+                    
+                    const blendStrength = 0.9 * dehazeStrength;
+                    r = originalR * (1 - blendStrength) + r * blendStrength;
+                    g = originalG * (1 - blendStrength) + g * blendStrength;
+                    b = originalB * (1 - blendStrength) + b * blendStrength;
                     
                 } else {
                     // 负向去薄雾 - 添加雾霾效果
-                    const hazeStrength = -dehazeStrength;
+                    const hazeStrength = dehazeStrength;
                     
                     // 降低对比度
                     const gamma = 1 + hazeStrength * 0.5;
-                    r255 = Math.pow(r255 / 255, gamma) * 255;
-                    g255 = Math.pow(g255 / 255, gamma) * 255;
-                    b255 = Math.pow(b255 / 255, gamma) * 255;
+                    r = Math.pow(r, gamma);
+                    g = Math.pow(g, gamma);
+                    b = Math.pow(b, gamma);
                     
                     // 降低饱和度
-                    const gray = r255 * 0.299 + g255 * 0.587 + b255 * 0.114;
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
                     const desatFactor = 1 - hazeStrength * 0.3;
-                    r255 = r255 * desatFactor + gray * (1 - desatFactor);
-                    g255 = g255 * desatFactor + gray * (1 - desatFactor);
-                    b255 = b255 * desatFactor + gray * (1 - desatFactor);
+                    r = r * desatFactor + gray * (1 - desatFactor);
+                    g = g * desatFactor + gray * (1 - desatFactor);
+                    b = b * desatFactor + gray * (1 - desatFactor);
                     
-                    // 添加大气光
-                    const atmosphericLight = 204; // 0.8 * 255
-                    r255 += (atmosphericLight - r255) * hazeStrength * 0.2;
-                    g255 += (atmosphericLight - g255) * hazeStrength * 0.2;
-                    b255 += (atmosphericLight - b255) * hazeStrength * 0.2;
+                    // 添加大气光 (模拟雾霾)
+                    const atmosphericLight = 0.8; // 0.8的亮度
+                    r += (atmosphericLight - r) * hazeStrength * 0.2;
+                    g += (atmosphericLight - g) * hazeStrength * 0.2;
+                    b += (atmosphericLight - b) * hazeStrength * 0.2;
                 }
-                
-                // 确保值在有效范围内
-                r255 = Math.min(255, Math.max(0, r255));
-                g255 = Math.min(255, Math.max(0, g255));
-                b255 = Math.min(255, Math.max(0, b255));
-                
-                // 转回0-1范围
-                r = r255 / 255;
-                g = g255 / 255;
-                b = b255 / 255;
             }
             
             // 最终确保值在有效范围内并转换为0-255范围

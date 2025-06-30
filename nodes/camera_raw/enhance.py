@@ -147,7 +147,7 @@ class CameraRawEnhanceNode(BaseImageNode):
                 
                 # === 混合控制 ===
                 'blend': ('FLOAT', {
-                    'default': 100.0,
+                    'default': 50.0,
                     'min': 0.0,
                     'max': 100.0,
                     'step': 1.0,
@@ -212,7 +212,7 @@ class CameraRawEnhanceNode(BaseImageNode):
                                 # 增强功能
                                 texture=0.0, clarity=0.0, dehaze=0.0,
                                 # 混合控制
-                                blend=100.0, overall_strength=1.0,
+                                blend=50.0, overall_strength=1.0,
                                 # 遮罩
                                 mask=None, mask_blur=0.0, invert_mask=False, unique_id=None):
         """应用Camera Raw增强效果"""
@@ -290,7 +290,7 @@ class CameraRawEnhanceNode(BaseImageNode):
             exposure != 0 or highlights != 0 or shadows != 0 or whites != 0 or blacks != 0 or
             temperature != 0 or tint != 0 or vibrance != 0 or saturation != 0 or
             contrast != 0 or texture != 0 or clarity != 0 or dehaze != 0 or
-            overall_strength != 1.0 or blend < 100.0
+            overall_strength != 1.0 or blend != 50.0
         )
         
         if not needs_processing and mask is None:
@@ -341,7 +341,7 @@ class CameraRawEnhanceNode(BaseImageNode):
             img_np = original * (1 - overall_strength) + img_np * overall_strength
         
         # 应用混合
-        if blend < 100.0:
+        if blend != 50.0:
             blend_factor = blend / 100.0
             img_np = original * (1 - blend_factor) + img_np * blend_factor
         
@@ -697,10 +697,42 @@ class CameraRawEnhanceNode(BaseImageNode):
     
     def _simple_dehaze_frontend_match(self, image, dehaze_factor):
         """
-        最优Camera Raw去薄雾算法 - 基于大量测试和用户反馈优化
-        智能选择V2或V3算法以获得最佳效果
+        简化版去薄雾算法 - 与前端完全一致
+        基于大量测试验证的最佳效果参数
         """
-        return self._optimal_camera_raw_dehaze(image, dehaze_factor)
+        if dehaze_factor == 0:
+            return image
+        
+        # 转换为float32确保计算精度
+        result = image.astype(np.float32)
+        original = result.copy()
+        
+        # 1. 饱和度增强 (1 + strength * 1.5，最大2.5倍)
+        # 计算灰度值
+        gray = result[:,:,0] * 0.299 + result[:,:,1] * 0.587 + result[:,:,2] * 0.114
+        gray = np.expand_dims(gray, axis=2)
+        
+        saturation_boost = 1 + dehaze_factor * 1.5
+        result = gray + (result - gray) * saturation_boost
+        
+        # 2. 亮度降低 (1 - strength * 0.25，最低0.75)
+        brightness_reduction = 1 - dehaze_factor * 0.25
+        result *= brightness_reduction
+        
+        # 3. 对比度增强 (1 + strength * 0.3)
+        contrast_boost = 1 + dehaze_factor * 0.3
+        result = (result - 0.5) * contrast_boost + 0.5
+        
+        # 4. 色彩平衡调整
+        result[:,:,0] *= 1.0   # 红色保持不变
+        result[:,:,1] *= 0.98  # 绿色稍微降低
+        result[:,:,2] *= 0.88  # 蓝色明显降低（减少雾霾的蓝色调）
+        
+        # 5. 与原图混合 (混合强度: 0.9 * strength)
+        blend_strength = 0.9 * dehaze_factor
+        result = original * (1 - blend_strength) + result * blend_strength
+        
+        return np.clip(result, 0, 1)
     
     def _optimal_camera_raw_dehaze(self, image, strength):
         """
