@@ -71,12 +71,7 @@ class GaussianBlurNode(BaseImageNode):
             
             # 发送预览数据到前端
             if unique_id is not None:
-                blur_data = {
-                    "blur_radius": blur_radius,
-                    "mask_blur": mask_blur,
-                    "invert_mask": invert_mask
-                }
-                self.send_preview_to_frontend(image, unique_id, "gaussian_blur_preview", mask, blur_data)
+                self.send_preview_to_frontend(image, unique_id, "gaussian_blur_preview", mask)
             
             # 支持批处理
             if len(image.shape) == 4:

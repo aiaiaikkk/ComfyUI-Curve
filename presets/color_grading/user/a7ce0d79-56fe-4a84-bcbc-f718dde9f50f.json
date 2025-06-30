@@ -1,0 +1,32 @@
+{
+  "id": "a7ce0d79-56fe-4a84-bcbc-f718dde9f50f",
+  "name": "t",
+  "description": "t",
+  "category": "custom",
+  "created_at": "2025-06-26T22:13:39.467959",
+  "author": "Anonymous",
+  "version": "1.0",
+  "node_type": "color_grading",
+  "parameters": {
+    "shadows_hue": 131.79994130023823,
+    "shadows_saturation": 86.08587467774636,
+    "shadows_luminance": 0,
+    "midtones_hue": 0,
+    "midtones_saturation": 0,
+    "midtones_luminance": 0,
+    "highlights_hue": 54.86273217367199,
+    "highlights_saturation": 88.00362194656799,
+    "highlights_luminance": 0,
+    "blend": 100,
+    "balance": 0,
+    "blend_mode": "normal",
+    "overall_strength": 1
+  },
+  "metadata": {
+    "tags": [
+      "color_grading",
+      "custom"
+    ],
+    "thumbnail": ""
+  }
+}

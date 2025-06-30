@@ -67,22 +67,44 @@ class HistogramAnalysisNode(BaseImageNode):
             
             # 支持批处理
             if len(image.shape) == 4:
-                return (self.process_batch_images(
-                    image,
-                    self._process_single_image,
-                    channel, histogram_bins, show_statistics, export_data
-                ),)
+                batch_size = image.shape[0]
+                histogram_images = []
+                histogram_datas = []
+                statistics_list = []
+                raw_datas = []
+                
+                for i in range(batch_size):
+                    result = self._process_single_image(
+                        image[i], channel, histogram_bins, show_statistics, export_data
+                    )
+                    histogram_images.append(result[0])
+                    histogram_datas.append(result[1])
+                    statistics_list.append(result[2])
+                    raw_datas.append(result[3])
+                
+                # 将直方图图像堆叠成批次
+                histogram_batch = torch.stack(histogram_images)
+                
+                # 对于文本数据，如果是批处理，返回第一个（因为ComfyUI不支持批量字符串）
+                return (histogram_batch, histogram_datas[0], statistics_list[0], raw_datas[0])
             else:
                 result = self._process_single_image(
                     image, channel, histogram_bins, show_statistics, export_data
                 )
-                return result
+                # 确保图像有批次维度
+                if len(result[0].shape) == 3:
+                    histogram_image = result[0].unsqueeze(0)
+                else:
+                    histogram_image = result[0]
+                return (histogram_image, result[1], result[2], result[3])
                 
         except Exception as e:
             print(f"HistogramAnalysisNode error: {e}")
             import traceback
             traceback.print_exc()
             fallback_hist = self._create_fallback_histogram_image()
+            if len(fallback_hist.shape) == 3:
+                fallback_hist = fallback_hist.unsqueeze(0)
             return (fallback_hist, "Error generating histogram", "Error calculating statistics", "Error exporting data")
     
     def _process_single_image(self, image, channel, histogram_bins, show_statistics, export_data):
@@ -170,7 +192,7 @@ class HistogramAnalysisNode(BaseImageNode):
         
         pil_image = Image.open(buf)
         img_array = np.array(pil_image.convert('RGB'))
-        result_tensor = torch.from_numpy(img_array.astype(np.float32) / 255.0)
+        result_tensor = torch.from_numpy(img_array.astype(np.float32) / 255.0).to(img_255.device)
         
         plt.close(fig)
         buf.close()
@@ -317,5 +339,14 @@ class HistogramAnalysisNode(BaseImageNode):
     def _create_fallback_histogram_image(self):
         """创建错误时的备用直方图图像"""
         # 创建简单的错误图像
-        error_image = np.ones((400, 600, 3), dtype=np.float32) * 0.1
+        error_image = np.ones((600, 800, 3), dtype=np.float32) * 0.1
+        # 添加错误文本
+        from PIL import ImageDraw, ImageFont
+        pil_img = Image.fromarray((error_image * 255).astype(np.uint8))
+        draw = ImageDraw.Draw(pil_img)
+        try:
+            draw.text((400, 300), "Error generating histogram", fill=(255, 100, 100), anchor="mm")
+        except:
+            pass
+        error_image = np.array(pil_img).astype(np.float32) / 255.0
         return torch.from_numpy(error_image)

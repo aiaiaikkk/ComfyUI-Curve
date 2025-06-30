@@ -939,6 +939,19 @@ app.registerExtension({
                 resetBtn.textContent = "重置";
                 resetBtn.onclick = () => {
                     this.resetAllParameters();
+                    
+                    // 直接重置所有输入框的值
+                    const allRangeInputs = controlsContainer.querySelectorAll("input[type='range']");
+                    const allValueInputs = controlsContainer.querySelectorAll(".hsl-value-input");
+                    
+                    allRangeInputs.forEach(input => {
+                        input.value = 0;
+                    });
+                    
+                    allValueInputs.forEach(input => {
+                        input.value = 0;
+                    });
+                    
                     this.updateModalControls(controlsContainer);
                     updatePreviewImage();
                 };
@@ -1553,16 +1566,17 @@ app.registerExtension({
                                 // 应用调整到所有相关颜色范围
                                 let adjustedHSV = [...hsv];
                                 
-                                // 检查每个颜色范围并应用调整（匹配后端逻辑）
+                                // 基于OpenCV HSV真实分布的精确颜色范围定义
+                                // OpenCV HSV: 0°=红, 30°=黄, 60°=绿, 90°=青, 120°=蓝, 150°=洋红
                                 const colorRanges = {
-                                    red: [[0, 10], [170, 179]],      // 红色 - 跨越0度
-                                    orange: [[11, 25]],              // 橙色
-                                    yellow: [[26, 40]],              // 黄色
-                                    green: [[41, 80]],               // 绿色 - 扩大范围
-                                    cyan: [[81, 100]],               // 青色
-                                    blue: [[101, 130]],              // 蓝色 - 修正范围
-                                    purple: [[131, 150]],            // 紫色
-                                    magenta: [[151, 169]]            // 洋红
+                                    red: [[0, 10], [170, 179]],      // 红色：0度附近 (已校准)
+                                    orange: [[10, 25]],              // 橙色：15度附近 (红-黄之间)
+                                    yellow: [[25, 45]],              // 黄色：30度附近 ±15度
+                                    green: [[45, 85]],               // 绿色：60度附近 ±25度 **修正**
+                                    cyan: [[85, 105]],               // 青色：90度附近 ±15度 **修正**
+                                    blue: [[105, 135]],              // 蓝色：120度附近 ±15度 **修正**
+                                    purple: [[135, 155]],            // 紫色：135-155度 **修正**
+                                    magenta: [[155, 170]]            // 洋红：155-170度 **修正**
                                 };
                                 
                                 Object.keys(colorRanges).forEach(colorName => {
@@ -1571,6 +1585,12 @@ app.registerExtension({
                                     
                                     if (!colorParams || (colorParams.hue === 0 && colorParams.saturation === 0 && colorParams.lightness === 0)) {
                                         return;
+                                    }
+                                    
+                                    // 饱和度阈值过滤（匹配后端实现）
+                                    const SATURATION_THRESHOLD = 15;
+                                    if (adjustedHSV[1] < SATURATION_THRESHOLD) {
+                                        return; // 跳过低饱和度像素
                                     }
                                     
                                     // 检查像素是否在当前颜色范围内
@@ -1586,9 +1606,29 @@ app.registerExtension({
                                     if (inRange) {
                                         // 应用调整（修复为匹配PS和后端算法）
                                         if (colorParams.hue !== 0) {
-                                            // 修复：使用1.8的缩放因子匹配PS的色相调整
-                                            const hueAdjustment = colorParams.hue * 1.8; // 将-100~100映射到-180~180度
-                                            adjustedHSV[0] = (adjustedHSV[0] + hueAdjustment) % 180;
+                                            // 匹配后端的线性映射：-100到+100映射到-60到+60度
+                                            function getPreciseHueMapping(inputDegrees) {
+                                                // 直接线性映射：-100到+100 映射到 -60到+60
+                                                // 与后端nodes/photoshop/hsl.py完全一致
+                                                return inputDegrees * 0.6;
+                                            }
+                                            
+                                            const hueAdjustment = getPreciseHueMapping(colorParams.hue);
+                                            
+                                            // 匹配后端的色相计算逻辑
+                                            // 先转换当前色相到360度范围，进行调整，再转回OpenCV范围
+                                            const currentHue360 = adjustedHSV[0] * 2;  // 转换到360度范围
+                                            let adjustedHue360 = currentHue360 + hueAdjustment;  // 应用调整
+                                            
+                                            // 环绕处理：确保在0-360范围内（使用模运算）
+                                            adjustedHue360 = adjustedHue360 % 360;
+                                            if (adjustedHue360 < 0) {
+                                                adjustedHue360 += 360;
+                                            }
+                                            
+                                            const newHue = adjustedHue360 / 2;  // 转回OpenCV范围(0-179)
+                                            
+                                            adjustedHSV[0] = newHue;
                                         }
                                         if (colorParams.saturation !== 0) {
                                             // 修复：使用PS风格的饱和度调整
@@ -1691,18 +1731,17 @@ app.registerExtension({
                     
                     // 辅助函数：确定颜色通道
                     function getColorChannel(hue) {
-                        // 将0-1的色相映射到颜色通道，与PS终端HSL通道对齐
-                        // 色相角度：红色0度，橙色30度，黄色60度，绿色120度，青色180度，蓝色240度，紫色270度，洋红300度
+                        // 基于12色环标准定义，每个基本色相占30度
                         const hueDegree = hue * 360;
                         
-                        if (hueDegree >= 345 || hueDegree < 15) return 'red';       // 红色 345-15度
-                        if (hueDegree >= 15 && hueDegree < 45) return 'orange';     // 橙色 15-45度
-                        if (hueDegree >= 45 && hueDegree < 90) return 'yellow';     // 黄色 45-90度
-                        if (hueDegree >= 90 && hueDegree < 150) return 'green';     // 绿色 90-150度
-                        if (hueDegree >= 150 && hueDegree < 210) return 'aqua';     // 青色 150-210度
-                        if (hueDegree >= 210 && hueDegree < 255) return 'blue';     // 蓝色 210-255度
-                        if (hueDegree >= 255 && hueDegree < 285) return 'purple';   // 紫色 255-285度
-                        if (hueDegree >= 285 && hueDegree < 345) return 'magenta';  // 洋红 285-345度
+                        if (hueDegree >= 345 || hueDegree < 15) return 'red';       // 红色 345-15度 (±15度)
+                        if (hueDegree >= 15 && hueDegree < 75) return 'orange';     // 橙色 15-75度 (包含橙红、橙、橙黄)
+                        if (hueDegree >= 75 && hueDegree < 135) return 'yellow';    // 黄色 75-135度 (包含橙黄、黄、黄绿)
+                        if (hueDegree >= 135 && hueDegree < 195) return 'green';    // 绿色 135-195度 (包含黄绿、绿、蓝绿)
+                        if (hueDegree >= 195 && hueDegree < 225) return 'aqua';     // 青色 195-225度 (蓝绿)
+                        if (hueDegree >= 225 && hueDegree < 285) return 'blue';     // 蓝色 225-285度 (包含蓝绿、蓝、蓝紫)
+                        if (hueDegree >= 285 && hueDegree < 315) return 'purple';   // 紫色 285-315度 (紫色)
+                        if (hueDegree >= 315 && hueDegree < 345) return 'magenta';  // 洋红 315-345度 (紫红)
                         return null;
                     }
                 };

@@ -60,6 +60,25 @@ function setupGlobalNodeOutputCache() {
                     
                     // 将转换后的图像URL存储到自定义属性，避免影响原有系统
                     node._curveNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
+                    
+                    // 如果是PS Curve节点，保存输出图像并触发直方图更新
+                    if (node.type === "PhotoshopCurveNode") {
+                        node._lastOutputImage = convertToImageUrl(outputData.images[0]);
+                        
+                        // 如果节点有曲线编辑器，触发直方图更新
+                        if (node.curveEditor) {
+                            node.curveEditor._histogramDrawn = false;
+                            node.curveEditor._cachedHistogram = null;
+                            node.curveEditor.drawHistogram();
+                        }
+                        
+                        // 如果模态弹窗打开，也更新模态的直方图
+                        if (node.curveEditorModal && node.curveEditorModal.isOpen && node.curveEditorModal.curveEditor) {
+                            node.curveEditorModal.curveEditor._histogramDrawn = false;
+                            node.curveEditorModal.curveEditor._cachedHistogram = null;
+                            node.curveEditorModal.curveEditor.drawHistogram();
+                        }
+                    }
                 }
                 
                 // 更新连接的下游节点缓存（支持PS Curve和HSL节点）
@@ -876,20 +895,105 @@ class CurveEditorModal {
                 editorContainer.removeChild(editorContainer.firstChild);
             }
             
-            // 添加操作提示
+            // 添加操作提示 - 简化版本
             const helpTip = document.createElement('div');
             helpTip.className = 'curve-editor-help';
-            helpTip.innerHTML = '单击/双击：添加点 | 右键：删除点 | 拖动：移动点';
+            helpTip.innerHTML = '单击：添加点 | 右键：删除点 | 拖动：移动点 | <span style="color: #4ecdc4; cursor: pointer;" onclick="this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display = this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display === \'none\' ? \'block\' : \'none\'">🎯 数值输入</span>';
             helpTip.style.cssText = `
-                padding: 8px;
+                padding: 6px;
                 background: #333;
                 border-radius: 4px;
-                margin-bottom: 10px;
+                margin-bottom: 8px;
                 text-align: center;
                 color: #fff;
-                font-size: 12px;
+                font-size: 11px;
             `;
             editorContainer.appendChild(helpTip);
+
+            // 创建简化的快速输入区域 - 默认隐藏
+            const quickInputContainer = document.createElement('div');
+            quickInputContainer.className = 'quick-input-container';
+            quickInputContainer.style.cssText = `
+                display: none;
+                background: #2a2a2a;
+                border-radius: 4px;
+                padding: 8px;
+                margin-bottom: 6px;
+                border: 1px solid #444;
+            `;
+
+            // 简化的输入行
+            const inputRow = document.createElement('div');
+            inputRow.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 11px;
+            `;
+
+            // 简化输入控件
+            const xInput = document.createElement('input');
+            xInput.type = 'number';
+            xInput.min = '0';
+            xInput.max = '255';
+            xInput.placeholder = 'X';
+            xInput.style.cssText = `
+                width: 45px;
+                padding: 3px 4px;
+                background: #1a1a1a;
+                border: 1px solid #555;
+                border-radius: 2px;
+                color: #fff;
+                font-size: 11px;
+            `;
+
+            const yInput = document.createElement('input');
+            yInput.type = 'number';
+            yInput.min = '0';
+            yInput.max = '255';
+            yInput.placeholder = 'Y';
+            yInput.style.cssText = `
+                width: 45px;
+                padding: 3px 4px;
+                background: #1a1a1a;
+                border: 1px solid #555;
+                border-radius: 2px;
+                color: #fff;
+                font-size: 11px;
+            `;
+
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '添加';
+            addBtn.style.cssText = `
+                padding: 3px 8px;
+                background: #0078d4;
+                color: #fff;
+                border: none;
+                border-radius: 2px;
+                font-size: 11px;
+                cursor: pointer;
+            `;
+
+            const batchBtn = document.createElement('button');
+            batchBtn.textContent = '批量';
+            batchBtn.style.cssText = `
+                padding: 3px 8px;
+                background: #6b3fa0;
+                color: #fff;
+                border: none;
+                border-radius: 2px;
+                font-size: 11px;
+                cursor: pointer;
+            `;
+
+            inputRow.appendChild(document.createTextNode('坐标: '));
+            inputRow.appendChild(xInput);
+            inputRow.appendChild(document.createTextNode(','));
+            inputRow.appendChild(yInput);
+            inputRow.appendChild(addBtn);
+            inputRow.appendChild(batchBtn);
+            quickInputContainer.appendChild(inputRow);
+            editorContainer.appendChild(quickInputContainer);
             
             // 创建曲线编辑器
             console.log("🎨 在模态弹窗中创建曲线编辑器");
@@ -964,6 +1068,12 @@ class CurveEditorModal {
                 }
             });
             
+            // 设置真实节点引用，以便访问输出图像
+            modalCurveEditor.realNode = this.node;
+            
+            // 设置对模态弹窗的引用，以便访问原始图像
+            modalCurveEditor.node.curveEditorModal = this;
+            
             this.curveEditor = modalCurveEditor;
             
             // 保存真实节点的引用
@@ -991,6 +1101,13 @@ class CurveEditorModal {
                 // 确保曲线编辑器被正确初始化
                 if (modalCurveEditor.drawCurve) {
                     modalCurveEditor.drawCurve();
+                }
+                
+                // 尝试绘制直方图（如果有图像可用）
+                if (modalCurveEditor.drawHistogram) {
+                    setTimeout(() => {
+                        modalCurveEditor.drawHistogram();
+                    }, 100);
                 }
                 
                 // 添加曲线编辑器的事件监听
@@ -1127,6 +1244,10 @@ class CurveEditorModal {
                     curveEditor.currentChannel = channelId;
                     console.log(`🎨 手动设置后currentChannel: ${curveEditor.currentChannel}`);
                     
+                    // 清除直方图缓存，确保切换通道时重新绘制
+                    curveEditor._histogramDrawn = false;
+                    curveEditor._lastHistogramChannel = null;
+                    
                     // 更新通道按钮状态
                     if (typeof curveEditor.updateChannelButtons === 'function') {
                         curveEditor.updateChannelButtons();
@@ -1196,6 +1317,9 @@ class CurveEditorModal {
         }
         
         console.log("🎨 曲线编辑器事件设置完成");
+        
+        // 设置数值输入功能
+        this.setupPointInputControls();
     }
     
     // 检查是否为默认对角线曲线
@@ -1243,6 +1367,121 @@ class CurveEditorModal {
         
         console.log("🎨 所有通道都是默认状态，跳过预览更新");
         return true; // 所有通道都是默认状态
+    }
+    
+    // 设置简化的数值输入功能
+    setupPointInputControls() {
+        console.log("🎨 设置简化数值输入控件");
+        
+        // 获取简化的输入控件
+        const quickContainer = this.modal.querySelector('.quick-input-container');
+        if (!quickContainer) {
+            console.error("🎨 无法找到快速输入容器");
+            return;
+        }
+        
+        const inputs = quickContainer.querySelectorAll('input[type="number"]');
+        const xInput = inputs[0];
+        const yInput = inputs[1];
+        const buttons = quickContainer.querySelectorAll('button');
+        const addBtn = buttons[0];
+        const batchBtn = buttons[1];
+        
+        if (!xInput || !yInput || !addBtn || !batchBtn) {
+            console.error("🎨 无法找到输入控件");
+            return;
+        }
+        
+        // 添加点功能 - 简化版
+        const addPointFromInput = () => {
+            if (!this.curveEditor) return;
+            
+            const x = parseInt(xInput.value);
+            const y = parseInt(yInput.value);
+            
+            if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
+                alert('请输入有效坐标 (0-255)');
+                return;
+            }
+            
+            // 检查重复X坐标
+            const existingPoint = this.curveEditor.controlPoints.find(p => Math.abs(p.x - x) < 2);
+            if (existingPoint) {
+                existingPoint.y = y;
+            } else {
+                this.curveEditor.controlPoints.push({x, y});
+                this.curveEditor.controlPoints.sort((a, b) => a.x - b.x);
+            }
+            
+            // 更新通道数据
+            if (this.curveEditor.channelCurves && this.curveEditor.currentChannel) {
+                this.curveEditor.channelCurves[this.curveEditor.currentChannel] = 
+                    this.curveEditor.controlPoints.map(p => [p.x, p.y]);
+            }
+            
+            this.curveEditor.drawCurve();
+            this.updatePreview();
+            
+            // 清空输入框
+            xInput.value = '';
+            yInput.value = '';
+            
+            console.log(`🎨 添加控制点: (${x}, ${y})`);
+        };
+        
+        // 批量输入功能 - 保持原有
+        const openBatchInput = () => {
+            const currentPoints = this.curveEditor.controlPoints.map(p => `${p.x},${p.y}`).join(';');
+            const input = prompt(
+                '批量输入控制点\n格式：x1,y1;x2,y2;x3,y3...\n例如：0,0;64,80;128,128;192,200;255,255',
+                currentPoints
+            );
+            
+            if (input === null) return;
+            
+            try {
+                const points = input.split(';').map(pointStr => {
+                    const [x, y] = pointStr.trim().split(',').map(v => parseInt(v.trim()));
+                    if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
+                        throw new Error(`无效坐标: ${pointStr}`);
+                    }
+                    return {x, y};
+                });
+                
+                if (points.length < 2) {
+                    throw new Error('至少需要2个控制点');
+                }
+                
+                points.sort((a, b) => a.x - b.x);
+                this.curveEditor.controlPoints = points;
+                
+                if (this.curveEditor.channelCurves && this.curveEditor.currentChannel) {
+                    this.curveEditor.channelCurves[this.curveEditor.currentChannel] = 
+                        this.curveEditor.controlPoints.map(p => [p.x, p.y]);
+                }
+                
+                this.curveEditor.drawCurve();
+                this.updatePreview();
+                
+                console.log(`🎨 批量设置: ${points.length}个点`);
+                
+            } catch (error) {
+                alert(`输入错误: ${error.message}`);
+            }
+        };
+        
+        // 绑定事件
+        addBtn.onclick = addPointFromInput;
+        batchBtn.onclick = openBatchInput;
+        
+        // 回车键添加点
+        xInput.onkeypress = yInput.onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                addPointFromInput();
+            }
+        };
+        
+        console.log("🎨 简化数值输入控件设置完成");
     }
     
     async updatePreview() {
@@ -3084,6 +3323,12 @@ class PhotoshopCurveNodeWidget {
         
         // 加载新通道的曲线
         this.controlPoints = this.channelCurves[channelId].map(p => ({x: p[0], y: p[1]}));
+        
+        // 清除直方图缓存以强制重绘
+        this._histogramDrawn = false;
+        this._lastHistogramChannel = null;
+        
+        // 重绘曲线（这会触发直方图更新）
         this.drawCurve();
         
         // 使用对象直接引用
@@ -3554,8 +3799,27 @@ class PhotoshopCurveNodeWidget {
     }
     
     // 计算图像直方图
-    calculateHistogram(imageElement) {
-        if (!imageElement || !imageElement.complete) {
+    calculateHistogram(imageSource) {
+        // 如果传入的是字符串URL，需要先创建图像元素
+        if (typeof imageSource === 'string') {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = imageSource;
+            
+            if (!img.complete) {
+                // 图像尚未加载，需要等待
+                img.onload = () => {
+                    // 重新触发直方图绘制
+                    this._cachedHistogram = null;
+                    this._histogramDrawn = false;
+                    this.drawHistogram();
+                };
+                return null;
+            }
+            imageSource = img;
+        }
+        
+        if (!imageSource || !imageSource.complete) {
             console.warn("🎨 图像未加载完成，无法计算直方图");
             return null;
         }
@@ -3563,12 +3827,12 @@ class PhotoshopCurveNodeWidget {
         try {
             // 创建离屏画布
             const canvas = document.createElement('canvas');
-            canvas.width = imageElement.width;
-            canvas.height = imageElement.height;
+            canvas.width = imageSource.width;
+            canvas.height = imageSource.height;
             const ctx = canvas.getContext('2d');
             
             // 绘制图像到画布
-            ctx.drawImage(imageElement, 0, 0);
+            ctx.drawImage(imageSource, 0, 0);
             
             // 获取图像数据
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -3615,15 +3879,74 @@ class PhotoshopCurveNodeWidget {
     
     // 绘制直方图背景
     drawHistogram() {
-        // 如果已经绘制过直方图，不再重复绘制
-        if (this._histogramDrawn) {
+        // 获取图像源
+        let imageSource = null;
+        let isModal = false;
+        
+        // 优先使用执行后的图像（工作流运行后的结果）
+        if (this.node && this.node._lastOutputImage) {
+            imageSource = this.node._lastOutputImage;
+        } 
+        // 如果有真实节点引用（在模态中），使用真实节点的输出图像
+        else if (this.realNode && this.realNode._lastOutputImage) {
+            imageSource = this.realNode._lastOutputImage;
+            isModal = true;
+        }
+        // 如果是在模态弹窗中，使用模态的原始图像
+        else if (this.node && this.node.curveEditorModal && this.node.curveEditorModal.originalImage) {
+            imageSource = this.node.curveEditorModal.originalImage;
+            isModal = true;
+        }
+        // 对于节点上的曲线编辑器，尝试获取输入图像
+        else if (this.node && this.node._lastInputImage) {
+            imageSource = this.node._lastInputImage;
+        }
+        // 如果有真实节点引用（在模态中），尝试获取真实节点的输入图像
+        else if (this.realNode && this.realNode._lastInputImage) {
+            imageSource = this.realNode._lastInputImage;
+            isModal = true;
+        }
+        
+        if (!imageSource) {
+            // 只在首次尝试时输出日志
+            if (!this._histogramWarningShown) {
+                console.log("🎨 直方图：无可用图像源");
+                this._histogramWarningShown = true;
+            }
             return;
         }
         
-        // 获取当前图像
-        const modal = this.node.curveEditorModal;
-        if (!modal || !modal.originalImage) {
-            // 静默跳过，避免日志刷屏
+        // 成功找到图像源后重置警告标记
+        this._histogramWarningShown = false;
+        
+        // 如果图像源改变了，需要重新计算直方图
+        if (this._lastHistogramSource !== imageSource) {
+            this._histogramDrawn = false;
+            this._cachedHistogram = null;
+            this._lastHistogramSource = imageSource;
+        }
+        
+        // 获取当前通道
+        const currentChannel = this.currentChannel || 'RGB';
+        
+        // 检查是否需要更新直方图（通道改变或图像改变）
+        const needsUpdate = this._lastHistogramChannel !== currentChannel || !this._histogramDrawn;
+        
+        if (needsUpdate) {
+            this._lastHistogramChannel = currentChannel;
+            
+            // 移除旧的直方图
+            const oldHistogram = this.svg.querySelector('.histogram-path');
+            if (oldHistogram) {
+                oldHistogram.remove();
+            }
+            
+            // 标记需要重绘
+            this._histogramDrawn = false;
+        }
+        
+        // 如果已经绘制过且不需要更新，不再重复绘制
+        if (this._histogramDrawn && !needsUpdate) {
             return;
         }
         
@@ -3631,16 +3954,14 @@ class PhotoshopCurveNodeWidget {
         let histogram = this._cachedHistogram;
         if (!histogram) {
             // 计算直方图并缓存
-            histogram = this.calculateHistogram(modal.originalImage);
+            histogram = this.calculateHistogram(imageSource);
             this._cachedHistogram = histogram;
         }
         if (!histogram) {
-            // 静默跳过，避免日志刷屏
             return;
         }
         
-        // 获取当前通道
-        const currentChannel = this.channel ? this.channel.value : 'RGB';
+        // 获取当前通道的直方图数据
         const histogramData = histogram[currentChannel] || histogram.RGB;
         
         // 创建路径数据
@@ -3652,20 +3973,30 @@ class PhotoshopCurveNodeWidget {
         }
         pathData += ' L384,384 Z';
         
+        // 移除旧的直方图（如果存在）
+        const oldHistogram = this.svg.querySelector('.histogram-path');
+        if (oldHistogram) {
+            oldHistogram.remove();
+        }
+        
         // 创建直方图路径
         const histogramPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         histogramPath.setAttribute('d', pathData);
         histogramPath.setAttribute('fill', this.getHistogramColor(currentChannel));
         histogramPath.setAttribute('opacity', '0.3');
         histogramPath.setAttribute('stroke', 'none');
+        histogramPath.classList.add('histogram-path');
         
         // 添加到SVG（在背景渐变之后，对角线之前）
-        this.svg.appendChild(histogramPath);
+        const diagonalLine = this.svg.querySelector('line[stroke="#ddd"]');
+        if (diagonalLine) {
+            this.svg.insertBefore(histogramPath, diagonalLine);
+        } else {
+            this.svg.appendChild(histogramPath);
+        }
         
         // 标记直方图已经绘制
         this._histogramDrawn = true;
-        
-        // console.log("🎨 直方图绘制完成，通道:", currentChannel);
     }
     
     // 更新直方图（基于处理后的图像进行实时更新）

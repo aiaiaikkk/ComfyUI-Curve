@@ -218,21 +218,15 @@ class ColorGradingNode(BaseImageNode):
             
             # 处理图像
             if len(image.shape) == 4:
-                # 自定义批处理，避免BaseImageNode错误地处理mask参数
-                batch_size = image.shape[0]
-                result = torch.zeros_like(image)
-                
-                for i in range(batch_size):
-                    result[i] = self._process_single_image(
-                        image[i],
-                        shadows_hue, shadows_saturation, shadows_luminance,
-                        midtones_hue, midtones_saturation, midtones_luminance,
-                        highlights_hue, highlights_saturation, highlights_luminance,
-                        blend, balance, blend_mode, overall_strength,
-                        mask, mask_blur, invert_mask
-                    )
-                
-                return (result,)
+                return (self.process_batch_images(
+                    image, 
+                    self._process_single_image,
+                    shadows_hue, shadows_saturation, shadows_luminance,
+                    midtones_hue, midtones_saturation, midtones_luminance,
+                    highlights_hue, highlights_saturation, highlights_luminance,
+                    blend, balance, blend_mode, overall_strength,
+                    mask, mask_blur, invert_mask
+                ),)
             else:
                 # 单张图像
                 result = self._process_single_image(
@@ -246,6 +240,7 @@ class ColorGradingNode(BaseImageNode):
                 return (result,)
                 
         except Exception as e:
+            print(f"ColorGradingNode error: {e}")
             import traceback
             traceback.print_exc()
             return (image,)
@@ -298,17 +293,18 @@ class ColorGradingNode(BaseImageNode):
                     
                     send_data["mask"] = f"data:image/png;base64,{mask_base64}"
                 except Exception as mask_error:
-                    pass
+                    print(f"处理色彩分级遮罩时出错: {mask_error}")
             
             # 发送事件到前端
             try:
                 from server import PromptServer
                 PromptServer.instance.send_sync("color_grading_preview", send_data)
+                print(f"✅ 已发送色彩分级预览数据到前端，节点ID: {unique_id}")
             except ImportError:
-                pass
+                print("PromptServer不可用，跳过前端预览")
             
         except Exception as preview_error:
-            pass
+            print(f"发送色彩分级预览时出错: {preview_error}")
     
     def _process_single_image(self, image,
                              shadows_hue, shadows_saturation, shadows_luminance,
@@ -317,6 +313,14 @@ class ColorGradingNode(BaseImageNode):
                              blend, balance, blend_mode, overall_strength,
                              mask, mask_blur, invert_mask):
         """处理单张图像的色彩分级 - 使用更接近Lightroom的算法"""
+        
+        # 调试：打印所有参数
+        print(f"ColorGrading参数调试:")
+        print(f"  阴影: hue={shadows_hue}, sat={shadows_saturation}, lum={shadows_luminance}")
+        print(f"  中间调: hue={midtones_hue}, sat={midtones_saturation}, lum={midtones_luminance}")
+        print(f"  高光: hue={highlights_hue}, sat={highlights_saturation}, lum={highlights_luminance}")
+        print(f"  其他: blend={blend}, balance={balance}, blend_mode={blend_mode}, overall_strength={overall_strength}")
+        
         device = image.device
         
         # 将图像转换为numpy数组，范围0-1（保持精度）
@@ -365,11 +369,10 @@ class ColorGradingNode(BaseImageNode):
             (highlights_mask, highlights_hue, highlights_saturation, highlights_luminance)
         ]
         
-        for region_mask, hue, sat, lum in regions:
-            
+        for mask, hue, sat, lum in regions:
             if hue != 0 or sat != 0:
                 # 计算强度（包含overall_strength）
-                strength = region_mask * overall_strength
+                strength = mask * overall_strength
                 
                 if sat >= 0:
                     # 正饱和度：添加颜色
@@ -384,7 +387,6 @@ class ColorGradingNode(BaseImageNode):
                     # 应用颜色敏感度调整（完全匹配前端）
                     # 将负角度转换为正角度
                     hue_normalized = hue % 360
-                    
                     if (hue_normalized >= 330) or (hue_normalized <= 30):  # 红色区域 (330-360, 0-30)
                         offset_a *= 1.1
                     elif 150 <= hue_normalized <= 210:  # 青色区域
@@ -395,13 +397,9 @@ class ColorGradingNode(BaseImageNode):
                         offset_b *= 1.05
                     
                     # 将Lab偏移转换为RGB调整（完全匹配前端的权重）
-                    delta_r_contrib = (offset_a * 0.6 + offset_b * 0.3) * strength
-                    delta_g_contrib = (-offset_a * 0.5 + offset_b * 0.2) * strength
-                    delta_b_contrib = (-offset_a * 0.1 - offset_b * 0.8) * strength
-                    
-                    delta_r += delta_r_contrib
-                    delta_g += delta_g_contrib
-                    delta_b += delta_b_contrib
+                    delta_r += (offset_a * 0.6 + offset_b * 0.3) * strength
+                    delta_g += (-offset_a * 0.5 + offset_b * 0.2) * strength
+                    delta_b += (-offset_a * 0.1 - offset_b * 0.8) * strength
                     
                 else:
                     # 负饱和度：朝向灰度混合
@@ -417,7 +415,7 @@ class ColorGradingNode(BaseImageNode):
             
             # 亮度调整
             if lum != 0:
-                lum_factor = lum / 100.0 * region_mask * overall_strength
+                lum_factor = lum / 100.0 * mask * overall_strength
                 lum_adjust = lum_factor * 0.2  # 降低强度以获得更自然的效果
                 delta_r += lum_adjust
                 delta_g += lum_adjust
@@ -454,12 +452,8 @@ class ColorGradingNode(BaseImageNode):
             # 确保mask是tensor
             if not isinstance(mask, torch.Tensor):
                 mask = torch.from_numpy(mask).to(device)
-            
-            # 应用遮罩模糊
             if mask_blur > 0:
                 mask = blur_mask(mask, mask_blur)
-            
-            # 应用遮罩到图像
             result = apply_mask_to_image(image, result, mask, invert_mask)
         
         return result

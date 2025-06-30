@@ -19,7 +19,6 @@ from .photoshop.levels import PhotoshopLevelsNode
 from .lightroom.color_grading import ColorGradingNode
 
 from .camera_raw.enhance import CameraRawEnhanceNode
-from .camera_raw.tone_curve import CameraRawToneCurveNode
 
 from .effects.gaussian_blur import GaussianBlurNode
 
@@ -35,7 +34,6 @@ NODE_CLASS_MAPPINGS = {
     "PhotoshopHSLNode": PhotoshopHSLNode,
     "ColorGradingNode": ColorGradingNode,
     "CameraRawEnhanceNode": CameraRawEnhanceNode,
-    "CameraRawToneCurveNode": CameraRawToneCurveNode,
     "GaussianBlurNode": GaussianBlurNode,
     "HistogramAnalysisNode": HistogramAnalysisNode,
     "CurvePresetNode": CurvePresetNode,
@@ -47,7 +45,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PhotoshopHSLNode": "🎨 PS HSL",
     "ColorGradingNode": "🎨 Color Grading",
     "CameraRawEnhanceNode": "📷 Camera Raw Enhance",
-    "CameraRawToneCurveNode": "📈 Camera Raw Tone Curve",
     "GaussianBlurNode": "🔀 Gaussian Blur with Mask",
     "HistogramAnalysisNode": "📊 Histogram Analysis",
     "CurvePresetNode": "📐 Curve Presets",
@@ -60,7 +57,6 @@ NODE_CLASS_TO_JS_FILE = {
     "PhotoshopHSLNode": "PhotoshopHSLNode.js",
     "ColorGradingNode": "ColorGradingNode.js",
     "CameraRawEnhanceNode": "CameraRawEnhanceNode.js",
-    "CameraRawToneCurveNode": "CameraRawToneCurveNode.js",
     "GaussianBlurNode": "GaussianBlurNode.js",
     "HistogramAnalysisNode": "HistogramAnalysisNode.js",
     "CurvePresetNode": "CurvePresetNode.js",
