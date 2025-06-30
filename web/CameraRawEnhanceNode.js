@@ -946,6 +946,7 @@ class CameraRawEnhanceEditor {
             g = g255 / 255;
             b = b255 / 255;
             
+<<<<<<< HEAD
             // 去薄雾效果 - 与后端最优混合算法完全一致
             if (dehaze !== 0) {
                 // 转换为255范围用于去薄雾算法
@@ -1147,6 +1148,71 @@ class CameraRawEnhanceEditor {
                 r = r255 / 255;
                 g = g255 / 255;
                 b = b255 / 255;
+=======
+            // 去薄雾效果 - 简化版，与后端效果匹配
+            if (dehaze !== 0) {
+                const dehazeStrength = Math.abs(dehaze);
+                
+                if (dehaze > 0) {
+                    // 正向去薄雾 - 基于后端测试验证的最佳效果
+                    // 1. 饱和度增强 (1 + strength * 1.5，最大2.5倍)
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const saturationBoost = 1 + dehazeStrength * 1.5;
+                    r = gray + (r - gray) * saturationBoost;
+                    g = gray + (g - gray) * saturationBoost;
+                    b = gray + (b - gray) * saturationBoost;
+                    
+                    // 2. 亮度降低 (1 - strength * 0.25，最低0.75)
+                    const brightnessReduction = 1 - dehazeStrength * 0.25;
+                    r *= brightnessReduction;
+                    g *= brightnessReduction;
+                    b *= brightnessReduction;
+                    
+                    // 3. 对比度增强 (1 + strength * 0.3)
+                    const contrastBoost = 1 + dehazeStrength * 0.3;
+                    r = (r - 0.5) * contrastBoost + 0.5;
+                    g = (g - 0.5) * contrastBoost + 0.5;
+                    b = (b - 0.5) * contrastBoost + 0.5;
+                    
+                    // 4. 色彩平衡调整
+                    r *= 1.0;   // 红色保持不变
+                    g *= 0.98;  // 绿色稍微降低
+                    b *= 0.88;  // 蓝色明显降低（减少雾霾的蓝色调）
+                    
+                    // 5. 与原图混合 (混合强度: 0.9 * strength)
+                    const originalR = data[i] / 255.0;
+                    const originalG = data[i + 1] / 255.0;
+                    const originalB = data[i + 2] / 255.0;
+                    
+                    const blendStrength = 0.9 * dehazeStrength;
+                    r = originalR * (1 - blendStrength) + r * blendStrength;
+                    g = originalG * (1 - blendStrength) + g * blendStrength;
+                    b = originalB * (1 - blendStrength) + b * blendStrength;
+                    
+                } else {
+                    // 负向去薄雾 - 添加雾霾效果
+                    const hazeStrength = dehazeStrength;
+                    
+                    // 降低对比度
+                    const gamma = 1 + hazeStrength * 0.5;
+                    r = Math.pow(r, gamma);
+                    g = Math.pow(g, gamma);
+                    b = Math.pow(b, gamma);
+                    
+                    // 降低饱和度
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const desatFactor = 1 - hazeStrength * 0.3;
+                    r = r * desatFactor + gray * (1 - desatFactor);
+                    g = g * desatFactor + gray * (1 - desatFactor);
+                    b = b * desatFactor + gray * (1 - desatFactor);
+                    
+                    // 添加大气光 (模拟雾霾)
+                    const atmosphericLight = 0.8; // 0.8的亮度
+                    r += (atmosphericLight - r) * hazeStrength * 0.2;
+                    g += (atmosphericLight - g) * hazeStrength * 0.2;
+                    b += (atmosphericLight - b) * hazeStrength * 0.2;
+                }
+>>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
             }
             
             // 最终确保值在有效范围内并转换为0-255范围
