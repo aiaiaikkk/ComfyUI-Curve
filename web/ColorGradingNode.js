@@ -1,16 +1,16 @@
 /**
- * Color Grading Node - 前端交互界面
- * 实现Lightroom风格的色彩分级功能，包含三个色轮：阴影、中间调、高光
+ * Color Grading Node - Frontend Interactive Interface
+ * Implements Lightroom-style color grading functionality with three color wheels: shadows, midtones, highlights
  */
 
 import { app } from "../../scripts/app.js";
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// Color Grading编辑器类
+// Color Grading editor class
 class ColorGradingEditor {
     constructor(node, options = {}) {
         this.node = node;
@@ -23,7 +23,7 @@ class ColorGradingEditor {
         this.currentImage = null;
         this.currentMask = null;
         
-        // 色彩分级参数
+        // Color grading parameters
         this.gradingData = {
             shadows: { hue: 0, saturation: 0, luminance: 0 },
             midtones: { hue: 0, saturation: 0, luminance: 0 },
@@ -38,7 +38,7 @@ class ColorGradingEditor {
     }
     
     createModal() {
-        // 创建模态弹窗
+        // Create modal popup
         this.modal = document.createElement("div");
         this.modal.className = "color-grading-modal";
         this.modal.style.cssText = `
@@ -54,7 +54,7 @@ class ColorGradingEditor {
             align-items: center;
         `;
         
-        // 创建主容器
+        // Create main container
         const container = document.createElement("div");
         container.className = "color-grading-container";
         container.style.cssText = `
@@ -70,11 +70,11 @@ class ColorGradingEditor {
             overflow: hidden;
         `;
         
-        // 标题栏
+        // Title bar
         const header = this.createHeader();
         container.appendChild(header);
         
-        // 主内容区域
+        // Main content area
         const content = document.createElement("div");
         content.className = "color-grading-content";
         content.style.cssText = `
@@ -83,11 +83,11 @@ class ColorGradingEditor {
             overflow: hidden;
         `;
         
-        // 左侧预览区域
+        // Left preview area
         const previewSection = this.createPreviewSection();
         content.appendChild(previewSection);
         
-        // 右侧控制区域
+        // Right control area
         const controlSection = this.createControlSection();
         content.appendChild(controlSection);
         
@@ -109,7 +109,7 @@ class ColorGradingEditor {
             align-items: center;
         `;
         
-        // 标题
+        // Title
         const title = document.createElement("h3");
         title.style.cssText = `
             color: #ffffff;
@@ -120,7 +120,7 @@ class ColorGradingEditor {
         title.textContent = "🎨 Color Grading Wheels";
         header.appendChild(title);
         
-        // 按钮容器
+        // Button container
         const buttonContainer = document.createElement("div");
         buttonContainer.style.cssText = `
             display: flex;
@@ -128,7 +128,7 @@ class ColorGradingEditor {
             align-items: center;
         `;
         
-        // 预设控制容器
+        // Preset control container
         const presetContainer = document.createElement("div");
         presetContainer.style.cssText = `
             display: flex;
@@ -137,7 +137,7 @@ class ColorGradingEditor {
             margin-right: 20px;
         `;
         
-        // 预设下拉菜单
+        // Preset dropdown menu
         const presetSelect = document.createElement('select');
         presetSelect.className = 'color-grading-preset-select';
         presetSelect.style.cssText = `
@@ -150,19 +150,19 @@ class ColorGradingEditor {
             cursor: pointer;
             min-width: 120px;
         `;
-        presetSelect.innerHTML = '<option value="">选择预设...</option>';
+        presetSelect.innerHTML = '<option value="">Select Preset...</option>';
         
-        // 加载预设列表
+        // Load preset list
         this.loadColorGradingPresetList(presetSelect);
         
-        // 预设选择事件
+        // Preset selection event
         presetSelect.addEventListener('change', (e) => {
             if (e.target.value) {
                 this.loadColorGradingPreset(e.target.value);
             }
         });
         
-        // 保存预设按钮
+        // Save preset button
         const savePresetBtn = document.createElement('button');
         savePresetBtn.style.cssText = `
             padding: 4px 12px;
@@ -173,10 +173,10 @@ class ColorGradingEditor {
             color: #fff;
             cursor: pointer;
         `;
-        savePresetBtn.innerHTML = '💾 保存';
+        savePresetBtn.innerHTML = '💾 Save';
         savePresetBtn.onclick = () => this.saveColorGradingPreset(presetSelect);
         
-        // 管理预设按钮
+        // Manage presets button
         const managePresetBtn = document.createElement('button');
         managePresetBtn.style.cssText = `
             padding: 4px 12px;
@@ -187,14 +187,14 @@ class ColorGradingEditor {
             color: #fff;
             cursor: pointer;
         `;
-        managePresetBtn.innerHTML = '⚙️ 管理';
+        managePresetBtn.innerHTML = '⚙️ Manage';
         managePresetBtn.onclick = () => this.showColorGradingPresetManager(presetSelect);
         
         presetContainer.appendChild(presetSelect);
         presetContainer.appendChild(savePresetBtn);
         presetContainer.appendChild(managePresetBtn);
         
-        // 重置按钮
+        // Reset button
         const resetBtn = document.createElement("button");
         resetBtn.className = "color-grading-reset";
         resetBtn.style.cssText = `
@@ -208,12 +208,12 @@ class ColorGradingEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        resetBtn.textContent = "重置";
+        resetBtn.textContent = "Reset";
         resetBtn.addEventListener('mouseenter', () => resetBtn.style.backgroundColor = '#2980b9');
         resetBtn.addEventListener('mouseleave', () => resetBtn.style.backgroundColor = '#3498db');
         resetBtn.addEventListener('click', () => this.resetAllValues());
         
-        // 应用按钮
+        // Apply button
         const applyBtn = document.createElement("button");
         applyBtn.className = "color-grading-apply";
         applyBtn.style.cssText = `
@@ -227,12 +227,12 @@ class ColorGradingEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        applyBtn.textContent = "应用";
+        applyBtn.textContent = "Apply";
         applyBtn.addEventListener('mouseenter', () => applyBtn.style.backgroundColor = '#229954');
         applyBtn.addEventListener('mouseleave', () => applyBtn.style.backgroundColor = '#27ae60');
         applyBtn.addEventListener('click', () => this.applyChanges());
         
-        // 关闭按钮
+        // Close button
         const closeBtn = document.createElement("button");
         closeBtn.className = "color-grading-close";
         closeBtn.style.cssText = `
@@ -246,7 +246,7 @@ class ColorGradingEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        closeBtn.textContent = "关闭";
+        closeBtn.textContent = "Close";
         closeBtn.addEventListener('mouseenter', () => closeBtn.style.backgroundColor = '#ff3838');
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         
@@ -271,7 +271,7 @@ class ColorGradingEditor {
             flex-direction: column;
         `;
         
-        // 预览标题
+        // Preview title
         const title = document.createElement("h4");
         title.style.cssText = `
             color: #ffffff;
@@ -279,10 +279,10 @@ class ColorGradingEditor {
             font-size: 16px;
             font-weight: 500;
         `;
-        title.textContent = "实时预览";
+        title.textContent = "Live Preview";
         section.appendChild(title);
         
-        // 预览画布容器
+        // Preview canvas container
         const canvasContainer = document.createElement("div");
         canvasContainer.style.cssText = `
             flex: 1;
@@ -296,7 +296,7 @@ class ColorGradingEditor {
             overflow: hidden;
         `;
         
-        // 预览画布
+        // Preview canvas
         this.previewCanvas = document.createElement("canvas");
         this.previewCanvas.style.cssText = `
             max-width: 100%;
@@ -307,7 +307,7 @@ class ColorGradingEditor {
         this.previewContext = this.previewCanvas.getContext('2d', { willReadFrequently: true });
         canvasContainer.appendChild(this.previewCanvas);
         
-        // 加载提示
+        // Loading indicator
         const loadingText = document.createElement("div");
         loadingText.className = "loading-text";
         loadingText.style.cssText = `
@@ -316,7 +316,7 @@ class ColorGradingEditor {
             font-size: 14px;
             pointer-events: none;
         `;
-        loadingText.textContent = "等待图像数据...";
+        loadingText.textContent = "Waiting for image data...";
         canvasContainer.appendChild(loadingText);
         
         section.appendChild(canvasContainer);
@@ -336,7 +336,7 @@ class ColorGradingEditor {
             overflow-y: auto;
         `;
         
-        // 控制标题
+        // Control title
         const title = document.createElement("h4");
         title.style.cssText = `
             color: #ffffff;
@@ -344,14 +344,14 @@ class ColorGradingEditor {
             font-size: 16px;
             font-weight: 500;
         `;
-        title.textContent = "色彩分级控制";
+        title.textContent = "Color Grading Controls";
         section.appendChild(title);
         
-        // 创建三个色轮区域
+        // Create three color wheel areas
         const regions = [
-            { key: 'shadows', name: '阴影', color: '#4a4a4a' },
-            { key: 'midtones', name: '中间调', color: '#808080' },
-            { key: 'highlights', name: '高光', color: '#c4c4c4' }
+            { key: 'shadows', name: 'Shadows', color: '#4a4a4a' },
+            { key: 'midtones', name: 'Midtones', color: '#808080' },
+            { key: 'highlights', name: 'Highlights', color: '#c4c4c4' }
         ];
         
         regions.forEach(region => {
@@ -359,7 +359,7 @@ class ColorGradingEditor {
             section.appendChild(wheelContainer);
         });
         
-        // 全局控制
+        // Global controls
         const globalControls = this.createGlobalControls();
         section.appendChild(globalControls);
         
@@ -377,7 +377,7 @@ class ColorGradingEditor {
             border: 1px solid #404040;
         `;
         
-        // 区域标题
+        // Region title
         const title = document.createElement("h5");
         title.style.cssText = `
             color: ${region.color};
@@ -390,7 +390,7 @@ class ColorGradingEditor {
         title.textContent = region.name;
         container.appendChild(title);
         
-        // 色轮和滑块容器
+        // Color wheel and slider container
         const controlsContainer = document.createElement("div");
         controlsContainer.style.cssText = `
             display: flex;
@@ -398,7 +398,7 @@ class ColorGradingEditor {
             gap: 15px;
         `;
         
-        // 色轮画布
+        // Color wheel canvas
         const wheelCanvas = document.createElement("canvas");
         wheelCanvas.width = 120;
         wheelCanvas.height = 120;
@@ -409,10 +409,10 @@ class ColorGradingEditor {
             flex-shrink: 0;
         `;
         
-        // 绘制色轮
+        // Draw color wheel
         this.drawColorWheel(wheelCanvas, region.key);
         
-        // 滑块容器
+        // Slider container
         const slidersContainer = document.createElement("div");
         slidersContainer.style.cssText = `
             flex: 1;
@@ -421,30 +421,30 @@ class ColorGradingEditor {
             gap: 10px;
         `;
         
-        // 色相滑块
-        const hueSlider = this.createSlider(`${region.key}_hue`, '色相', -180, 180, 0, '°');
+        // Hue slider
+        const hueSlider = this.createSlider(`${region.key}_hue`, 'Hue', -180, 180, 0, '°');
         slidersContainer.appendChild(hueSlider);
         
-        // 饱和度滑块
-        const saturationSlider = this.createSlider(`${region.key}_saturation`, '饱和度', -100, 100, 0, '%');
+        // Saturation slider
+        const saturationSlider = this.createSlider(`${region.key}_saturation`, 'Saturation', -100, 100, 0, '%');
         slidersContainer.appendChild(saturationSlider);
         
-        // 明度滑块
-        const luminanceSlider = this.createSlider(`${region.key}_luminance`, '明度', -100, 100, 0, '%');
+        // Luminance slider
+        const luminanceSlider = this.createSlider(`${region.key}_luminance`, 'Luminance', -100, 100, 0, '%');
         slidersContainer.appendChild(luminanceSlider);
         
         controlsContainer.appendChild(wheelCanvas);
         controlsContainer.appendChild(slidersContainer);
         container.appendChild(controlsContainer);
         
-        // 存储色轮引用
+        // Store color wheel reference
         this.colorWheels[region.key] = {
             canvas: wheelCanvas,
             context: wheelCanvas.getContext('2d', { willReadFrequently: true }),
             region: region.key
         };
         
-        // 添加色轮交互事件
+        // Add color wheel interaction events
         this.setupColorWheelEvents(wheelCanvas, region.key);
         
         return container;
@@ -456,18 +456,18 @@ class ColorGradingEditor {
         const centerY = canvas.height / 2;
         const radius = Math.min(centerX, centerY) - 5;
         
-        // 清除画布
+        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 绘制色相环
+        // Draw hue ring
         for (let angle = 0; angle < 360; angle += 1) {
             const startAngle = (angle - 1) * Math.PI / 180;
             const endAngle = angle * Math.PI / 180;
             
-            // 创建径向渐变（从中心到边缘：灰色到色相）
+            // Create radial gradient (from center to edge: gray to hue)
             const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            gradient.addColorStop(0, '#808080'); // 中心灰色
-            gradient.addColorStop(1, `hsl(${angle}, 100%, 50%)`); // 边缘色相
+            gradient.addColorStop(0, '#808080'); // Center gray
+            gradient.addColorStop(1, `hsl(${angle}, 100%, 50%)`); // Edge hue
             
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, startAngle, endAngle);
@@ -476,7 +476,7 @@ class ColorGradingEditor {
             ctx.fill();
         }
         
-        // 绘制中心点
+        // Draw center point
         ctx.beginPath();
         ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
         ctx.fillStyle = '#ffffff';
@@ -485,7 +485,7 @@ class ColorGradingEditor {
         ctx.lineWidth = 1;
         ctx.stroke();
         
-        // 绘制当前位置指示器
+        // Draw current position indicator
         this.drawWheelIndicator(canvas, regionKey);
     }
     
@@ -498,23 +498,23 @@ class ColorGradingEditor {
         const data = this.gradingData[regionKey];
         if (!data) return;
         
-        // 如果饱和度为0且色相为0，不绘制指示器（重置状态）
+        // If saturation is 0 and hue is 0, don't draw indicator (reset state)
         if (data.saturation === 0 && data.hue === 0) {
             return;
         }
         
-        // 将色相和饱和度转换为坐标
+        // Convert hue and saturation to coordinates
         const hue = data.hue * Math.PI / 180;
-        const saturation = Math.abs(data.saturation) / 100; // 色轮显示仍使用绝对值，但用颜色区分正负
+        const saturation = Math.abs(data.saturation) / 100; // Color wheel still uses absolute value for display, but distinguishes positive/negative with color
         
         const x = centerX + Math.cos(hue) * saturation * radius;
         const y = centerY + Math.sin(hue) * saturation * radius;
         
-        // 绘制指示器（用颜色区分正负饱和度）
+        // Draw indicator (distinguish positive/negative saturation with color)
         ctx.beginPath();
         ctx.arc(x, y, 6, 0, 2 * Math.PI);
         
-        // 正饱和度用白色，负饱和度用灰色
+        // Positive saturation uses white, negative saturation uses gray
         if (data.saturation >= 0) {
             ctx.fillStyle = '#ffffff';
             ctx.strokeStyle = '#000000';
@@ -543,26 +543,26 @@ class ColorGradingEditor {
             const distance = Math.sqrt(x * x + y * y);
             if (distance > radius) return;
             
-            // 计算色相和饱和度
+            // Calculate hue and saturation
             const hue = Math.atan2(y, x) * 180 / Math.PI;
             let saturation = Math.min(distance / radius, 1) * 100;
             
-            // 如果按住Shift键，则设置为负饱和度
+            // If Shift key is held, set to negative saturation
             if (e.shiftKey) {
                 saturation = -saturation;
             }
             
-            // 更新数据
+            // Update data
             this.gradingData[regionKey].hue = hue;
             this.gradingData[regionKey].saturation = saturation;
             
-            // 同步更新对应的滑块值
+            // Synchronously update corresponding slider values
             this.updateSliderValues(regionKey);
             
-            // 重绘色轮
+            // Redraw color wheel
             this.drawColorWheel(canvas, regionKey);
             
-            // 触发预览更新
+            // Trigger preview update
             this.updatePreview();
         };
         
@@ -577,7 +577,7 @@ class ColorGradingEditor {
             }
         });
         
-        // 防止鼠标离开时的伪影
+        // Prevent artifacts when mouse leaves
         canvas.addEventListener('mouseout', () => {
             isDragging = false;
         });
@@ -599,7 +599,7 @@ class ColorGradingEditor {
             gap: 10px;
         `;
         
-        // 标签
+        // Label
         const labelElement = document.createElement("label");
         labelElement.style.cssText = `
             color: #cccccc;
@@ -610,7 +610,7 @@ class ColorGradingEditor {
         labelElement.textContent = label;
         container.appendChild(labelElement);
         
-        // 滑块
+        // Sliders
         const slider = document.createElement("input");
         slider.type = "range";
         slider.id = id;
@@ -626,7 +626,7 @@ class ColorGradingEditor {
             border-radius: 2px;
         `;
         
-        // 数值输入框
+        // Numeric input box
         const valueInput = document.createElement("input");
         valueInput.type = "text";
         valueInput.style.cssText = `
@@ -643,7 +643,7 @@ class ColorGradingEditor {
         `;
         valueInput.value = defaultValue + unit;
         
-        // 添加hover和focus效果
+        // Add hover and focus effects
         valueInput.addEventListener('mouseenter', () => {
             valueInput.style.borderColor = '#777777';
         });
@@ -657,12 +657,12 @@ class ColorGradingEditor {
             valueInput.style.backgroundColor = '#404040';
         });
         
-        // 滑块事件监听
+        // Slider event listener
         slider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             valueInput.value = value + unit;
             
-            // 特殊处理overall_strength
+            // Special handling for overall_strength
             if (id === 'overall_strength') {
                 this.gradingData.overall_strength = value / 100.0;
             } else if (id === 'blend') {
@@ -670,12 +670,12 @@ class ColorGradingEditor {
             } else if (id === 'balance') {
                 this.gradingData.balance = value;
             } else {
-                // 解析ID以更新对应数据
+                // Parse ID to update corresponding data
                 const [regionKey, property] = id.split('_');
                 if (this.gradingData[regionKey]) {
                     this.gradingData[regionKey][property] = value;
                     
-                    // 如果是色相或饱和度变化，更新对应的色轮显示
+                    // If hue or saturation changes, update corresponding color wheel display
                     if ((property === 'hue' || property === 'saturation') && this.colorWheels[regionKey]) {
                         this.drawColorWheel(this.colorWheels[regionKey].canvas, regionKey);
                     }
@@ -684,24 +684,24 @@ class ColorGradingEditor {
             this.updatePreview();
         });
         
-        // 输入框事件监听
+        // Input box event listener
         valueInput.addEventListener('input', (e) => {
-            // 移除单位并解析数值
+            // Remove unit and parse numeric value
             const inputValue = e.target.value.replace(unit, '').trim();
             let value = parseFloat(inputValue);
             
-            // 验证输入值
+            // Validate input value
             if (isNaN(value)) {
                 return;
             }
             
-            // 限制范围
+            // Limit range
             value = Math.max(min, Math.min(max, value));
             
-            // 更新滑块值
+            // Update slider value
             slider.value = value;
             
-            // 更新数据
+            // Update data
             if (id === 'overall_strength') {
                 this.gradingData.overall_strength = value / 100.0;
             } else if (id === 'blend') {
@@ -721,13 +721,13 @@ class ColorGradingEditor {
             this.updatePreview();
         });
         
-        // 失去焦点时格式化输入值并恢复样式
+        // Format input value and restore style when losing focus
         valueInput.addEventListener('blur', (e) => {
-            // 恢复样式
+            // Restore style
             valueInput.style.borderColor = '#555555';
             valueInput.style.backgroundColor = '#333333';
             
-            // 格式化输入值
+            // Format input value
             const inputValue = e.target.value.replace(unit, '').trim();
             let value = parseFloat(inputValue);
             
@@ -740,7 +740,7 @@ class ColorGradingEditor {
             slider.value = value;
         });
         
-        // 按Enter键时失去焦点
+        // Lose focus when Enter key is pressed
         valueInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.target.blur();
@@ -763,7 +763,7 @@ class ColorGradingEditor {
             border: 1px solid #404040;
         `;
         
-        // 标题
+        // Title
         const title = document.createElement("h5");
         title.style.cssText = `
             color: #ffffff;
@@ -771,10 +771,10 @@ class ColorGradingEditor {
             font-size: 14px;
             font-weight: 600;
         `;
-        title.textContent = "全局控制";
+        title.textContent = "Global Controls";
         container.appendChild(title);
         
-        // 混合模式选择
+        // Blend mode selection
         const blendModeContainer = document.createElement("div");
         blendModeContainer.style.cssText = `
             display: flex;
@@ -789,7 +789,7 @@ class ColorGradingEditor {
             font-size: 12px;
             min-width: 60px;
         `;
-        blendLabel.textContent = "混合模式";
+        blendLabel.textContent = "Blend Mode";
         
         const blendSelect = document.createElement("select");
         blendSelect.style.cssText = `
@@ -820,22 +820,22 @@ class ColorGradingEditor {
         container.appendChild(blendModeContainer);
         
         // 混合程度滑块 (Blend)
-        const blendSlider = this.createSlider('blend', '混合', 0, 100, 100, '%');
+        const blendSlider = this.createSlider('blend', 'Blend', 0, 100, 100, '%');
         container.appendChild(blendSlider);
         
         // 平衡控制滑块 (Balance)
-        const balanceSlider = this.createSlider('balance', '平衡', -100, 100, 0, '');
+        const balanceSlider = this.createSlider('balance', 'Balance', -100, 100, 0, '');
         container.appendChild(balanceSlider);
         
         // 整体强度滑块（createSlider已经正确处理overall_strength的事件监听）
-        const strengthSlider = this.createSlider('overall_strength', '强度', 0, 200, 100, '%');
+        const strengthSlider = this.createSlider('overall_strength', 'Strength', 0, 200, 100, '%');
         container.appendChild(strengthSlider);
         
         return container;
     }
     
     setupEventListeners() {
-        // 关闭按钮事件
+        // Close button事件
         const closeBtn = this.modal.querySelector('.color-grading-close');
         closeBtn.addEventListener('click', () => this.hide());
         
@@ -939,7 +939,7 @@ class ColorGradingEditor {
                 slider.value = value;
                 const valueInput = slider.parentElement.querySelector('input[type="text"]');
                 if (valueInput) {
-                    // 根据滑块类型确定单位
+                    // Determine unit based on slider type
                     let unit = '%';
                     if (id.includes('hue')) {
                         unit = '°';
@@ -1017,13 +1017,13 @@ class ColorGradingEditor {
                 
                 img.onerror = () => {
                     console.error('Color Grading: 图像加载失败');
-                    this.showLoadingText('图像加载失败');
+                    this.showLoadingText('Image loading failed');
                 };
                 
                 img.src = imageUrl;
             } else {
                 console.warn('Color Grading: 未找到图像数据');
-                this.showLoadingText('未找到图像数据');
+                this.showLoadingText('Image data not found');
             }
             
             // 加载遮罩（如果有）
@@ -1049,7 +1049,7 @@ class ColorGradingEditor {
             }
         } catch (error) {
             console.error('Color Grading: 加载图像时出错:', error);
-            this.showLoadingText('加载图像时出错');
+            this.showLoadingText('Error loading image');
         }
     }
     
@@ -1681,7 +1681,7 @@ class ColorGradingEditor {
                 slider.value = 0;
                 const valueDisplay = slider.parentElement.querySelector('span');
                 if (valueDisplay) {
-                    // 根据滑块类型确定单位
+                    // Determine unit based on slider type
                     let unit = '%';
                     if (slider.id.includes('hue')) {
                         unit = '°';
@@ -1726,7 +1726,7 @@ class ColorGradingEditor {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             animation: fadeInOut 2s ease-in-out;
         `;
-        notification.textContent = "✓ 所有参数已重置";
+        notification.textContent = "✓ All parameters reset";
         
         // 添加淡入淡出动画
         const style = document.createElement("style");
@@ -1820,7 +1820,7 @@ class ColorGradingEditor {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             animation: fadeInOut 2s ease-in-out;
         `;
-        notification.textContent = "✓ 参数已应用到节点";
+        notification.textContent = "✓ Parameters applied to node";
         
         // 添加淡入淡出动画
         const style = document.createElement("style");
@@ -1852,7 +1852,7 @@ class ColorGradingEditor {
             
             if (data.success) {
                 // 清空现有选项
-                selectElement.innerHTML = '<option value="">选择预设...</option>';
+                selectElement.innerHTML = '<option value="">Select Preset...</option>';
                 
                 // 按类别分组
                 const categories = {};
@@ -1887,11 +1887,11 @@ class ColorGradingEditor {
     
     getCategoryLabel(category) {
         const labels = {
-            'default': '默认预设',
-            'cinematic': '电影风格',
-            'portrait': '人像',
-            'landscape': '风景',
-            'custom': '自定义'
+            'default': 'Default Presets',
+            'cinematic': 'Cinematic Style',
+            'portrait': 'Portrait',
+            'landscape': 'Landscape',
+            'custom': 'Custom'
         };
         return labels[category] || category;
     }
@@ -1938,7 +1938,7 @@ class ColorGradingEditor {
             }
         } catch (error) {
             console.error('加载Color Grading预设失败:', error);
-            alert('加载预设失败: ' + error.message);
+            alert('Failed to load preset: ' + error.message);
         }
     }
     
@@ -1988,10 +1988,10 @@ class ColorGradingEditor {
     }
     
     async saveColorGradingPreset(presetSelect) {
-        const name = prompt('请输入预设名称:');
+        const name = prompt('Please enter preset name:');
         if (!name) return;
         
-        const description = prompt('请输入预设描述（可选）:') || '';
+        const description = prompt('Please enter preset description (optional):') || '';
         
         try {
             // 收集当前所有Color Grading参数
@@ -2028,15 +2028,15 @@ class ColorGradingEditor {
             const result = await response.json();
             
             if (result.success) {
-                alert('预设保存成功!');
+                alert('Preset saved successfully!');
                 // 重新加载预设列表
                 this.loadColorGradingPresetList(presetSelect);
             } else {
-                alert('保存预设失败: ' + result.error);
+                alert('Failed to save preset: ' + result.error);
             }
         } catch (error) {
             console.error('保存Color Grading预设失败:', error);
-            alert('保存预设失败: ' + error.message);
+            alert('Failed to save preset: ' + error.message);
         }
     }
     
@@ -2047,7 +2047,7 @@ class ColorGradingEditor {
             const data = await response.json();
             
             if (!data.success) {
-                alert('获取预设列表失败');
+                alert('Failed to get preset list');
                 return;
             }
             
@@ -2079,7 +2079,7 @@ class ColorGradingEditor {
             `;
             
             const title = document.createElement('h3');
-            title.textContent = 'Color Grading预设管理器';
+            title.textContent = 'Color Grading Preset Manager';
             title.style.marginBottom = '20px';
             managerContent.appendChild(title);
             
@@ -2106,7 +2106,7 @@ class ColorGradingEditor {
                 const presetInfo = document.createElement('div');
                 presetInfo.innerHTML = `
                     <strong>${preset.name}</strong><br>
-                    <small>${preset.description || '无描述'}</small>
+                    <small>${preset.description || 'No description'}</small>
                 `;
                 
                 const presetActions = document.createElement('div');
@@ -2114,7 +2114,7 @@ class ColorGradingEditor {
                 
                 if (preset.type === 'user') {
                     const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = '删除';
+                    deleteBtn.textContent = 'Delete';
                     deleteBtn.style.cssText = `
                         padding: 4px 8px;
                         background: #d32f2f;
@@ -2125,7 +2125,7 @@ class ColorGradingEditor {
                         font-size: 12px;
                     `;
                     deleteBtn.onclick = async () => {
-                        if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                        if (confirm(`Are you sure you want to delete preset "${preset.name}"?`)) {
                             try {
                                 const delResponse = await fetch(`/color_grading_presets/delete/${preset.id}`, {
                                     method: 'DELETE'
@@ -2136,10 +2136,10 @@ class ColorGradingEditor {
                                     presetItem.remove();
                                     this.loadColorGradingPresetList(presetSelect);
                                 } else {
-                                    alert('删除失败: ' + delResult.error);
+                                    alert('Failed to delete: ' + delResult.error);
                                 }
                             } catch (error) {
-                                alert('删除失败: ' + error.message);
+                                alert('Failed to delete: ' + error.message);
                             }
                         }
                     };
@@ -2147,7 +2147,7 @@ class ColorGradingEditor {
                 }
                 
                 const exportBtn = document.createElement('button');
-                exportBtn.textContent = '导出';
+                exportBtn.textContent = 'Export';
                 exportBtn.style.cssText = `
                     padding: 4px 8px;
                     background: #388e3c;
@@ -2175,7 +2175,7 @@ class ColorGradingEditor {
                             URL.revokeObjectURL(url);
                         }
                     } catch (error) {
-                        alert('导出失败: ' + error.message);
+                        alert('Export failed: ' + error.message);
                     }
                 };
                 presetActions.appendChild(exportBtn);
@@ -2192,7 +2192,7 @@ class ColorGradingEditor {
             importSection.style.marginBottom = '20px';
             
             const importTitle = document.createElement('h4');
-            importTitle.textContent = '导入预设';
+            importTitle.textContent = 'Import Preset';
             importSection.appendChild(importTitle);
             
             const fileInput = document.createElement('input');
@@ -2201,7 +2201,7 @@ class ColorGradingEditor {
             fileInput.style.marginBottom = '10px';
             
             const importBtn = document.createElement('button');
-            importBtn.textContent = '导入文件';
+            importBtn.textContent = 'Import File';
             importBtn.style.cssText = `
                 padding: 8px 16px;
                 background: #1976d2;
@@ -2213,7 +2213,7 @@ class ColorGradingEditor {
             importBtn.onclick = async () => {
                 const file = fileInput.files[0];
                 if (!file) {
-                    alert('请选择要导入的文件');
+                    alert('Please select a file to import');
                     return;
                 }
                 
@@ -2230,14 +2230,14 @@ class ColorGradingEditor {
                     const impResult = await impResponse.json();
                     
                     if (impResult.success) {
-                        alert('预设导入成功!');
+                        alert('Preset imported successfully!');
                         document.body.removeChild(managerModal);
                         this.loadColorGradingPresetList(presetSelect);
                     } else {
-                        alert('导入失败: ' + impResult.error);
+                        alert('Import failed: ' + impResult.error);
                     }
                 } catch (error) {
-                    alert('导入失败: ' + error.message);
+                    alert('Import failed: ' + error.message);
                 }
             };
             
@@ -2245,9 +2245,9 @@ class ColorGradingEditor {
             importSection.appendChild(importBtn);
             managerContent.appendChild(importSection);
             
-            // 关闭按钮
+            // Close button
             const closeBtn = document.createElement('button');
-            closeBtn.textContent = '关闭';
+            closeBtn.textContent = 'Close';
             closeBtn.style.cssText = `
                 padding: 8px 16px;
                 background: #666;
@@ -2265,7 +2265,7 @@ class ColorGradingEditor {
             
         } catch (error) {
             console.error('显示Color Grading预设管理器失败:', error);
-            alert('显示预设管理器失败: ' + error.message);
+            alert('Failed to show preset manager: ' + error.message);
         }
     }
 }
@@ -2295,7 +2295,7 @@ app.registerExtension({
                 }
                 
                 options.push({
-                    content: "🎨 打开色彩分级编辑器",
+                    content: "🎨 Open Color Grading Editor",
                     callback: () => {
                         console.log(`🎨 右键菜单打开 Color Grading 编辑器，节点 ${this.id}`);
                         this.showColorGradingModal();

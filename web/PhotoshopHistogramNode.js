@@ -1,18 +1,18 @@
 /**
- * PhotoshopHistogramNode - 前端交互界面
- * 实现PS风格的直方图显示和色阶调整功能
+ * PhotoshopHistogramNode - Frontend Interactive Interface
+ * Implements PS-style histogram display and levels adjustment functionality
  */
 
 import { app } from "../../scripts/app.js";
 
-console.log("🔄 PhotoshopHistogramNode.js 开始加载...");
+console.log("🔄 PhotoshopHistogramNode.js loading...");
 
 // 全局节点输出缓存
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// Histogram & Levels 编辑器类
+// Histogram & Levels editor class
 class HistogramLevelsEditor {
     constructor(node, options = {}) {
         this.node = node;

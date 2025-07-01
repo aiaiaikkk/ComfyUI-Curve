@@ -1,16 +1,16 @@
 /**
- * Camera Raw Enhance Node - 前端交互界面
- * 实现纹理、清晰度、去薄雾三个增强功能
+ * Camera Raw Enhance Node - Frontend Interactive Interface
+ * Implements texture, clarity, and dehaze enhancement features
  */
 
 import { app } from "../../scripts/app.js";
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// Camera Raw增强编辑器类
+// Camera Raw Enhancement Editor Class
 class CameraRawEnhanceEditor {
     constructor(node, options = {}) {
         this.node = node;
@@ -22,26 +22,26 @@ class CameraRawEnhanceEditor {
         this.currentMask = null;
         this.sliders = {};
         
-        // Camera Raw增强参数
+        // Camera Raw Enhancement Parameters
         this.enhanceData = {
-            // 曝光调整
+            // Exposure Adjustments
             exposure: 0.0,
             highlights: 0.0,
             shadows: 0.0,
             whites: 0.0,
             blacks: 0.0,
-            // 色彩调整
+            // Color Adjustments
             temperature: 0.0,
             tint: 0.0,
             vibrance: 0.0,
             saturation: 0.0,
-            // 基本调整
+            // Basic Adjustments
             contrast: 0.0,
-            // 增强功能
+            // Enhancement Features
             texture: 0.0,
             clarity: 0.0,
             dehaze: 0.0,
-            // 混合控制
+            // Blend Control
             blend: 100.0,
             overall_strength: 1.0
         };
@@ -50,7 +50,7 @@ class CameraRawEnhanceEditor {
     }
     
     createModal() {
-        // 创建模态弹窗
+        // Create modal popup
         this.modal = document.createElement("div");
         this.modal.className = "camera-raw-enhance-modal";
         this.modal.style.cssText = `
@@ -129,7 +129,7 @@ class CameraRawEnhanceEditor {
             font-size: 18px;
             font-weight: 600;
         `;
-        title.textContent = "📷 Camera Raw增强 - 纹理、清晰度、去薄雾";
+        title.textContent = "📷 Camera Raw Enhancement - Texture, Clarity, Dehaze";
         header.appendChild(title);
         
         // 按钮容器
@@ -162,7 +162,7 @@ class CameraRawEnhanceEditor {
             cursor: pointer;
             min-width: 120px;
         `;
-        presetSelect.innerHTML = '<option value="">选择预设...</option>';
+        presetSelect.innerHTML = '<option value="">Select Preset...</option>';
         
         // 加载预设列表
         this.loadCameraRawPresetList(presetSelect);
@@ -185,7 +185,7 @@ class CameraRawEnhanceEditor {
             color: #fff;
             cursor: pointer;
         `;
-        savePresetBtn.innerHTML = '💾 保存';
+        savePresetBtn.innerHTML = '💾 Save';
         savePresetBtn.onclick = () => this.saveCameraRawPreset(presetSelect);
         
         // 管理预设按钮
@@ -199,7 +199,7 @@ class CameraRawEnhanceEditor {
             color: #fff;
             cursor: pointer;
         `;
-        managePresetBtn.innerHTML = '⚙️ 管理';
+        managePresetBtn.innerHTML = '⚙️ Manage';
         managePresetBtn.onclick = () => this.showCameraRawPresetManager(presetSelect);
         
         presetContainer.appendChild(presetSelect);
@@ -220,7 +220,7 @@ class CameraRawEnhanceEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        settingsBtn.textContent = "设置";
+        settingsBtn.textContent = "Settings";
         settingsBtn.addEventListener('mouseenter', () => settingsBtn.style.backgroundColor = '#7f8c8d');
         settingsBtn.addEventListener('mouseleave', () => settingsBtn.style.backgroundColor = '#95a5a6');
         settingsBtn.addEventListener('click', () => this.showSettings());
@@ -239,7 +239,7 @@ class CameraRawEnhanceEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        resetBtn.textContent = "重置";
+        resetBtn.textContent = "Reset";
         resetBtn.addEventListener('mouseenter', () => resetBtn.style.backgroundColor = '#2980b9');
         resetBtn.addEventListener('mouseleave', () => resetBtn.style.backgroundColor = '#3498db');
         resetBtn.addEventListener('click', () => this.resetParameters());
@@ -258,7 +258,7 @@ class CameraRawEnhanceEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        applyBtn.textContent = "应用";
+        applyBtn.textContent = "Apply";
         applyBtn.addEventListener('mouseenter', () => applyBtn.style.backgroundColor = '#229954');
         applyBtn.addEventListener('mouseleave', () => applyBtn.style.backgroundColor = '#27ae60');
         applyBtn.addEventListener('click', () => this.applyChanges());
@@ -277,7 +277,7 @@ class CameraRawEnhanceEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        closeBtn.textContent = "关闭";
+        closeBtn.textContent = "Close";
         closeBtn.addEventListener('mouseenter', () => closeBtn.style.backgroundColor = '#ff3838');
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         closeBtn.addEventListener('click', () => this.close());
@@ -345,7 +345,7 @@ class CameraRawEnhanceEditor {
         
         // 控制面板标题
         const title = document.createElement("h3");
-        title.textContent = "增强控制";
+        title.textContent = "Enhancement Controls";
         title.style.cssText = `
             color: white;
             margin: 0 0 20px 0;
@@ -353,84 +353,84 @@ class CameraRawEnhanceEditor {
         `;
         section.appendChild(title);
         
-        // === 曝光调整部分 ===
-        const exposureTitle = this.createSectionTitle("📸 曝光调整");
+        // === Exposure Adjustment Section ===
+        const exposureTitle = this.createSectionTitle("📸 Exposure Adjustment");
         section.appendChild(exposureTitle);
         
-        const exposureGroup = this.createSliderGroup("曝光度 (Exposure)", "exposure", -5, 5, 0, 
-            "曝光度调整，控制整体亮度", 0.1);
+        const exposureGroup = this.createSliderGroup("Exposure", "exposure", -5, 5, 0, 
+            "Exposure adjustment, controls overall brightness", 0.1);
         section.appendChild(exposureGroup);
         
-        const highlightsGroup = this.createSliderGroup("高光 (Highlights)", "highlights", -100, 100, 0, 
-            "高光调整，控制过曝区域");
+        const highlightsGroup = this.createSliderGroup("Highlights", "highlights", -100, 100, 0, 
+            "Highlights adjustment, controls overexposed areas");
         section.appendChild(highlightsGroup);
         
-        const shadowsGroup = this.createSliderGroup("阴影 (Shadows)", "shadows", -100, 100, 0, 
-            "阴影调整，提亮暗部细节");
+        const shadowsGroup = this.createSliderGroup("Shadows", "shadows", -100, 100, 0, 
+            "Shadow adjustment, brightens dark detail areas");
         section.appendChild(shadowsGroup);
         
-        const whitesGroup = this.createSliderGroup("白色 (Whites)", "whites", -100, 100, 0, 
-            "白色调整，调整白场点");
+        const whitesGroup = this.createSliderGroup("Whites", "whites", -100, 100, 0, 
+            "Whites adjustment, adjusts white point");
         section.appendChild(whitesGroup);
         
-        const blacksGroup = this.createSliderGroup("黑色 (Blacks)", "blacks", -100, 100, 0, 
-            "黑色调整，调整黑场点");
+        const blacksGroup = this.createSliderGroup("Blacks", "blacks", -100, 100, 0, 
+            "Blacks adjustment, adjusts black point");
         section.appendChild(blacksGroup);
         
-        // === 色彩调整部分 ===
-        const colorTitle = this.createSectionTitle("🎨 色彩调整");
+        // === Color Adjustment Section ===
+        const colorTitle = this.createSectionTitle("🎨 Color Adjustment");
         section.appendChild(colorTitle);
         
-        const temperatureGroup = this.createSliderGroup("色温 (Temperature)", "temperature", -100, 100, 0, 
-            "色温调整，控制冷暖色调");
+        const temperatureGroup = this.createSliderGroup("Temperature", "temperature", -100, 100, 0, 
+            "Temperature adjustment, controls warm/cool tone");
         section.appendChild(temperatureGroup);
         
-        const tintGroup = this.createSliderGroup("色调 (Tint)", "tint", -100, 100, 0, 
-            "色调调整，绿品偏向");
+        const tintGroup = this.createSliderGroup("Tint", "tint", -100, 100, 0, 
+            "Tint adjustment, green/magenta balance");
         section.appendChild(tintGroup);
         
-        const vibranceGroup = this.createSliderGroup("自然饱和度 (Vibrance)", "vibrance", -100, 100, 0, 
-            "自然饱和度，智能饱和度调整");
+        const vibranceGroup = this.createSliderGroup("Vibrance", "vibrance", -100, 100, 0, 
+            "Vibrance, intelligent saturation adjustment");
         section.appendChild(vibranceGroup);
         
-        const saturationGroup = this.createSliderGroup("饱和度 (Saturation)", "saturation", -100, 100, 0, 
-            "饱和度调整，整体饱和度");
+        const saturationGroup = this.createSliderGroup("Saturation", "saturation", -100, 100, 0, 
+            "Saturation adjustment, overall saturation");
         section.appendChild(saturationGroup);
         
-        // === 基本调整部分 ===
-        const basicTitle = this.createSectionTitle("⚙️ 基本调整");
+        // === Basic Adjustment Section ===
+        const basicTitle = this.createSectionTitle("⚙️ Basic Adjustment");
         section.appendChild(basicTitle);
         
-        const contrastGroup = this.createSliderGroup("对比度 (Contrast)", "contrast", -100, 100, 0, 
-            "对比度调整，整体对比度");
+        const contrastGroup = this.createSliderGroup("Contrast", "contrast", -100, 100, 0, 
+            "Contrast adjustment, overall contrast");
         section.appendChild(contrastGroup);
         
-        // === 增强功能部分 ===
-        const enhanceTitle = this.createSectionTitle("✨ 增强功能");
+        // === Enhancement Features Section ===
+        const enhanceTitle = this.createSectionTitle("✨ Enhancement Features");
         section.appendChild(enhanceTitle);
         
-        const textureGroup = this.createSliderGroup("纹理 (Texture)", "texture", -100, 100, 0, 
-            "增强中等大小细节的对比度");
+        const textureGroup = this.createSliderGroup("Texture", "texture", -100, 100, 0, 
+            "Enhances contrast in medium-sized details");
         section.appendChild(textureGroup);
         
-        const clarityGroup = this.createSliderGroup("清晰度 (Clarity)", "clarity", -100, 100, 0, 
-            "增强中间调对比度");
+        const clarityGroup = this.createSliderGroup("Clarity", "clarity", -100, 100, 0, 
+            "Enhances midtone contrast");
         section.appendChild(clarityGroup);
         
-        const dehazeGroup = this.createSliderGroup("去薄雾 (Dehaze)", "dehaze", -100, 100, 0, 
-            "减少或增加大气雾霾效果");
+        const dehazeGroup = this.createSliderGroup("Dehaze", "dehaze", -100, 100, 0, 
+            "Reduces or adds atmospheric haze effect");
         section.appendChild(dehazeGroup);
         
-        // === 混合控制部分 ===
-        const mixTitle = this.createSectionTitle("🔧 混合控制");
+        // === Blend Control Section ===
+        const mixTitle = this.createSectionTitle("🔧 Blend Control");
         section.appendChild(mixTitle);
         
-        const blendGroup = this.createSliderGroup("混合 (Blend)", "blend", 0, 100, 100, 
-            "控制增强效果的混合程度");
+        const blendGroup = this.createSliderGroup("Blend", "blend", 0, 100, 100, 
+            "Controls the blend amount of enhancement effects");
         section.appendChild(blendGroup);
         
-        const strengthGroup = this.createSliderGroup("整体强度", "overall_strength", 0, 2, 1, 
-            "增强效果的整体强度", 0.1);
+        const strengthGroup = this.createSliderGroup("Overall Strength", "overall_strength", 0, 2, 1, 
+            "Overall strength of enhancement effects", 0.1);
         section.appendChild(strengthGroup);
         
         
@@ -557,29 +557,29 @@ class CameraRawEnhanceEditor {
     
     showSettings() {
         // 简单的设置弹窗（未来可以扩展）
-        alert("Camera Raw增强设置功能即将推出！");
+        alert("Camera Raw Enhancement settings coming soon!");
     }
     
     resetParameters() {
         this.enhanceData = {
-            // 曝光调整
+            // Exposure Adjustments
             exposure: 0.0,
             highlights: 0.0,
             shadows: 0.0,
             whites: 0.0,
             blacks: 0.0,
-            // 色彩调整
+            // Color Adjustments
             temperature: 0.0,
             tint: 0.0,
             vibrance: 0.0,
             saturation: 0.0,
-            // 基本调整
+            // Basic Adjustments
             contrast: 0.0,
-            // 增强功能
+            // Enhancement Features
             texture: 0.0,
             clarity: 0.0,
             dehaze: 0.0,
-            // 混合控制
+            // Blend Control
             blend: 100.0,
             overall_strength: 1.0
         };
@@ -599,30 +599,30 @@ class CameraRawEnhanceEditor {
     applyChanges() {
         // 同步参数到节点
         if (!this.node.widgets) {
-            console.error('Camera Raw Enhance: 节点没有widgets');
+            console.error('Camera Raw Enhance: Node has no widgets');
             return;
         }
         
         // 查找并更新对应的widget值
         const widgetMap = {
-            // 曝光调整
+            // Exposure Adjustments
             'exposure': this.enhanceData.exposure,
             'highlights': this.enhanceData.highlights,
             'shadows': this.enhanceData.shadows,
             'whites': this.enhanceData.whites,
             'blacks': this.enhanceData.blacks,
-            // 色彩调整
+            // Color Adjustments
             'temperature': this.enhanceData.temperature,
             'tint': this.enhanceData.tint,
             'vibrance': this.enhanceData.vibrance,
             'saturation': this.enhanceData.saturation,
-            // 基本调整
+            // Basic Adjustments
             'contrast': this.enhanceData.contrast,
-            // 增强功能
+            // Enhancement Features
             'texture': this.enhanceData.texture,
             'clarity': this.enhanceData.clarity,
             'dehaze': this.enhanceData.dehaze,
-            // 混合控制
+            // Blend Control
             'blend': this.enhanceData.blend,
             'overall_strength': this.enhanceData.overall_strength
         };
@@ -630,7 +630,7 @@ class CameraRawEnhanceEditor {
         for (const widget of this.node.widgets) {
             if (widgetMap.hasOwnProperty(widget.name)) {
                 widget.value = widgetMap[widget.name];
-                console.log(`更新 ${widget.name} = ${widget.value}`);
+                console.log(`Updated ${widget.name} = ${widget.value}`);
             }
         }
         
@@ -673,7 +673,7 @@ class CameraRawEnhanceEditor {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             animation: fadeInOut 2s ease-in-out;
         `;
-        notification.textContent = "↺ 参数已重置";
+        notification.textContent = "↺ Parameters Reset";
         
         // 添加动画
         this.addNotificationStyle();
@@ -704,7 +704,7 @@ class CameraRawEnhanceEditor {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             animation: fadeInOut 2s ease-in-out;
         `;
-        notification.textContent = "✓ 参数已应用到节点";
+        notification.textContent = "✓ Parameters Applied to Node";
         
         // 添加动画
         this.addNotificationStyle();
@@ -946,273 +946,29 @@ class CameraRawEnhanceEditor {
             g = g255 / 255;
             b = b255 / 255;
             
-<<<<<<< HEAD
-            // 去薄雾效果 - 与后端最优混合算法完全一致
-            if (dehaze !== 0) {
-                // 转换为255范围用于去薄雾算法
-                let r255 = r * 255;
-                let g255 = g * 255;
-                let b255 = b * 255;
-                
-                const dehazeStrength = dehaze;  // dehaze已经在第792行除以100了
-                
-                if (dehazeStrength > 0) {
-                    // 使用后端相同的最优混合算法（简化版）
-                    // 分析图像特征（简化版）
-                    const brightness = (r255 + g255 + b255) / (3 * 255);  // 归一化亮度
-                    const contrast = Math.abs(r255 - g255) + Math.abs(g255 - b255) + Math.abs(r255 - b255); // 简化对比度
-                    const maxRGB = Math.max(r255, g255, b255);
-                    const minRGB = Math.min(r255, g255, b255);
-                    const saturation = maxRGB > 0 ? ((maxRGB - minRGB) / maxRGB) * 255 : 0; // 简化饱和度
-                    
-                    // 智能选择算法（与后端逻辑一致）
-                    const is_foggy_type = (contrast < 25.5 && saturation < 40);  // 对应后端的0.1和40
-                    const is_clear_type = (contrast > 38.25 && saturation > 60); // 对应后端的0.15和60
-                    
-                    let processed_r = r, processed_g = g, processed_b = b;
-                    
-                    if (is_foggy_type) {
-                        // V2算法 - 适合低饱和度薄雾图像
-                        let stretch_params, power_params, global_scale;
-                        
-                        if (saturation < 30) {
-                            stretch_params = [[0.018, 0.985, 0.618], [0.013, 0.988, 0.636], [0.023, 0.980, 0.570]];
-                            power_params = [1.12, 1.06, 1.28];
-                            global_scale = 1.04;
-                        } else if (saturation > 70) {
-                            stretch_params = [[0.010, 0.995, 0.75], [0.008, 0.996, 0.78], [0.015, 0.990, 0.70]];
-                            power_params = [1.03, 1.01, 1.10];
-                            global_scale = 1.01;
-                        } else {
-                            stretch_params = [[0.014, 0.990, 0.68], [0.010, 0.992, 0.70], [0.019, 0.986, 0.63]];
-                            power_params = [1.07, 1.03, 1.18];
-                            global_scale = 1.025;
-                        }
-                        
-                        // 根据强度调整参数
-                        const channels = [r255, g255, b255];
-                        for (let ch = 0; ch < 3; ch++) {
-                            const [low_p, high_p, scale] = stretch_params[ch];
-                            const power = power_params[ch];
-                            
-                            // 简化的百分位数计算
-                            const normalized = channels[ch] / 255.0;
-                            const adj_low = low_p * dehazeStrength + (1.0 - dehazeStrength) * 0.01;
-                            const adj_high = high_p * dehazeStrength + (1.0 - dehazeStrength) * 0.99;
-                            const adj_scale = scale * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                            const adj_power = power * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                            
-                            // 简化的拉伸和幂函数
-                            let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                            processed = Math.pow(processed * adj_scale, adj_power);
-                            
-                            if (ch === 0) processed_r = processed * 255;
-                            else if (ch === 1) processed_g = processed * 255;
-                            else processed_b = processed * 255;
-                        }
-                        
-                        // 应用全局缩放
-                        const adj_global = global_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        processed_r *= adj_global;
-                        processed_g *= adj_global;
-                        processed_b *= adj_global;
-                        
-                    } else if (is_clear_type) {
-                        // V3算法 - 适合高对比度图像
-                        const brightness_factor = Math.max(0.5, Math.min(1.5, 1.0 / brightness));
-                        const contrast_factor = Math.max(0.5, Math.min(1.5, 25.5 / contrast));
-                        const saturation_factor = Math.max(0.5, Math.min(1.5, 50.0 / saturation));
-                        let overall_factor = Math.max(0.6, Math.min(1.4, (brightness_factor + contrast_factor + saturation_factor) / 3.0));
-                        
-                        // 根据强度调整overall_factor
-                        overall_factor = overall_factor * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        
-                        const base_stretch = [[0.016, 0.988, 0.68], [0.012, 0.990, 0.70], [0.022, 0.984, 0.62]];
-                        const base_power = [1.08, 1.04, 1.20];
-                        const base_global = 1.03;
-                        
-                        const channels = [r255, g255, b255];
-                        for (let ch = 0; ch < 3; ch++) {
-                            const [low_p, high_p, scale] = base_stretch[ch];
-                            const power = base_power[ch];
-                            
-                            const normalized = channels[ch] / 255.0;
-                            let adj_low = low_p * (2.0 - overall_factor);
-                            let adj_high = high_p + (1.0 - high_p) * (overall_factor - 1.0) * 0.5;
-                            let adj_scale = scale * (0.8 + 0.4 * overall_factor);
-                            let adj_power = power * (0.7 + 0.6 * overall_factor);
-                            
-                            // 确保强度为0时回到原始状态
-                            adj_low = adj_low * dehazeStrength + 0.01 * (1.0 - dehazeStrength);
-                            adj_high = adj_high * dehazeStrength + 0.99 * (1.0 - dehazeStrength);
-                            adj_scale = adj_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            adj_power = adj_power * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            
-                            let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                            processed = Math.pow(processed * adj_scale, adj_power);
-                            
-                            if (ch === 0) processed_r = processed * 255;
-                            else if (ch === 1) processed_g = processed * 255;
-                            else processed_b = processed * 255;
-                        }
-                        
-                        const adj_global = (base_global * (0.8 + 0.4 * overall_factor)) * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                        processed_r *= adj_global;
-                        processed_g *= adj_global;
-                        processed_b *= adj_global;
-                        
-                    } else {
-                        // 选择更接近的类型（使用V2作为默认）
-                        const type1_similarity = Math.abs(contrast - 14.535) + Math.abs(saturation - 11.7) / 10; // 对应0.057
-                        const type2_similarity = Math.abs(contrast - 49.725) + Math.abs(saturation - 83.0) / 10; // 对应0.195
-                        
-                        if (type1_similarity < type2_similarity) {
-                            // 使用V2算法（已在上面实现）
-                            const stretch_params = [[0.014, 0.990, 0.68], [0.010, 0.992, 0.70], [0.019, 0.986, 0.63]];
-                            const power_params = [1.07, 1.03, 1.18];
-                            const global_scale = 1.025;
-                            
-                            const channels = [r255, g255, b255];
-                            for (let ch = 0; ch < 3; ch++) {
-                                const [low_p, high_p, scale] = stretch_params[ch];
-                                const power = power_params[ch];
-                                
-                                const normalized = channels[ch] / 255.0;
-                                const adj_low = low_p * dehazeStrength + (1.0 - dehazeStrength) * 0.01;
-                                const adj_high = high_p * dehazeStrength + (1.0 - dehazeStrength) * 0.99;
-                                const adj_scale = scale * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                                const adj_power = power * dehazeStrength + (1.0 - dehazeStrength) * 1.0;
-                                
-                                let processed = Math.max(0, Math.min(1, (normalized - adj_low) / (adj_high - adj_low)));
-                                processed = Math.pow(processed * adj_scale, adj_power);
-                                
-                                if (ch === 0) processed_r = processed * 255;
-                                else if (ch === 1) processed_g = processed * 255;
-                                else processed_b = processed * 255;
-                            }
-                            
-                            const adj_global = global_scale * dehazeStrength + 1.0 * (1.0 - dehazeStrength);
-                            processed_r *= adj_global;
-                            processed_g *= adj_global;
-                            processed_b *= adj_global;
-                        } else {
-                            // 使用V3算法（简化版）
-                            const satFactor = 1 + dehazeStrength * 0.4; // 较温和的饱和度增强
-                            const gray = (r255 + g255 + b255) / 3;
-                            processed_r = gray + (r255 - gray) * satFactor;
-                            processed_g = gray + (g255 - gray) * satFactor;
-                            processed_b = gray + (b255 - gray) * satFactor;
-                            
-                            // 轻微的对比度增强
-                            const contrastFactor = 1 + dehazeStrength * 0.2;
-                            processed_r = (processed_r - 128) * contrastFactor + 128;
-                            processed_g = (processed_g - 128) * contrastFactor + 128;
-                            processed_b = (processed_b - 128) * contrastFactor + 128;
-                        }
-                    }
-                    
-                    r255 = processed_r;
-                    g255 = processed_g;
-                    b255 = processed_b;
-                    
-                } else {
-                    // 负向去薄雾 - 添加雾霾效果
-                    const hazeStrength = -dehazeStrength;
-                    
-                    // 降低对比度
-                    const gamma = 1 + hazeStrength * 0.5;
-                    r255 = Math.pow(r255 / 255, gamma) * 255;
-                    g255 = Math.pow(g255 / 255, gamma) * 255;
-                    b255 = Math.pow(b255 / 255, gamma) * 255;
-                    
-                    // 降低饱和度
-                    const gray = r255 * 0.299 + g255 * 0.587 + b255 * 0.114;
-                    const desatFactor = 1 - hazeStrength * 0.3;
-                    r255 = r255 * desatFactor + gray * (1 - desatFactor);
-                    g255 = g255 * desatFactor + gray * (1 - desatFactor);
-                    b255 = b255 * desatFactor + gray * (1 - desatFactor);
-                    
-                    // 添加大气光
-                    const atmosphericLight = 204; // 0.8 * 255
-                    r255 += (atmosphericLight - r255) * hazeStrength * 0.2;
-                    g255 += (atmosphericLight - g255) * hazeStrength * 0.2;
-                    b255 += (atmosphericLight - b255) * hazeStrength * 0.2;
-                }
-                
-                // 确保值在有效范围内
-                r255 = Math.min(255, Math.max(0, r255));
-                g255 = Math.min(255, Math.max(0, g255));
-                b255 = Math.min(255, Math.max(0, b255));
-                
-                // 转回0-1范围
-                r = r255 / 255;
-                g = g255 / 255;
-                b = b255 / 255;
-=======
-            // 去薄雾效果 - 简化版，与后端效果匹配
+            // Dehaze effect - simplified version, matches backend effect
             if (dehaze !== 0) {
                 const dehazeStrength = Math.abs(dehaze);
                 
                 if (dehaze > 0) {
-                    // 正向去薄雾 - 基于后端测试验证的最佳效果
-                    // 1. 饱和度增强 (1 + strength * 1.5，最大2.5倍)
-                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
-                    const saturationBoost = 1 + dehazeStrength * 1.5;
-                    r = gray + (r - gray) * saturationBoost;
-                    g = gray + (g - gray) * saturationBoost;
-                    b = gray + (b - gray) * saturationBoost;
+                    // Forward dehaze - best effect based on backend test verification
+                    const power_r = 1 + 0.12 * dehazeStrength;
+                    const power_g = 1 + 0.08 * dehazeStrength;
+                    const power_b = 1 + 0.15 * dehazeStrength;
                     
-                    // 2. 亮度降低 (1 - strength * 0.25，最低0.75)
-                    const brightnessReduction = 1 - dehazeStrength * 0.25;
-                    r *= brightnessReduction;
-                    g *= brightnessReduction;
-                    b *= brightnessReduction;
-                    
-                    // 3. 对比度增强 (1 + strength * 0.3)
-                    const contrastBoost = 1 + dehazeStrength * 0.3;
-                    r = (r - 0.5) * contrastBoost + 0.5;
-                    g = (g - 0.5) * contrastBoost + 0.5;
-                    b = (b - 0.5) * contrastBoost + 0.5;
-                    
-                    // 4. 色彩平衡调整
-                    r *= 1.0;   // 红色保持不变
-                    g *= 0.98;  // 绿色稍微降低
-                    b *= 0.88;  // 蓝色明显降低（减少雾霾的蓝色调）
-                    
-                    // 5. 与原图混合 (混合强度: 0.9 * strength)
-                    const originalR = data[i] / 255.0;
-                    const originalG = data[i + 1] / 255.0;
-                    const originalB = data[i + 2] / 255.0;
-                    
-                    const blendStrength = 0.9 * dehazeStrength;
-                    r = originalR * (1 - blendStrength) + r * blendStrength;
-                    g = originalG * (1 - blendStrength) + g * blendStrength;
-                    b = originalB * (1 - blendStrength) + b * blendStrength;
-                    
+                    r = Math.pow(r, power_r) * (1 + 0.02 * dehazeStrength);
+                    g = Math.pow(g, power_g) * (1 + 0.01 * dehazeStrength);
+                    b = Math.pow(b, power_b) * (1 + 0.03 * dehazeStrength);
                 } else {
-                    // 负向去薄雾 - 添加雾霾效果
+                    // Negative dehaze (add haze effect)
                     const hazeStrength = dehazeStrength;
                     
-                    // 降低对比度
-                    const gamma = 1 + hazeStrength * 0.5;
-                    r = Math.pow(r, gamma);
-                    g = Math.pow(g, gamma);
-                    b = Math.pow(b, gamma);
-                    
-                    // 降低饱和度
-                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
-                    const desatFactor = 1 - hazeStrength * 0.3;
-                    r = r * desatFactor + gray * (1 - desatFactor);
-                    g = g * desatFactor + gray * (1 - desatFactor);
-                    b = b * desatFactor + gray * (1 - desatFactor);
-                    
-                    // 添加大气光 (模拟雾霾)
-                    const atmosphericLight = 0.8; // 0.8的亮度
+                    // Simple haze effect: blend towards atmospheric light color
+                    const atmosphericLight = 0.8; // 0.8 brightness
                     r += (atmosphericLight - r) * hazeStrength * 0.2;
                     g += (atmosphericLight - g) * hazeStrength * 0.2;
                     b += (atmosphericLight - b) * hazeStrength * 0.2;
                 }
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
             }
             
             // 最终确保值在有效范围内并转换为0-255范围
@@ -1268,7 +1024,7 @@ class CameraRawEnhanceEditor {
     }
     
     loadCurrentImage() {
-        console.log('Camera Raw Enhance: 开始加载图像');
+        console.log('Camera Raw Enhance: Starting to load image');
         this.loadImage();
     }
     
@@ -1551,7 +1307,7 @@ class CameraRawEnhanceEditor {
         ctx.fillStyle = "#888";
         ctx.font = "16px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("等待图像输入...", canvas.width / 2, canvas.height / 2);
+        ctx.fillText("Waiting for image input...", canvas.width / 2, canvas.height / 2);
     }
     
     updatePreview(data) {
@@ -1623,24 +1379,24 @@ class CameraRawEnhanceEditor {
                 
                 // 应用预设参数到enhanceData
                 this.enhanceData = {
-                    // 曝光调整
+                    // Exposure Adjustments
                     exposure: parameters.exposure || 0.0,
                     highlights: parameters.highlights || 0.0,
                     shadows: parameters.shadows || 0.0,
                     whites: parameters.whites || 0.0,
                     blacks: parameters.blacks || 0.0,
-                    // 色彩调整
+                    // Color Adjustments
                     temperature: parameters.temperature || 0.0,
                     tint: parameters.tint || 0.0,
                     vibrance: parameters.vibrance || 0.0,
                     saturation: parameters.saturation || 0.0,
-                    // 基本调整
+                    // Basic Adjustments
                     contrast: parameters.contrast || 0.0,
-                    // 增强功能
+                    // Enhancement Features
                     texture: parameters.texture || 0.0,
                     clarity: parameters.clarity || 0.0,
                     dehaze: parameters.dehaze || 0.0,
-                    // 混合控制
+                    // Blend Control
                     blend: parameters.blend || 100.0,
                     overall_strength: parameters.overall_strength || 1.0
                 };
@@ -1691,24 +1447,24 @@ class CameraRawEnhanceEditor {
         try {
             // 收集当前所有Camera Raw参数
             const parameters = {
-                // 曝光调整
+                // Exposure Adjustments
                 exposure: this.enhanceData.exposure,
                 highlights: this.enhanceData.highlights,
                 shadows: this.enhanceData.shadows,
                 whites: this.enhanceData.whites,
                 blacks: this.enhanceData.blacks,
-                // 色彩调整
+                // Color Adjustments
                 temperature: this.enhanceData.temperature,
                 tint: this.enhanceData.tint,
                 vibrance: this.enhanceData.vibrance,
                 saturation: this.enhanceData.saturation,
-                // 基本调整
+                // Basic Adjustments
                 contrast: this.enhanceData.contrast,
-                // 增强功能
+                // Enhancement Features
                 texture: this.enhanceData.texture,
                 clarity: this.enhanceData.clarity,
                 dehaze: this.enhanceData.dehaze,
-                // 混合控制
+                // Blend Control
                 blend: this.enhanceData.blend,
                 overall_strength: this.enhanceData.overall_strength
             };

@@ -1,46 +1,46 @@
 ﻿import { app } from '../../scripts/app.js';
 import { $el } from '../../scripts/ui.js';
 
-console.log("🔄 PhotoshopHSLNode.js 开始加载...");
+console.log("🔄 PhotoshopHSLNode.js loading...");
 
-// PS风格的饱和度调整因子计算（匹配后端实现）
+// PS-style saturation adjustment factor calculation (matches backend implementation)
 function calculatePSSaturationFactor(sat_shift) {
     if (sat_shift === 0) {
         return 1.0;
     } else if (sat_shift > 0) {
-        // 正向调整：使用指数曲线，避免过度饱和
+        // Positive adjustment: use exponential curve, avoid over-saturation
         return 1.0 + (sat_shift / 100.0) * 2.0;
     } else {
-        // 负向调整：当saturation为-100时，应该完全去除饱和度
+        // Negative adjustment: when saturation is -100, should completely remove saturation
         return Math.max(0.0, 1.0 + (sat_shift / 100.0));
     }
 }
 
-// PS风格的明度调整函数（匹配后端实现）
+// PS-style lightness adjustment function (matches backend implementation)
 function applyPSLightnessAdjustment(value, light_shift) {
     if (light_shift === 0) {
         return value;
     }
     
-    // 将值规范化到0-1范围
+    // Normalize value to 0-1 range
     const normalized = value / 255.0;
     
     let adjusted;
     if (light_shift > 0) {
-        // 提亮：使用幂函数保护高光
+        // Brighten: use power function to protect highlights
         const power = 1.0 - (light_shift / 100.0) * 0.5;
         adjusted = Math.pow(normalized, power);
     } else {
-        // 变暗：使用反向幂函数保护阴影
+        // Darken: use inverse power function to protect shadows
         const power = 1.0 + (Math.abs(light_shift) / 100.0) * 0.5;
         adjusted = Math.pow(normalized, power);
     }
     
-    // 转换回0-255范围并确保在有效范围内
+    // Convert back to 0-255 range and ensure within valid bounds
     return Math.max(0, Math.min(255, adjusted * 255.0));
 }
 
-// OpenCV HSV 转换函数（匹配后端实现）
+// OpenCV HSV conversion function (matches backend implementation)
 function rgbToOpenCVHSV(r, g, b) {
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
@@ -61,13 +61,13 @@ function rgbToOpenCVHSV(r, g, b) {
     }
     
     if (h < 0) h += 360;
-    h = h / 2; // OpenCV H范围是0-179
+    h = h / 2; // OpenCV H range is 0-179
     
     return [Math.round(h), Math.round(s), Math.round(v)];
 }
 
 function openCVHSVToRGB(h, s, v) {
-    h = h * 2; // 转换回0-360度
+    h = h * 2; // Convert back to 0-360 degrees
     s = s / 255;
     v = v / 255;
     
@@ -94,7 +94,7 @@ function openCVHSVToRGB(h, s, v) {
     return [r + m, g + m, b + m];
 }
 
-// 添加样式
+// Add styles
 const style = document.createElement('style');
 style.textContent = `
     .photoshop-hsl-panel {
@@ -234,7 +234,7 @@ style.textContent = `
         border-color: #888;
     }
 
-    /* 模态弹窗样式 - Color Grading风格 */
+    /* Modal popup styles - Color Grading style */
     .hsl-modal {
         position: fixed;
         top: 0;
@@ -332,7 +332,7 @@ style.textContent = `
         max-width: 550px;
     }
     
-    /* 自定义滚动条样式 */
+    /* Custom scrollbar styles */
     .hsl-controls-container::-webkit-scrollbar {
         width: 8px;
     }
@@ -448,35 +448,35 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// 添加全局节点执行监听器
+// Add global node execution listener
 function setupGlobalNodeOutputCache() {
     
     if (app.api) {
         
-        // 监听executed事件
+        // Listen to executed event
         app.api.addEventListener("executed", ({ detail }) => {
-            const nodeId = String(detail.node); // 确保nodeId是字符串
+            const nodeId = String(detail.node); // Ensure nodeId is string
             const outputData = detail.output;
             
             
             if (nodeId && outputData && outputData.images) {
                 window.globalNodeCache.set(nodeId, outputData);
                 
-                // 同时更新到app.nodeOutputs
+                // Also update to app.nodeOutputs
                 if (!app.nodeOutputs) {
                     app.nodeOutputs = {};
                 }
                 app.nodeOutputs[nodeId] = outputData;
                 
-                // 更新节点的imgs属性
+                // Update node's imgs property
                 const node = app.graph.getNodeById(nodeId);
                 if (node && outputData.images && outputData.images.length > 0) {
-                    // 转换图像数据为URL格式
+                    // Convert image data to URL format
                     const convertToImageUrl = (imageData) => {
                         if (typeof imageData === 'string') {
                             return imageData;
@@ -495,17 +495,17 @@ function setupGlobalNodeOutputCache() {
                         return imageData;
                     };
                     
-                    // 将转换后的图像URL存储到自定义属性，避免影响原有系统
+                    // Store converted image URL to custom property, avoiding impact on original system
                     node._curveNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
                 }
                 
-                // 更新连接的下游节点缓存（支持PS Curve和HSL节点）
+                // Update connected downstream node cache (supports PS Curve and HSL nodes)
                 const graph = app.graph;
                 if (graph && graph.links) {
                     Object.values(graph.links).forEach(link => {
                         if (link && String(link.origin_id) === nodeId) {
                             const targetNode = graph.getNodeById(link.target_id);
-                            // 支持PS Curve和HSL节点
+                            // Support PS Curve and HSL nodes
                             if (targetNode && (targetNode.type === "PhotoshopCurveNode" || targetNode.type === "PhotoshopHSLNode")) {
                                 if (outputData.images && outputData.images.length > 0) {
                                     const convertToImageUrl = (imageData) => {
@@ -528,9 +528,9 @@ function setupGlobalNodeOutputCache() {
                                     
                                     targetNode._lastInputImage = convertToImageUrl(outputData.images[0]);
                                     
-                                    // PS Curve节点需要imgs属性
+                                    // PS Curve node needs imgs property
                                     if (targetNode.type === "PhotoshopCurveNode" && targetNode.imgs) {
-                                        // 只有在节点已经有imgs属性时才更新
+                                        // Only update when node already has imgs property
                                         targetNode.imgs = outputData.images.map(imageData => ({ 
                                             src: convertToImageUrl(imageData)
                                         }));
@@ -543,7 +543,7 @@ function setupGlobalNodeOutputCache() {
             }
         });
         
-        // 监听execution_cached事件
+        // Listen for execution_cached events
         app.api.addEventListener("execution_cached", ({ detail }) => {
             if (detail && detail.nodes) {
                 detail.nodes.forEach(nodeId => {
@@ -552,9 +552,9 @@ function setupGlobalNodeOutputCache() {
                     const node = app.graph.getNodeById(nodeIdStr);
                     if (node) {
                         if (node.imgs && node.imgs.length > 0) {
-                            console.log(`🎨 缓存节点 ${nodeIdStr} 已有imgs数据`);
+                            console.log(`🎨 Cached node ${nodeIdStr} already has imgs data`);
                         } else {
-                            console.log(`🎨 缓存节点 ${nodeIdStr} 需要获取输出数据`);
+                            console.log(`🎨 Cached node ${nodeIdStr} needs to get output data`);
                             
                             // 尝试从last_node_outputs获取
                             if (app.graph.last_node_outputs && app.graph.last_node_outputs[nodeIdStr]) {
@@ -675,83 +675,76 @@ const HSL_PARAMS = {
     lightness: { min: -100, max: 100, default: 0 }
 };
 
-// 定义预设
+// Define presets
 const HSL_PRESETS = {
-    "默认": { hue: 0, saturation: 0, lightness: 0 },
-    "暖色调": { hue: 30, saturation: 20, lightness: 0 },
-    "冷色调": { hue: -30, saturation: 20, lightness: 0 },
-    "复古": { hue: 0, saturation: -20, lightness: 10 },
-    "黑白": { hue: 0, saturation: -100, lightness: 0 },
-    "高对比度": { hue: 0, saturation: 30, lightness: 10 },
-    "柔和": { hue: 0, saturation: -10, lightness: 5 },
-    "鲜艳": { hue: 0, saturation: 50, lightness: 0 }
+    // User-defined preset system is now in place - built-in presets removed
 };
 
-// 定义颜色通道 - 按照红橙黄绿浅绿蓝紫洋红顺序排列
+// Define color channels - arranged in Red, Orange, Yellow, Green, Light Green, Blue, Purple, Magenta order
 const COLOR_CHANNELS = [
-    { id: "red", name: "红色", color: "#ff0000", degree: 0,
+    { id: "red", name: "Red", color: "#ff0000", degree: 0,
       // -100到+100对应色相调整范围：-100°到+100°
-      // 红色(0°)向左-100对应洋红(320°)，向右+100对应黄绿(100°)
+      // Red (0°) left -100 corresponds to Magenta (320°), right +100 corresponds to Yellow-Green (100°)
       hueGradient: "linear-gradient(to right, #ff00ff, #ff0080, #ff0040, #ff0000, #ff4000, #ff8000, #ffff00, #80ff00)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #ff0000)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #ff0000, #ffffff)" 
     },
-    { id: "orange", name: "橙色", color: "#ff8000", degree: 30,
-      // 橙色(30°)向左-100对应紫红(290°)，向右+100对应青色(130°)
+    { id: "orange", name: "Orange", color: "#ff8000", degree: 30,
+      // Orange (30°) left -100 corresponds to Purple-Red (290°), right +100 corresponds to Cyan (130°)
       hueGradient: "linear-gradient(to right, #ff00ff, #ff0080, #ff0000, #ff4000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #ff8000)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #ff8000, #ffffff)"
     },
-    { id: "yellow", name: "黄色", color: "#ffff00", degree: 60,
-      // 黄色(60°)向左-100对应红色(320°)，向右+100对应蓝色(160°)
+    { id: "yellow", name: "Yellow", color: "#ffff00", degree: 60,
+      // Yellow (60°) left -100 corresponds to Red (320°), right +100 corresponds to Blue (160°)
       hueGradient: "linear-gradient(to right, #ff0040, #ff0000, #ff4000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80, #00ffff)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #ffff00)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #ffff00, #ffffff)"
     },
-    { id: "green", name: "绿色", color: "#00ff00", degree: 120,
-      // 绿色(120°)向左-100对应橙色(20°)，向右+100对应蓝紫(220°)
+    { id: "green", name: "Green", color: "#00ff00", degree: 120,
+      // Green (120°) left -100 corresponds to Orange (20°), right +100 corresponds to Blue-Purple (220°)
       hueGradient: "linear-gradient(to right, #ff6000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #00ff00)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #00ff00, #ffffff)"
     },
-    { id: "cyan", name: "青色", color: "#00ffff", degree: 180,
-      // 青色(180°)向左-100对应黄色(80°)，向右+100对应洋红(280°)
+    { id: "cyan", name: "Cyan", color: "#00ffff", degree: 180,
+      // Cyan (180°) left -100 corresponds to Yellow (80°), right +100 corresponds to Magenta (280°)
       hueGradient: "linear-gradient(to right, #e0ff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff, #4000ff, #8000ff)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #00ffff)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #00ffff, #ffffff)"
     },
-    { id: "blue", name: "蓝色", color: "#0000ff", degree: 240,
-      // 蓝色(240°)向左-100对应绿色(140°)，向右+100对应红色(340°)
+    { id: "blue", name: "Blue", color: "#0000ff", degree: 240,
+      // Blue (240°) left -100 corresponds to Green (140°), right +100 corresponds to Red (340°)
       hueGradient: "linear-gradient(to right, #00ff40, #00ff80, #00ffff, #0080ff, #0000ff, #4000ff, #8000ff, #ff00ff, #ff0080)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #0000ff)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #0000ff, #ffffff)"
     },
-    { id: "purple", name: "紫色", color: "#8000ff", degree: 270,
-      // 紫色(270°)向左-100对应青色(170°)，向右+100对应橙色(10°)
+    { id: "purple", name: "Purple", color: "#8000ff", degree: 270,
+      // Purple (270°) left -100 corresponds to Cyan (170°), right +100 corresponds to Orange (10°)
       hueGradient: "linear-gradient(to right, #00ffbf, #00ffff, #0080ff, #0000ff, #8000ff, #ff00ff, #ff0080, #ff0000, #ff4000)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #8000ff)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #8000ff, #ffffff)"
     },
-    { id: "magenta", name: "洋红", color: "#ff00ff", degree: 300,
-      // 洋红(300°)向左-100对应蓝色(200°)，向右+100对应黄色(40°)
+    { id: "magenta", name: "Magenta", color: "#ff00ff", degree: 300,
+      // Magenta (300°) left -100 corresponds to Blue (200°), right +100 corresponds to Yellow (40°)
       hueGradient: "linear-gradient(to right, #0080ff, #0000ff, #4000ff, #8000ff, #ff00ff, #ff0080, #ff0000, #ff4000, #ff8000)",
-      // 饱和度滑轨从灰色到饱和色
+      // Saturation slider from gray to saturated color
       satGradient: "linear-gradient(to right, #808080, #ff00ff)",
-      // 明度滑轨从黑色到当前色再到白色
+      // Lightness slider from black to current color to white
       lightGradient: "linear-gradient(to right, #000000, #ff00ff, #ffffff)"
     }
 ];
@@ -841,7 +834,7 @@ app.registerExtension({
             nodeType.prototype.showHSLModal = function() {
                 console.log("显示HSL模态弹窗", this.id);
                 
-                // 创建模态弹窗容器
+                // Create modal popup container
                 const modal = document.createElement("div");
                 modal.className = "hsl-modal";
                 
@@ -855,9 +848,9 @@ app.registerExtension({
                 
                 const modalTitle = document.createElement("h3");
                 modalTitle.className = "hsl-modal-title";
-                modalTitle.textContent = "🎨 Photoshop HSL 调整";
+                modalTitle.textContent = "🎨 Photoshop HSL Adjustment";
                 
-                // 按钮容器
+                // Button container
                 const buttonContainer = document.createElement("div");
                 buttonContainer.style.cssText = `
                     display: flex;
@@ -865,7 +858,7 @@ app.registerExtension({
                     align-items: center;
                 `;
                 
-                // 预设控制容器
+                // Preset controls container
                 const presetContainer = document.createElement("div");
                 presetContainer.style.cssText = `
                     display: flex;
@@ -887,7 +880,7 @@ app.registerExtension({
                     cursor: pointer;
                     min-width: 120px;
                 `;
-                presetSelect.innerHTML = '<option value="">选择预设...</option>';
+                presetSelect.innerHTML = '<option value="">Select Preset...</option>';
                 
                 // 加载预设列表
                 this.loadHSLPresetList(presetSelect);
@@ -911,7 +904,7 @@ app.registerExtension({
                     color: #fff;
                     cursor: pointer;
                 `;
-                savePresetBtn.innerHTML = '💾 保存';
+                savePresetBtn.innerHTML = '💾 Save';
                 savePresetBtn.onclick = () => this.saveHSLPreset(presetSelect);
                 
                 // 管理预设按钮
@@ -926,7 +919,7 @@ app.registerExtension({
                     color: #fff;
                     cursor: pointer;
                 `;
-                managePresetBtn.innerHTML = '⚙️ 管理';
+                managePresetBtn.innerHTML = '⚙️ Manage';
                 managePresetBtn.onclick = () => this.showHSLPresetManager(presetSelect);
                 
                 presetContainer.appendChild(presetSelect);
@@ -936,7 +929,7 @@ app.registerExtension({
                 // 重置按钮
                 const resetBtn = document.createElement("button");
                 resetBtn.className = "hsl-modal-button secondary";
-                resetBtn.textContent = "重置";
+                resetBtn.textContent = "Reset";
                 resetBtn.onclick = () => {
                     this.resetAllParameters();
                     
@@ -959,7 +952,7 @@ app.registerExtension({
                 // 应用按钮
                 const applyBtn = document.createElement("button");
                 applyBtn.className = "hsl-modal-button primary";
-                applyBtn.textContent = "应用";
+                applyBtn.textContent = "Apply";
                 applyBtn.onclick = () => {
                     // 应用功能已自动生效，关闭弹窗即可
                     document.body.removeChild(modal);
@@ -968,7 +961,7 @@ app.registerExtension({
                 // 关闭按钮
                 const closeButton = document.createElement("button");
                 closeButton.className = "hsl-modal-close";
-                closeButton.textContent = "关闭";
+                closeButton.textContent = "Close";
                 closeButton.onclick = () => {
                     document.body.removeChild(modal);
                 };
@@ -997,10 +990,10 @@ app.registerExtension({
                     font-size: 16px;
                     font-weight: 500;
                 `;
-                previewTitle.textContent = "实时预览";
+                previewTitle.textContent = "Live Preview";
                 previewContainer.appendChild(previewTitle);
                 
-                // 预览图像容器
+                // Preview image container
                 const imageContainer = document.createElement("div");
                 imageContainer.style.cssText = `
                     flex: 1;
@@ -1023,8 +1016,8 @@ app.registerExtension({
                     object-fit: contain;
                     border-radius: 5px;
                 `;
-                previewImage.src = ""; // 图像源将在后续设置
-                previewImage.alt = "预览";
+                previewImage.src = ""; // Image source will be set later
+                previewImage.alt = "Preview";
                 
                 imageContainer.appendChild(previewImage);
                 previewContainer.appendChild(imageContainer);
@@ -1052,7 +1045,7 @@ app.registerExtension({
                 
                 controlsContainer.appendChild(presets);
                 
-                // 创建选项卡容器
+                // Create tabs container
                 const tabsContainer = document.createElement("div");
                 tabsContainer.className = "hsl-tabs-container";
                 tabsContainer.style.cssText = `
@@ -1129,7 +1122,7 @@ app.registerExtension({
                     
                     // 创建色相控制
                     const hueControl = this.createSliderControl(
-                        "色相", 
+                        "Hue", 
                         HSL_PARAMS.hue.min, 
                         HSL_PARAMS.hue.max,
                         0, // 默认值，后面会从节点参数中更新
@@ -1148,7 +1141,7 @@ app.registerExtension({
                     
                     // 创建饱和度控制
                     const saturationControl = this.createSliderControl(
-                        "饱和度", 
+                        "Saturation", 
                         HSL_PARAMS.saturation.min, 
                         HSL_PARAMS.saturation.max,
                         0, // 默认值，后面会从节点参数中更新
@@ -1165,13 +1158,13 @@ app.registerExtension({
                     }
                     channelSection.appendChild(saturationControl);
                     
-                    // 创建明度控制
+                    // Create lightness control
                     const lightnessControl = this.createSliderControl(
-                        "明度", 
+                        "Lightness", 
                         HSL_PARAMS.lightness.min, 
                         HSL_PARAMS.lightness.max,
                         0, // 默认值，后面会从节点参数中更新
-                        channel.lightGradient, // 使用通道特定的明度渐变
+                        channel.lightGradient, // Use channel-specific lightness gradient
                         (value) => {
                             this.updateChannelParam(channel.id, "lightness", parseInt(value));
                             updatePreviewImage(); // 参数变化时更新预览
@@ -1567,16 +1560,16 @@ app.registerExtension({
                                 let adjustedHSV = [...hsv];
                                 
                                 // 基于OpenCV HSV真实分布的精确颜色范围定义
-                                // OpenCV HSV: 0°=红, 30°=黄, 60°=绿, 90°=青, 120°=蓝, 150°=洋红
+                                // OpenCV HSV: 0°=Red, 30°=Yellow, 60°=Green, 90°=Cyan, 120°=Blue, 150°=Magenta
                                 const colorRanges = {
-                                    red: [[0, 10], [170, 179]],      // 红色：0度附近 (已校准)
-                                    orange: [[10, 25]],              // 橙色：15度附近 (红-黄之间)
-                                    yellow: [[25, 45]],              // 黄色：30度附近 ±15度
-                                    green: [[45, 85]],               // 绿色：60度附近 ±25度 **修正**
-                                    cyan: [[85, 105]],               // 青色：90度附近 ±15度 **修正**
-                                    blue: [[105, 135]],              // 蓝色：120度附近 ±15度 **修正**
-                                    purple: [[135, 155]],            // 紫色：135-155度 **修正**
-                                    magenta: [[155, 170]]            // 洋红：155-170度 **修正**
+                                    red: [[0, 10], [170, 179]],      // Red: around 0 degrees (calibrated)
+                                    orange: [[10, 25]],              // Orange: around 15 degrees (between red-yellow)
+                                    yellow: [[25, 45]],              // Yellow: around 30 degrees ±15 degrees
+                                    green: [[45, 85]],               // Green: around 60 degrees ±25 degrees **corrected**
+                                    cyan: [[85, 105]],               // Cyan: around 90 degrees ±15 degrees **corrected**
+                                    blue: [[105, 135]],              // Blue: around 120 degrees ±15 degrees **corrected**
+                                    purple: [[135, 155]],            // Purple: 135-155 degrees **corrected**
+                                    magenta: [[155, 170]]            // Magenta: 155-170 degrees **corrected**
                                 };
                                 
                                 Object.keys(colorRanges).forEach(colorName => {
@@ -1587,7 +1580,7 @@ app.registerExtension({
                                         return;
                                     }
                                     
-                                    // 饱和度阈值过滤（匹配后端实现）
+                                    // Saturation threshold filtering (matches backend implementation)
                                     const SATURATION_THRESHOLD = 15;
                                     if (adjustedHSV[1] < SATURATION_THRESHOLD) {
                                         return; // 跳过低饱和度像素
@@ -1636,7 +1629,7 @@ app.registerExtension({
                                             adjustedHSV[1] = Math.max(0, Math.min(255, adjustedHSV[1] * satFactor));
                                         }
                                         if (colorParams.lightness !== 0) {
-                                            // 修复：使用PS风格的明度调整
+                                            // Fix: Use PS-style lightness adjustment
                                             adjustedHSV[2] = applyPSLightnessAdjustment(adjustedHSV[2], colorParams.lightness);
                                         }
                                     }
@@ -1734,14 +1727,14 @@ app.registerExtension({
                         // 基于12色环标准定义，每个基本色相占30度
                         const hueDegree = hue * 360;
                         
-                        if (hueDegree >= 345 || hueDegree < 15) return 'red';       // 红色 345-15度 (±15度)
-                        if (hueDegree >= 15 && hueDegree < 75) return 'orange';     // 橙色 15-75度 (包含橙红、橙、橙黄)
-                        if (hueDegree >= 75 && hueDegree < 135) return 'yellow';    // 黄色 75-135度 (包含橙黄、黄、黄绿)
-                        if (hueDegree >= 135 && hueDegree < 195) return 'green';    // 绿色 135-195度 (包含黄绿、绿、蓝绿)
-                        if (hueDegree >= 195 && hueDegree < 225) return 'aqua';     // 青色 195-225度 (蓝绿)
-                        if (hueDegree >= 225 && hueDegree < 285) return 'blue';     // 蓝色 225-285度 (包含蓝绿、蓝、蓝紫)
-                        if (hueDegree >= 285 && hueDegree < 315) return 'purple';   // 紫色 285-315度 (紫色)
-                        if (hueDegree >= 315 && hueDegree < 345) return 'magenta';  // 洋红 315-345度 (紫红)
+                        if (hueDegree >= 345 || hueDegree < 15) return 'red';       // Red 345-15 degrees (±15 degrees)
+                        if (hueDegree >= 15 && hueDegree < 75) return 'orange';     // Orange 15-75 degrees (includes red-orange, orange, orange-yellow)
+                        if (hueDegree >= 75 && hueDegree < 135) return 'yellow';    // Yellow 75-135 degrees (includes orange-yellow, yellow, yellow-green)
+                        if (hueDegree >= 135 && hueDegree < 195) return 'green';    // Green 135-195 degrees (includes yellow-green, green, blue-green)
+                        if (hueDegree >= 195 && hueDegree < 225) return 'aqua';     // Cyan 195-225 degrees (blue-green)
+                        if (hueDegree >= 225 && hueDegree < 285) return 'blue';     // Blue 225-285 degrees (includes blue-green, blue, blue-purple)
+                        if (hueDegree >= 285 && hueDegree < 315) return 'purple';   // Purple 285-315 degrees (purple)
+                        if (hueDegree >= 315 && hueDegree < 345) return 'magenta';  // Magenta 315-345 degrees (purple-red)
                         return null;
                     }
                 };
@@ -1937,7 +1930,7 @@ app.registerExtension({
                     
                     if (data.success) {
                         // 清空现有选项
-                        selectElement.innerHTML = '<option value="">选择预设...</option>';
+                        selectElement.innerHTML = '<option value="">Select Preset...</option>';
                         
                         // 按类别分组
                         const categories = {};
@@ -1972,11 +1965,11 @@ app.registerExtension({
             
             nodeType.prototype.getCategoryLabel = function(category) {
                 const labels = {
-                    'default': '默认预设',
-                    'cinematic': '电影风格',
-                    'portrait': '人像',
-                    'landscape': '风景',
-                    'custom': '自定义'
+                    'default': 'Default Presets',
+                    'cinematic': 'Cinematic Style',
+                    'portrait': 'Portrait',
+                    'landscape': 'Landscape',
+                    'custom': 'Custom'
                 };
                 return labels[category] || category;
             };
@@ -2013,15 +2006,15 @@ app.registerExtension({
                     }
                 } catch (error) {
                     console.error('加载HSL预设失败:', error);
-                    alert('加载预设失败: ' + error.message);
+                    alert('Failed to load preset: ' + error.message);
                 }
             };
             
             nodeType.prototype.saveHSLPreset = async function(presetSelect) {
-                const name = prompt('请输入预设名称:');
+                const name = prompt('Please enter preset name:');
                 if (!name) return;
                 
-                const description = prompt('请输入预设描述（可选）:') || '';
+                const description = prompt('Please enter preset description (optional):') || '';
                 
                 try {
                     // 收集当前所有HSL参数
@@ -2058,15 +2051,15 @@ app.registerExtension({
                     const result = await response.json();
                     
                     if (result.success) {
-                        alert('预设保存成功!');
+                        alert('Preset saved successfully!');
                         // 重新加载预设列表
                         this.loadHSLPresetList(presetSelect);
                     } else {
-                        alert('保存预设失败: ' + result.error);
+                        alert('Failed to save preset: ' + result.error);
                     }
                 } catch (error) {
-                    console.error('保存HSL预设失败:', error);
-                    alert('保存预设失败: ' + error.message);
+                    console.error('Failed to save HSL preset:', error);
+                    alert('Failed to save preset: ' + error.message);
                 }
             };
             
@@ -2077,7 +2070,7 @@ app.registerExtension({
                     const data = await response.json();
                     
                     if (!data.success) {
-                        alert('获取预设列表失败');
+                        alert('Failed to get preset list');
                         return;
                     }
                     
@@ -2109,7 +2102,7 @@ app.registerExtension({
                     `;
                     
                     const title = document.createElement('h3');
-                    title.textContent = 'HSL预设管理器';
+                    title.textContent = 'HSL Preset Manager';
                     title.style.marginBottom = '20px';
                     managerContent.appendChild(title);
                     
@@ -2136,7 +2129,7 @@ app.registerExtension({
                         const presetInfo = document.createElement('div');
                         presetInfo.innerHTML = `
                             <strong>${preset.name}</strong><br>
-                            <small>${preset.description || '无描述'}</small>
+                            <small>${preset.description || 'No description'}</small>
                         `;
                         
                         const presetActions = document.createElement('div');
@@ -2144,7 +2137,7 @@ app.registerExtension({
                         
                         if (preset.type === 'user') {
                             const deleteBtn = document.createElement('button');
-                            deleteBtn.textContent = '删除';
+                            deleteBtn.textContent = 'Delete';
                             deleteBtn.style.cssText = `
                                 padding: 4px 8px;
                                 background: #d32f2f;
@@ -2155,7 +2148,7 @@ app.registerExtension({
                                 font-size: 12px;
                             `;
                             deleteBtn.onclick = async () => {
-                                if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                                if (confirm(`Are you sure you want to delete preset "${preset.name}"?`)) {
                                     try {
                                         const delResponse = await fetch(`/hsl_presets/delete/${preset.id}`, {
                                             method: 'DELETE'
@@ -2166,10 +2159,10 @@ app.registerExtension({
                                             presetItem.remove();
                                             this.loadHSLPresetList(presetSelect);
                                         } else {
-                                            alert('删除失败: ' + delResult.error);
+                                            alert('Delete failed: ' + delResult.error);
                                         }
                                     } catch (error) {
-                                        alert('删除失败: ' + error.message);
+                                        alert('Delete failed: ' + error.message);
                                     }
                                 }
                             };
@@ -2177,7 +2170,7 @@ app.registerExtension({
                         }
                         
                         const exportBtn = document.createElement('button');
-                        exportBtn.textContent = '导出';
+                        exportBtn.textContent = 'Export';
                         exportBtn.style.cssText = `
                             padding: 4px 8px;
                             background: #388e3c;
@@ -2205,7 +2198,7 @@ app.registerExtension({
                                     URL.revokeObjectURL(url);
                                 }
                             } catch (error) {
-                                alert('导出失败: ' + error.message);
+                                alert('Export failed: ' + error.message);
                             }
                         };
                         presetActions.appendChild(exportBtn);
@@ -2222,7 +2215,7 @@ app.registerExtension({
                     importSection.style.marginBottom = '20px';
                     
                     const importTitle = document.createElement('h4');
-                    importTitle.textContent = '导入预设';
+                    importTitle.textContent = 'Import Preset';
                     importSection.appendChild(importTitle);
                     
                     const fileInput = document.createElement('input');
@@ -2231,7 +2224,7 @@ app.registerExtension({
                     fileInput.style.marginBottom = '10px';
                     
                     const importBtn = document.createElement('button');
-                    importBtn.textContent = '导入文件';
+                    importBtn.textContent = 'Import File';
                     importBtn.style.cssText = `
                         padding: 8px 16px;
                         background: #1976d2;
@@ -2243,7 +2236,7 @@ app.registerExtension({
                     importBtn.onclick = async () => {
                         const file = fileInput.files[0];
                         if (!file) {
-                            alert('请选择要导入的文件');
+                            alert('Please select a file to import');
                             return;
                         }
                         
@@ -2260,14 +2253,14 @@ app.registerExtension({
                             const impResult = await impResponse.json();
                             
                             if (impResult.success) {
-                                alert('预设导入成功!');
+                                alert('Preset imported successfully!');
                                 document.body.removeChild(managerModal);
                                 this.loadHSLPresetList(presetSelect);
                             } else {
-                                alert('导入失败: ' + impResult.error);
+                                alert('Import failed: ' + impResult.error);
                             }
                         } catch (error) {
-                            alert('导入失败: ' + error.message);
+                            alert('Import failed: ' + error.message);
                         }
                     };
                     
@@ -2277,7 +2270,7 @@ app.registerExtension({
                     
                     // 关闭按钮
                     const closeBtn = document.createElement('button');
-                    closeBtn.textContent = '关闭';
+                    closeBtn.textContent = 'Close';
                     closeBtn.style.cssText = `
                         padding: 8px 16px;
                         background: #666;
@@ -2294,8 +2287,8 @@ app.registerExtension({
                     document.body.appendChild(managerModal);
                     
                 } catch (error) {
-                    console.error('显示HSL预设管理器失败:', error);
-                    alert('显示预设管理器失败: ' + error.message);
+                    console.error('Failed to show HSL preset manager:', error);
+                    alert('Failed to show preset manager: ' + error.message);
                 }
             };
             
@@ -2340,7 +2333,7 @@ app.registerExtension({
                         $el("div", {
                             className: "hsl-label"
                         }, [
-                            $el("span", { textContent: "色相" })
+                            $el("span", { textContent: "Hue" })
                         ]),
                         $el("input", {
                             type: "range",
@@ -2353,14 +2346,14 @@ app.registerExtension({
                         }),
                         $el("span", { className: "hsl-value", textContent: "0" })
                     ]),
-                    // 饱和度控制
+                    // Saturation control
                     $el("div", {
                         className: "hsl-control"
                     }, [
                         $el("div", {
                             className: "hsl-label"
                         }, [
-                            $el("span", { textContent: "饱和度" })
+                            $el("span", { textContent: "Saturation" })
                         ]),
                         $el("input", {
                             type: "range",
@@ -2373,14 +2366,14 @@ app.registerExtension({
                         }),
                         $el("span", { className: "hsl-value", textContent: "0" })
                     ]),
-                    // 亮度控制
+                    // Lightness control
                     $el("div", {
                         className: "hsl-control"
                     }, [
                         $el("div", {
                             className: "hsl-label"
                         }, [
-                            $el("span", { textContent: "亮度" })
+                            $el("span", { textContent: "Lightness" })
                         ]),
                         $el("input", {
                             type: "range",
@@ -2400,7 +2393,7 @@ app.registerExtension({
                         $el("div", {
                             className: "hsl-label"
                         }, [
-                            $el("span", { textContent: "着色强度" })
+                            $el("span", { textContent: "Colorize Intensity" })
                         ]),
                         $el("input", {
                             type: "range",
@@ -2413,7 +2406,7 @@ app.registerExtension({
                         }),
                         $el("span", { className: "hsl-value", textContent: "0" })
                     ]),
-                    // 着色切换
+                    // Colorize toggle
                     $el("div", {
                         className: "hsl-colorize-toggle"
                     }, [
@@ -2424,7 +2417,7 @@ app.registerExtension({
                         }),
                         $el("label", {
                             htmlFor: `hsl-colorize-${this.id}`,
-                            textContent: "启用着色模式"
+                            textContent: "Enable Colorize Mode"
                         })
                     ])
                 ]);

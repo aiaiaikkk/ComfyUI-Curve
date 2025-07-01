@@ -1,45 +1,45 @@
 import { app } from "../../scripts/app.js";
 
 /*
- * PhotoshopCurveNode.js - 曲线调整节点
+ * PhotoshopCurveNode.js - Curve Adjustment Node
  * 
- * 修复内容:
- * 1. 修复了双击节点无法打开弹窗的问题
- * 2. 修复了重置按钮不显示的问题
- * 3. 简化了模态弹窗的创建和事件处理
- * 4. 改进了曲线编辑器的创建过程
+ * Fix Content:
+ * 1. Fixed the issue where double-clicking node couldn't open popup
+ * 2. Fixed the issue where reset button wasn't showing
+ * 3. Simplified modal popup creation and event handling
+ * 4. Improved curve editor creation process
  */
 
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// 添加全局节点执行监听器
+// Add global node execution listener
 function setupGlobalNodeOutputCache() {
     
     if (app.api) {
         
-        // 监听executed事件
+        // Listen to executed event
         app.api.addEventListener("executed", ({ detail }) => {
-            const nodeId = String(detail.node); // 确保nodeId是字符串
+            const nodeId = String(detail.node); // Ensure nodeId is string
             const outputData = detail.output;
             
             
             if (nodeId && outputData && outputData.images) {
                 window.globalNodeCache.set(nodeId, outputData);
                 
-                // 同时更新到app.nodeOutputs
+                // Also update to app.nodeOutputs
                 if (!app.nodeOutputs) {
                     app.nodeOutputs = {};
                 }
                 app.nodeOutputs[nodeId] = outputData;
                 
-                // 更新节点的imgs属性
+                // Update node's imgs property
                 const node = app.graph.getNodeById(nodeId);
                 if (node && outputData.images && outputData.images.length > 0) {
-                    // 转换图像数据为URL格式
+                    // Convert image data to URL format
                     const convertToImageUrl = (imageData) => {
                         if (typeof imageData === 'string') {
                             return imageData;
@@ -58,10 +58,10 @@ function setupGlobalNodeOutputCache() {
                         return imageData;
                     };
                     
-                    // 将转换后的图像URL存储到自定义属性，避免影响原有系统
+                    // Store converted image URLs to custom property, avoiding impact on original system
                     node._curveNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
                     
-                    // 如果是PS Curve节点，保存输出图像并触发直方图更新
+                    // If it's PS Curve node, save output image and trigger histogram update
                     if (node.type === "PhotoshopCurveNode") {
                         node._lastOutputImage = convertToImageUrl(outputData.images[0]);
                         
@@ -147,7 +147,7 @@ function setupGlobalNodeOutputCache() {
                         } else {
                             console.log(`🎨 缓存节点 ${nodeIdStr} 需要获取输出数据`);
                             
-                            // 尝试从last_node_outputs获取
+                            // Try to get from last_node_outputs
                             if (app.graph.last_node_outputs && app.graph.last_node_outputs[nodeIdStr]) {
                                 const outputs = app.graph.last_node_outputs[nodeIdStr];
                                 if (outputs.images && outputs.images.length > 0) {
@@ -340,7 +340,7 @@ class CurveEditorModal {
         // 使用自适应的宽度和高度
         this.options.width = width;
         this.options.height = height;
-        this.options.title = options.title || "曲线编辑器";
+        this.options.title = options.title || "Curve Editor";
         
         // 记录实际使用的尺寸
         console.log("🎨 模态弹窗尺寸:", this.options.width, "x", this.options.height);
@@ -562,7 +562,7 @@ class CurveEditorModal {
         
         const title = document.createElement('div');
         title.className = 'curve-editor-title';
-        title.textContent = '曲线编辑器';
+        title.textContent = 'Curve Editor';
         
         // 创建控制按钮容器
         const headerControls = document.createElement('div');
@@ -589,7 +589,7 @@ class CurveEditorModal {
             color: #fff;
             cursor: pointer;
         `;
-        maskToggleButton.textContent = '显示遮罩边界';
+        maskToggleButton.textContent = 'Show Mask Border';
         maskToggleButton.onclick = (e) => {
             // 阻止事件冒泡和默认行为
             e.stopPropagation();
@@ -597,7 +597,7 @@ class CurveEditorModal {
             
             console.log("🎨 切换遮罩显示状态");
             this.showMaskOverlay = !this.showMaskOverlay;
-            maskToggleButton.textContent = this.showMaskOverlay ? '隐藏遮罩边界' : '显示遮罩边界';
+            maskToggleButton.textContent = this.showMaskOverlay ? 'Hide Mask Border' : 'Show Mask Border';
             
             const maskCanvas = this.modal.querySelector('.preview-mask-canvas');
             if (maskCanvas) {
@@ -669,7 +669,7 @@ class CurveEditorModal {
         
         const resetButton = document.createElement('button');
         resetButton.className = 'curve-editor-button secondary';
-        resetButton.textContent = '重置';
+        resetButton.textContent = 'Reset';
         resetButton.onclick = () => {
             if (this.curveEditor) {
                 this.curveEditor.resetCurve();
@@ -679,12 +679,12 @@ class CurveEditorModal {
         
         const cancelButton = document.createElement('button');
         cancelButton.className = 'curve-editor-button secondary';
-        cancelButton.textContent = '取消';
+        cancelButton.textContent = 'Cancel';
         cancelButton.onclick = () => this.cancel();
         
         const applyButton = document.createElement('button');
         applyButton.className = 'curve-editor-button primary';
-        applyButton.textContent = '应用';
+        applyButton.textContent = 'Apply';
         applyButton.onclick = () => this.apply();
         
         footer.appendChild(resetButton);
@@ -898,7 +898,7 @@ class CurveEditorModal {
             // 添加操作提示 - 简化版本
             const helpTip = document.createElement('div');
             helpTip.className = 'curve-editor-help';
-            helpTip.innerHTML = '单击：添加点 | 右键：删除点 | 拖动：移动点 | <span style="color: #4ecdc4; cursor: pointer;" onclick="this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display = this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display === \'none\' ? \'block\' : \'none\'">🎯 数值输入</span>';
+            helpTip.innerHTML = 'Click: Add Point | Right-click: Delete Point | Drag: Move Point | <span style="color: #4ecdc4; cursor: pointer;" onclick="this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display = this.parentElement.parentElement.querySelector(\'.quick-input-container\').style.display === \'none\' ? \'block\' : \'none\'">🎯 Numeric Input</span>';
             helpTip.style.cssText = `
                 padding: 6px;
                 background: #333;
@@ -963,7 +963,7 @@ class CurveEditorModal {
             `;
 
             const addBtn = document.createElement('button');
-            addBtn.textContent = '添加';
+            addBtn.textContent = 'Add';
             addBtn.style.cssText = `
                 padding: 3px 8px;
                 background: #0078d4;
@@ -975,7 +975,7 @@ class CurveEditorModal {
             `;
 
             const batchBtn = document.createElement('button');
-            batchBtn.textContent = '批量';
+            batchBtn.textContent = 'Batch';
             batchBtn.style.cssText = `
                 padding: 3px 8px;
                 background: #6b3fa0;
@@ -986,7 +986,7 @@ class CurveEditorModal {
                 cursor: pointer;
             `;
 
-            inputRow.appendChild(document.createTextNode('坐标: '));
+            inputRow.appendChild(document.createTextNode('Coordinates: '));
             inputRow.appendChild(xInput);
             inputRow.appendChild(document.createTextNode(','));
             inputRow.appendChild(yInput);
@@ -1235,7 +1235,7 @@ class CurveEditorModal {
                     // 手动执行selectChannel的逻辑，确保正确的上下文
                     const curveEditor = this.curveEditor;
                     
-                    // 保存当前通道的曲线
+                    // Save current channel的曲线
                     if (curveEditor.channelCurves && curveEditor.currentChannel) {
                         curveEditor.channelCurves[curveEditor.currentChannel] = curveEditor.controlPoints.map(p => [p.x, p.y]);
                     }
@@ -1248,7 +1248,7 @@ class CurveEditorModal {
                     curveEditor._histogramDrawn = false;
                     curveEditor._lastHistogramChannel = null;
                     
-                    // 更新通道按钮状态
+                    // Update channel button state
                     if (typeof curveEditor.updateChannelButtons === 'function') {
                         curveEditor.updateChannelButtons();
                     }
@@ -1400,7 +1400,7 @@ class CurveEditorModal {
             const y = parseInt(yInput.value);
             
             if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
-                alert('请输入有效坐标 (0-255)');
+                alert('Please enter valid coordinates (0-255)');
                 return;
             }
             
@@ -1433,7 +1433,7 @@ class CurveEditorModal {
         const openBatchInput = () => {
             const currentPoints = this.curveEditor.controlPoints.map(p => `${p.x},${p.y}`).join(';');
             const input = prompt(
-                '批量输入控制点\n格式：x1,y1;x2,y2;x3,y3...\n例如：0,0;64,80;128,128;192,200;255,255',
+                'Batch Input Control Points\nFormat: x1,y1;x2,y2;x3,y3...\nExample: 0,0;64,80;128,128;192,200;255,255',
                 currentPoints
             );
             
@@ -1443,13 +1443,13 @@ class CurveEditorModal {
                 const points = input.split(';').map(pointStr => {
                     const [x, y] = pointStr.trim().split(',').map(v => parseInt(v.trim()));
                     if (isNaN(x) || isNaN(y) || x < 0 || x > 255 || y < 0 || y > 255) {
-                        throw new Error(`无效坐标: ${pointStr}`);
+                        throw new Error(`Invalid coordinates: ${pointStr}`);
                     }
                     return {x, y};
                 });
                 
                 if (points.length < 2) {
-                    throw new Error('至少需要2个控制点');
+                    throw new Error('At least 2 control points required');
                 }
                 
                 points.sort((a, b) => a.x - b.x);
@@ -1466,7 +1466,7 @@ class CurveEditorModal {
                 console.log(`🎨 批量设置: ${points.length}个点`);
                 
             } catch (error) {
-                alert(`输入错误: ${error.message}`);
+                alert(`Input error: ${error.message}`);
             }
         };
         
@@ -2442,7 +2442,7 @@ class CurveEditorModal {
             color: #fff;
             cursor: pointer;
         `;
-        savePresetBtn.innerHTML = '💾 保存';
+        savePresetBtn.innerHTML = '💾 Save';
         savePresetBtn.onclick = () => this.savePreset();
         
         // 管理预设按钮
@@ -2457,7 +2457,7 @@ class CurveEditorModal {
             color: #fff;
             cursor: pointer;
         `;
-        managePresetBtn.innerHTML = '⚙️ 管理';
+        managePresetBtn.innerHTML = '⚙️ Manage';
         managePresetBtn.onclick = () => this.showPresetManager();
         
         container.appendChild(presetSelect);
@@ -2476,7 +2476,7 @@ class CurveEditorModal {
             
             if (data.success) {
                 // 清空现有选项
-                selectElement.innerHTML = '<option value="">选择预设...</option>';
+                selectElement.innerHTML = '<option value="">Select Preset...</option>';
                 
                 // 按类别分组
                 const categories = {};
@@ -2512,24 +2512,24 @@ class CurveEditorModal {
     // 获取分类标签
     getCategoryLabel(category) {
         const labels = {
-            'default': '默认预设',
-            'cinematic': '电影风格',
-            'portrait': '人像',
-            'landscape': '风景',
-            'custom': '自定义'
+            'default': 'Default Presets',
+            'cinematic': 'Cinematic Style',
+            'portrait': 'Portrait',
+            'landscape': 'Landscape',
+            'custom': 'Custom'
         };
         return labels[category] || category;
     }
     
     // 保存预设
     async savePreset() {
-        const name = prompt('请输入预设名称:');
+        const name = prompt('Please enter preset name:');
         if (!name) return;
         
-        const description = prompt('请输入预设描述（可选）:') || '';
+        const description = prompt('Please enter preset description (optional):') || '';
         
         try {
-            console.log('开始保存预设...');
+            console.log('Starting to save preset...');
             
             // 获取当前曲线数据
             let curves = {};
@@ -2540,9 +2540,9 @@ class CurveEditorModal {
                     'G': this.getCurveForChannel('G') || '0,0;255,255',
                     'B': this.getCurveForChannel('B') || '0,0;255,255'
                 };
-                console.log('曲线数据获取成功:', curves);
+                console.log('Curve data retrieved successfully:', curves);
             } catch (e) {
-                console.error('获取曲线数据失败:', e);
+                console.error('Failed to retrieve curve data:', e);
                 curves = {
                     'RGB': '0,0;255,255',
                     'R': '0,0;255,255',
@@ -2554,9 +2554,9 @@ class CurveEditorModal {
             // 获取强度值
             const strengthWidget = this.node.widgets.find(w => w.name === 'strength');
             const strength = strengthWidget ? strengthWidget.value : 100;
-            console.log('强度值:', strength);
+            console.log('Strength value:', strength);
             
-            // 暂时跳过缩略图生成
+            // Temporarily skip thumbnail generation
             const thumbnail = '';
             
             const presetData = {
@@ -2569,7 +2569,7 @@ class CurveEditorModal {
                 tags: []
             };
             
-            console.log('预设数据:', presetData);
+            console.log('Preset data:', presetData);
             
             const response = await fetch('/curve_presets/save', {
                 method: 'POST',
@@ -2579,27 +2579,27 @@ class CurveEditorModal {
                 body: JSON.stringify(presetData)
             });
             
-            // 检查响应状态
+            // Check response status
             if (!response.ok) {
-                console.error('API响应错误:', response.status, response.statusText);
+                console.error('API response error:', response.status, response.statusText);
                 const errorText = await response.text();
-                console.error('错误详情:', errorText);
-                alert(`保存失败: ${response.status} ${response.statusText}`);
+                console.error('Error details:', errorText);
+                alert(`Save failed: ${response.status} ${response.statusText}`);
                 return;
             }
             
             const result = await response.json();
             if (result.success) {
-                alert('预设保存成功！');
-                // 重新加载预设列表
+                alert('Preset saved successfully!');
+                // Reload preset list
                 this.loadPresetList(this.presetSelect);
             } else {
-                alert('保存失败: ' + result.error);
+                alert('Save failed: ' + result.error);
             }
         } catch (error) {
-            console.error('保存预设失败:', error);
-            console.error('错误堆栈:', error.stack);
-            alert('保存预设时出错: ' + error.message);
+            console.error('Save preset failed:', error);
+            console.error('Error stack:', error.stack);
+            alert('Error saving preset: ' + error.message);
         }
     }
     
@@ -2612,12 +2612,12 @@ class CurveEditorModal {
             if (data.success) {
                 const preset = data.preset;
                 
-                // 应用曲线数据
+                // Apply curve data
                 if (preset.curves) {
-                    // 保存当前通道
+                    // Save current channel
                     const currentChannel = this.curveEditor.currentChannel || 'RGB';
                     
-                    // 应用每个通道的曲线
+                    // Apply curves for each channel
                     ['RGB', 'R', 'G', 'B'].forEach(channel => {
                         if (preset.curves[channel]) {
                             try {
@@ -2625,16 +2625,16 @@ class CurveEditorModal {
                                 
                                 console.log(`🎨 解析${channel}通道预设数据:`, preset.curves[channel]);
                                 
-                                // 解析曲线数据 - 支持多种格式
+                                // Parse curve data - support multiple formats
                                 if (typeof preset.curves[channel] === 'string') {
-                                    // 检查是否是分号分隔的格式 "0,0;64,60;128,135"
+                                    // Check if it's semicolon-separated format "0,0;64,60;128,135"
                                     if (preset.curves[channel].includes(';')) {
                                         curveData = preset.curves[channel].split(';').map(point => {
                                             const [x, y] = point.split(',').map(Number);
                                             return [x, y];
                                         });
                                     } else {
-                                        // 尝试JSON解析
+                                        // Try JSON parse
                                         curveData = JSON.parse(preset.curves[channel]);
                                     }
                                 } else {
@@ -2643,23 +2643,23 @@ class CurveEditorModal {
                                 
                                 console.log(`🎨 ${channel}通道解析后的曲线数据:`, curveData);
                                 
-                                // 存储到通道曲线数据中
+                                // Store to channel curve data
                                 this.curveEditor.channelCurves[channel] = curveData;
                                 
-                                // 如果是当前通道，更新控制点
+                                // If it's current channel, update control points
                                 if (channel === currentChannel) {
                                     console.log(`🎨 更新当前通道${channel}的控制点`);
                                     this.curveEditor.controlPoints = curveData.map(p => ({x: p[0], y: p[1]}));
-                                    // 重新绘制曲线
+                                    // Redraw curve
                                     this.curveEditor.drawCurve();
                                 }
                             } catch (e) {
-                                console.error(`解析${channel}通道曲线失败:`, e);
+                                console.error(`Failed to parse ${channel} channel curve:`, e);
                             }
                         }
                     });
                     
-                    // 确保当前通道正确显示
+                    // Ensure current channel is displayed correctly
                     if (this.curveEditor.channelCurves[currentChannel]) {
                         this.curveEditor.controlPoints = this.curveEditor.channelCurves[currentChannel].map(p => ({
                             x: p[0], 
@@ -2667,17 +2667,17 @@ class CurveEditorModal {
                         }));
                     }
                     
-                    // 更新界面和widgets
+                    // Update interface and widgets
                     this.curveEditor.updatePointsWidget();
                     this.curveEditor.drawCurve();
                     
-                    // 更新通道按钮状态
+                    // Update channel button state
                     if (this.curveEditor.updateChannelButtons) {
                         this.curveEditor.updateChannelButtons();
                     }
                 }
                 
-                // 应用强度
+                // Apply strength
                 if (preset.strength !== undefined) {
                     const strengthWidget = this.node.widgets.find(w => w.name === 'strength');
                     if (strengthWidget) {
@@ -2685,35 +2685,35 @@ class CurveEditorModal {
                     }
                 }
                 
-                // 更新预览
+                // Update preview
                 this.updatePreview();
                 
-                console.log('预设已加载:', preset.name);
+                console.log('Preset loaded:', preset.name);
                 
-                // 在下拉列表中显示已加载的预设名称
+                // Show loaded preset name in dropdown
                 if (this.presetSelect) {
                     this.presetSelect.value = presetId;
                 }
             }
         } catch (error) {
-            console.error('加载预设失败:', error);
-            alert('加载预设时出错');
+            console.error('Failed to load preset:', error);
+            alert('Error loading preset');
         }
     }
     
     // 获取指定通道的曲线数据
     getCurveForChannel(channel) {
-        // 如果是当前通道，直接返回当前控制点
+        // If it's current channel, return current control points directly
         if (this.curveEditor.currentChannel === channel) {
             const points = this.curveEditor.controlPoints || [];
             return JSON.stringify(points.map(p => [p.x, p.y]));
         }
         
-        // 否则从存储的曲线数据中获取
+        // Otherwise get from stored curve data
         const curves = this.curveEditor.channelCurves[channel] || [[0,0],[255,255]];
         return JSON.stringify(curves);
         
-        // 恢复原始通道
+        // Restore original channel
         if (this.curveEditor.channel) {
             this.curveEditor.channel.value = currentChannel;
         }
@@ -2772,7 +2772,7 @@ class CurveEditorModal {
         `;
         
         const title = document.createElement('h3');
-        title.textContent = '曲线预设管理器';
+        title.textContent = 'Curve Preset Manager';
         title.style.marginBottom = '20px';
         managerContent.appendChild(title);
         
@@ -2794,7 +2794,7 @@ class CurveEditorModal {
         importSection.style.marginBottom = '20px';
         
         const importTitle = document.createElement('h4');
-        importTitle.textContent = '导入预设';
+        importTitle.textContent = 'Import Preset';
         importSection.appendChild(importTitle);
         
         const fileInput = document.createElement('input');
@@ -2803,7 +2803,7 @@ class CurveEditorModal {
         fileInput.style.marginBottom = '10px';
         
         const importBtn = document.createElement('button');
-        importBtn.textContent = '导入文件';
+        importBtn.textContent = 'Import File';
         importBtn.style.cssText = `
             padding: 8px 16px;
             background: #1976d2;
@@ -2815,7 +2815,7 @@ class CurveEditorModal {
         importBtn.onclick = async () => {
             const file = fileInput.files[0];
             if (!file) {
-                alert('请选择要导入的文件');
+                alert('Please select a file to import');
                 return;
             }
             
@@ -2833,14 +2833,14 @@ class CurveEditorModal {
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('预设导入成功!');
+                    alert('Preset imported successfully!');
                     managerModal.remove();
                     this.loadPresetList(this.presetSelect);
                 } else {
-                    alert('导入失败: ' + result.error);
+                    alert('Import failed: ' + result.error);
                 }
             } catch (error) {
-                alert('导入失败: ' + error.message);
+                alert('Import failed: ' + error.message);
             }
         };
         
@@ -2850,7 +2850,7 @@ class CurveEditorModal {
         
         // 关闭按钮
         const closeBtn = document.createElement('button');
-        closeBtn.textContent = '关闭';
+        closeBtn.textContent = 'Close';
         closeBtn.style.cssText = `
             padding: 8px 16px;
             background: #666;
@@ -2868,7 +2868,7 @@ class CurveEditorModal {
         // 将预设管理器添加到dialog内部而不是body
         this.modal.appendChild(managerModal);
         
-        // 点击背景关闭
+        // Click background to close
         managerModal.addEventListener('click', (e) => {
             if (e.target === managerModal) {
                 managerModal.remove();
@@ -2901,7 +2901,7 @@ class CurveEditorModal {
                     const presetInfo = document.createElement('div');
                     presetInfo.innerHTML = `
                         <strong>${preset.name}</strong><br>
-                        <small>${preset.description || '无描述'}</small>
+                        <small>${preset.description || 'No description'}</small>
                     `;
                     
                     const presetActions = document.createElement('div');
@@ -2909,7 +2909,7 @@ class CurveEditorModal {
                     
                     if (preset.type === 'user') {
                         const deleteBtn = document.createElement('button');
-                        deleteBtn.textContent = '删除';
+                        deleteBtn.textContent = 'Delete';
                         deleteBtn.style.cssText = `
                             padding: 4px 8px;
                             background: #d32f2f;
@@ -2920,7 +2920,7 @@ class CurveEditorModal {
                             font-size: 12px;
                         `;
                         deleteBtn.onclick = async () => {
-                            if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                            if (confirm(`Are you sure you want to delete preset "${preset.name}"?`)) {
                                 try {
                                     const delResponse = await fetch(`/curve_presets/delete/${preset.id}`, {
                                         method: 'DELETE'
@@ -2931,10 +2931,10 @@ class CurveEditorModal {
                                         presetItem.remove();
                                         this.loadPresetList(this.presetSelect);
                                     } else {
-                                        alert('删除失败: ' + delResult.error);
+                                        alert('Delete failed: ' + delResult.error);
                                     }
                                 } catch (error) {
-                                    alert('删除失败: ' + error.message);
+                                    alert('Delete failed: ' + error.message);
                                 }
                             }
                         };
@@ -2942,7 +2942,7 @@ class CurveEditorModal {
                     }
                     
                     const exportBtn = document.createElement('button');
-                    exportBtn.textContent = '导出';
+                    exportBtn.textContent = 'Export';
                     exportBtn.style.cssText = `
                         padding: 4px 8px;
                         background: #388e3c;
@@ -2958,7 +2958,7 @@ class CurveEditorModal {
                             const expResult = await expResponse.json();
                             
                             if (expResult.success) {
-                                // 创建下载
+                                // Create download
                                 const blob = new Blob([expResult.content], {
                                     type: 'application/json'
                                 });
@@ -2970,7 +2970,7 @@ class CurveEditorModal {
                                 URL.revokeObjectURL(url);
                             }
                         } catch (error) {
-                            alert('导出失败: ' + error.message);
+                            alert('Export failed: ' + error.message);
                         }
                     };
                     presetActions.appendChild(exportBtn);
@@ -2981,12 +2981,12 @@ class CurveEditorModal {
                 });
                 
                 if (data.presets.length === 0) {
-                    container.innerHTML = '<p style="color: #888; text-align: center;">暂无预设</p>';
+                    container.innerHTML = '<p style="color: #888; text-align: center;">No presets available</p>';
                 }
             }
         } catch (error) {
             console.error('加载预设列表失败:', error);
-            container.innerHTML = '<p style="color: #f88; text-align: center;">加载预设失败</p>';
+            container.innerHTML = '<p style="color: #f88; text-align: center;">Failed to load presets</p>';
         }
     }
     
@@ -3272,7 +3272,7 @@ class PhotoshopCurveNodeWidget {
         // 创建重置按钮 - 使用更明显的样式
         const resetButton = document.createElement('button');
         resetButton.id = `reset-button-${this.node.id || Date.now()}`;
-        resetButton.textContent = '重置';
+        resetButton.textContent = 'Reset';
         resetButton.style.cssText = `
             height: 28px;
             padding: 0 16px;
