@@ -17,7 +17,6 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - ✅ **前后端算法同步**：修复Camera Raw去薄雾算法前后端不一致问题，现在预览效果更接近实际处理结果
 - ✅ **错误修复**：修复GaussianBlurNode参数传递错误，提升系统稳定性
 - ⚠️ **去薄雾算法持续优化中**：当前已基本实现算法对齐，但与PS Camera Raw效果仍有差距，继续调试中
-- 🧹 **项目清理**：删除临时测试文件，保持项目结构整洁
 
 #### 🎯 CurvePreset智能联动功能
 - ✅ **智能通道识别**：每个预设风格都配置了基于色彩理论的最佳适用通道
@@ -33,7 +32,7 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 
 ### 🌟 主要功能
 
-项目介绍视频：https://www.bilibili.com/video/BV1QuMFzRE5i/
+项目介绍视频：https://www.bilibili.com/video/BV1bxKqzQEw1/?vd_source=443ea67b1e3e510a92de1942e4d60082
 
 #### 🎨 曲线调整 (Photoshop Curve)
 ![Photoshop Curve Node](images/PS_Curve.png)
@@ -137,6 +136,23 @@ ComfyUI专业色彩调整扩展，提供类似Photoshop的曲线、HSL、色阶�
 - **零延迟反馈**：在弹出窗口中调整参数时图像实时更新，像使用专业图像编辑软件一样流畅
 - 支持曲线、HSL、色阶和色彩分级节点的交互式编辑
 - 类似Photoshop的专业编辑体验
+
+### 🚀 未来计划
+
+#### 🎨 高级图层功能
+- ✨ **自动混合图层功能**：智能混合多个调整效果，自动优化图层顺序和混合模式
+- 📏 **图层蒙版管理**：支持矢量蒙版、智能蒙版和渐变蒙版
+- 🔄 **非破坏性编辑**：保存完整的调整历史，随时回到任何编辑状态
+
+#### 🎯 算法精度提升
+- 🔧 **PS Curve效果完全对齐**：将曲线调整效果与Adobe Photoshop完全对齐，确保1:1还原专业调色效果
+- 🌈 **色彩空间扩展**：支持更多专业色彩空间（ProPhoto RGB、Adobe RGB等）
+- ⚡ **性能优化**：GPU加速处理，大幅提升处理速度
+
+#### 🎬 专业工作流增强
+- 📸 **RAW文件直接支持**：直接处理相机RAW格式文件
+- 🎥 **视频调色支持**：扩展到视频序列的专业调色
+- 🎨 **LUT导入导出**：支持业界标准LUT文件格式
 
 ### 📥 安装方法
 
@@ -477,6 +493,23 @@ Professional color adjustment extension for ComfyUI with Photoshop-like Curve, H
 - **Zero-delay feedback**: Images update in real-time in the popup window as parameters are adjusted, as smooth as using professional image editing software
 - Supports interactive editing for Curve, HSL, Levels and Color Grading nodes
 - Professional editing experience similar to Photoshop and Lightroom
+
+### 🚀 Future Plans
+
+#### 🎨 Advanced Layer Features
+- ✨ **Automatic Blend Layer Function**: Intelligently blend multiple adjustment effects, automatically optimize layer order and blend modes
+- 📏 **Layer Mask Management**: Support for vector masks, smart masks and gradient masks
+- 🔄 **Non-destructive Editing**: Save complete adjustment history, return to any editing state at any time
+
+#### 🎯 Algorithm Precision Enhancement
+- 🔧 **PS Curve Effect Full Alignment**: Align curve adjustment effects completely with Adobe Photoshop, ensuring 1:1 restoration of professional color grading effects
+- 🌈 **Color Space Extension**: Support for more professional color spaces (ProPhoto RGB, Adobe RGB, etc.)
+- ⚡ **Performance Optimization**: GPU-accelerated processing, dramatically improving processing speed
+
+#### 🎬 Professional Workflow Enhancement
+- 📸 **Direct RAW File Support**: Process camera RAW format files directly
+- 🎥 **Video Color Grading Support**: Extend to professional color grading of video sequences
+- 🎨 **LUT Import/Export**: Support industry-standard LUT file formats
 
 ### 📥 Installation
 
