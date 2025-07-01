@@ -1,41 +1,41 @@
 /**
- * PhotoshopLevelsNode - 前端交互界面
- * 实现色阶调整功能，界面风格与ColorGradingNode保持一致
+ * PhotoshopLevelsNode - Frontend Interactive Interface
+ * Implements levels adjustment functionality, interface style consistent with ColorGradingNode
  */
 
 import { app } from "../../scripts/app.js";
 
-console.log("📊 PhotoshopLevelsNode.js 开始加载...");
+console.log("📊 PhotoshopLevelsNode.js loading...");
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// 添加全局节点执行监听器
+// Add global node execution listener
 function setupGlobalNodeOutputCache() {
     
     if (app.api) {
         
-        // 监听executed事件
+        // Listen to executed event
         app.api.addEventListener("executed", ({ detail }) => {
-            const nodeId = String(detail.node); // 确保nodeId是字符串
+            const nodeId = String(detail.node); // Ensure nodeId is string
             const outputData = detail.output;
             
             
             if (nodeId && outputData && outputData.images) {
                 window.globalNodeCache.set(nodeId, outputData);
                 
-                // 同时更新到app.nodeOutputs
+                // Also update to app.nodeOutputs
                 if (!app.nodeOutputs) {
                     app.nodeOutputs = {};
                 }
                 app.nodeOutputs[nodeId] = outputData;
                 
-                // 更新节点的imgs属性
+                // Update node's imgs property
                 const node = app.graph.getNodeById(nodeId);
                 if (node && outputData.images && outputData.images.length > 0) {
-                    // 转换图像数据为URL格式
+                    // Convert image data to URL format
                     const convertToImageUrl = (imageData) => {
                         if (typeof imageData === 'string') {
                             return imageData;
@@ -54,17 +54,17 @@ function setupGlobalNodeOutputCache() {
                         return imageData;
                     };
                     
-                    // 将转换后的图像URL存储到自定义属性，避免影响原有系统
+                    // Store converted image URLs to custom property, avoiding impact on original system
                     node._levelsNodeImageUrls = outputData.images.map(img => convertToImageUrl(img));
                 }
                 
-                // 更新连接的下游节点缓存（支持PhotoshopLevelsNode节点）
+                // Update connected downstream node cache (supports PhotoshopLevelsNode)
                 const graph = app.graph;
                 if (graph && graph.links) {
                     Object.values(graph.links).forEach(link => {
                         if (link && String(link.origin_id) === nodeId) {
                             const targetNode = graph.getNodeById(link.target_id);
-                            // 支持PhotoshopLevelsNode节点
+                            // Support PhotoshopLevelsNode
                             if (targetNode && targetNode.type === "PhotoshopLevelsNode") {
                                 if (outputData.images && outputData.images.length > 0) {
                                     const convertToImageUrl = (imageData) => {
@@ -99,11 +99,11 @@ function setupGlobalNodeOutputCache() {
             }
         });
         
-        console.log("📊 全局节点输出缓存监听器已设置");
+        console.log("📊 Global node output cache listener set up");
     }
 }
 
-// 在app准备好后设置监听器
+// Set up listener after app is ready
 app.registerExtension({
     name: "Comfy.PhotoshopLevelsNode.GlobalCache",
     async setup() {
@@ -111,7 +111,7 @@ app.registerExtension({
     }
 });
 
-// Levels编辑器类
+// Levels editor class
 class LevelsEditor {
     constructor(node, options = {}) {
         this.node = node;
@@ -126,7 +126,7 @@ class LevelsEditor {
         this.dragElement = null;
         this.histogramData = null;
         
-        // 色阶参数
+        // Levels parameters
         this.levelsData = {
             channel: 'RGB',
             input_black: 0,
@@ -139,7 +139,7 @@ class LevelsEditor {
             clip_percentage: 0.1
         };
         
-        // 遮罩相关
+        // Mask related
         this.currentMask = null;
         this.maskCanvas = null;
         this.maskContext = null;
@@ -148,7 +148,7 @@ class LevelsEditor {
     }
     
     createModal() {
-        // 创建模态弹窗（与ColorGradingNode一致的风格）
+        // Create modal popup (consistent style with ColorGradingNode)
         this.modal = document.createElement("div");
         this.modal.className = "levels-modal";
         this.modal.style.cssText = `
@@ -227,7 +227,7 @@ class LevelsEditor {
             font-size: 18px;
             font-weight: 600;
         `;
-        title.textContent = "📊 色阶调整 (Levels)";
+        title.textContent = "📊 Levels Adjustment";
         header.appendChild(title);
         
         // 按钮容器
@@ -252,7 +252,7 @@ class LevelsEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        autoBtn.textContent = "自动";
+        autoBtn.textContent = "Auto";
         autoBtn.addEventListener('mouseenter', () => autoBtn.style.backgroundColor = '#e67e22');
         autoBtn.addEventListener('mouseleave', () => autoBtn.style.backgroundColor = '#f39c12');
         autoBtn.addEventListener('click', () => this.applyAutoLevels());
@@ -271,7 +271,7 @@ class LevelsEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        resetBtn.textContent = "重置";
+        resetBtn.textContent = "Reset";
         resetBtn.addEventListener('mouseenter', () => resetBtn.style.backgroundColor = '#2980b9');
         resetBtn.addEventListener('mouseleave', () => resetBtn.style.backgroundColor = '#3498db');
         resetBtn.addEventListener('click', () => this.resetAllValues());
@@ -290,7 +290,7 @@ class LevelsEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        applyBtn.textContent = "应用";
+        applyBtn.textContent = "Apply";
         applyBtn.addEventListener('mouseenter', () => applyBtn.style.backgroundColor = '#229954');
         applyBtn.addEventListener('mouseleave', () => applyBtn.style.backgroundColor = '#27ae60');
         applyBtn.addEventListener('click', () => this.applyChanges());
@@ -309,7 +309,7 @@ class LevelsEditor {
             font-weight: 500;
             transition: background-color 0.2s;
         `;
-        closeBtn.textContent = "关闭";
+        closeBtn.textContent = "Close";
         closeBtn.addEventListener('mouseenter', () => closeBtn.style.backgroundColor = '#ff3838');
         closeBtn.addEventListener('mouseleave', () => closeBtn.style.backgroundColor = '#ff4757');
         closeBtn.addEventListener('click', () => this.hide());
@@ -343,7 +343,7 @@ class LevelsEditor {
             font-size: 16px;
             font-weight: 500;
         `;
-        title.textContent = "图像预览";
+        title.textContent = "Image Preview";
         
         // 预览画布容器
         const canvasContainer = document.createElement("div");
@@ -379,7 +379,7 @@ class LevelsEditor {
             font-size: 14px;
             display: block;
         `;
-        loadingText.textContent = "加载图像中...";
+        loadingText.textContent = "Loading image...";
         
         canvasContainer.appendChild(this.previewCanvas);
         canvasContainer.appendChild(loadingText);
@@ -437,7 +437,7 @@ class LevelsEditor {
             margin-bottom: 10px;
             font-weight: 500;
         `;
-        label.textContent = "通道选择";
+        label.textContent = "Channel Selection";
         
         const selector = document.createElement("select");
         selector.id = "channel-selector";
@@ -454,11 +454,11 @@ class LevelsEditor {
         `;
         
         const channels = [
-            { value: 'RGB', text: 'RGB 混合' },
-            { value: 'R', text: '红色通道' },
-            { value: 'G', text: '绿色通道' },
-            { value: 'B', text: '蓝色通道' },
-            { value: 'Luminance', text: '亮度' }
+            { value: 'RGB', text: 'RGB Composite' },
+            { value: 'R', text: 'Red Channel' },
+            { value: 'G', text: 'Green Channel' },
+            { value: 'B', text: 'Blue Channel' },
+            { value: 'Luminance', text: 'Luminance' }
         ];
         
         channels.forEach(channel => {
@@ -499,7 +499,7 @@ class LevelsEditor {
             font-size: 14px;
             font-weight: 500;
         `;
-        title.textContent = "直方图";
+        title.textContent = "Histogram";
         
         // 直方图画布容器
         const histogramContainer = document.createElement("div");
@@ -580,7 +580,7 @@ class LevelsEditor {
             font-size: 14px;
             font-weight: 500;
         `;
-        title.textContent = "输入色阶";
+        title.textContent = "Input Levels";
         
         // 数值输入栏
         const valuesContainer = document.createElement("div");
@@ -591,13 +591,13 @@ class LevelsEditor {
         `;
         
         // 黑场点输入
-        const blackContainer = this.createLabeledInput('黑场', 'input_black', 0, 254, 0);
+        const blackContainer = this.createLabeledInput('Shadows', 'input_black', 0, 254, 0);
         
         // 中间调输入
-        const midtonesContainer = this.createLabeledInput('中间调', 'input_midtones', 0.1, 9.99, 1.0, 0.01);
+        const midtonesContainer = this.createLabeledInput('Midtones', 'input_midtones', 0.1, 9.99, 1.0, 0.01);
         
         // 白场点输入
-        const whiteContainer = this.createLabeledInput('白场', 'input_white', 1, 255, 255);
+        const whiteContainer = this.createLabeledInput('Highlights', 'input_white', 1, 255, 255);
         
         valuesContainer.appendChild(blackContainer);
         valuesContainer.appendChild(midtonesContainer);
@@ -625,7 +625,7 @@ class LevelsEditor {
             font-size: 14px;
             font-weight: 500;
         `;
-        title.textContent = "输出色阶";
+        title.textContent = "Output Levels";
         
         // 数值输入栏
         const valuesContainer = document.createElement("div");
@@ -636,10 +636,10 @@ class LevelsEditor {
         `;
         
         // 输出黑场点输入
-        const outputBlackContainer = this.createLabeledInput('输出黑场', 'output_black', 0, 254, 0);
+        const outputBlackContainer = this.createLabeledInput('Output Shadows', 'output_black', 0, 254, 0);
         
         // 输出白场点输入
-        const outputWhiteContainer = this.createLabeledInput('输出白场', 'output_white', 1, 255, 255);
+        const outputWhiteContainer = this.createLabeledInput('Output Highlights', 'output_white', 1, 255, 255);
         
         valuesContainer.appendChild(outputBlackContainer);
         valuesContainer.appendChild(outputWhiteContainer);
@@ -665,7 +665,7 @@ class LevelsEditor {
             font-size: 14px;
             font-weight: 500;
         `;
-        title.textContent = "自动调整选项";
+        title.textContent = "Auto Adjustment Options";
         
         // 复选框容器
         const checkboxContainer = document.createElement("div");
@@ -677,16 +677,16 @@ class LevelsEditor {
         `;
         
         // 自动色阶复选框
-        const autoLevelsCheck = this.createCheckbox('auto_levels', '启用自动色阶');
+        const autoLevelsCheck = this.createCheckbox('auto_levels', 'Enable Auto Levels');
         
         // 自动对比度复选框
-        const autoContrastCheck = this.createCheckbox('auto_contrast', '启用自动对比度');
+        const autoContrastCheck = this.createCheckbox('auto_contrast', 'Enable Auto Contrast');
         
         checkboxContainer.appendChild(autoLevelsCheck);
         checkboxContainer.appendChild(autoContrastCheck);
         
         // 裁剪百分比
-        const clipContainer = this.createLabeledInput('裁剪百分比 (%)', 'clip_percentage', 0, 5, 0.1, 0.1);
+        const clipContainer = this.createLabeledInput('Clip Percentage (%)', 'clip_percentage', 0, 5, 0.1, 0.1);
         
         container.appendChild(title);
         container.appendChild(checkboxContainer);
@@ -1097,17 +1097,17 @@ class LevelsEditor {
                 
                 img.onerror = () => {
                     console.error('Levels: 图像加载失败');
-                    this.showLoadingText('图像加载失败');
+                    this.showLoadingText('Image loading failed');
                 };
                 
                 img.src = imageUrl;
             } else {
                 console.warn('Levels: 未找到图像数据');
-                this.showLoadingText('未找到图像数据');
+                this.showLoadingText('Image data not found');
             }
         } catch (error) {
             console.error('Levels: 加载图像时出错:', error);
-            this.showLoadingText('加载图像时出错');
+            this.showLoadingText('Error loading image');
         }
     }
     
@@ -1521,7 +1521,7 @@ class LevelsEditor {
         
         this.updateUIFromData();
         this.updatePreview();
-        this.showNotification('已应用自动色阶');
+        this.showNotification('Auto levels applied');
     }
     
     // 应用改变到节点
@@ -1561,7 +1561,7 @@ class LevelsEditor {
         }
         
         // 显示应用成功提示
-        this.showNotification('参数已应用到节点');
+        this.showNotification('Parameters applied to node');
         
         // 触发图形更新
         if (app.graph) {
@@ -1645,7 +1645,7 @@ class LevelsEditor {
         this.updateUIFromData();
         
         // 显示重置提示
-        this.showNotification('所有参数已重置');
+        this.showNotification('All parameters reset');
     }
 }
 
@@ -1892,7 +1892,7 @@ app.registerExtension({
                 // 添加右键菜单选项
                 node.getExtraMenuOptions = function(canvas, options) {
                     options.push({
-                        content: "打开色阶编辑器",
+                        content: "Open Levels Editor",
                         callback: () => {
                             editor.show();
                         }

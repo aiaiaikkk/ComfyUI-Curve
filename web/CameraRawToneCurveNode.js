@@ -1,24 +1,22 @@
 import { app } from "../../scripts/app.js";
 
-<<<<<<< HEAD
-=======
 /*
- * CameraRawToneCurveNode.js - Camera Raw色调曲线节点
+ * CameraRawToneCurveNode.js - Camera Raw Tone Curve Node
  * 
- * 功能特点:
- * 1. 完全对齐Adobe Camera Raw色调曲线
- * 2. 支持Point Curve（点曲线）和Parametric Curve（参数曲线）
- * 3. 内置Linear/Medium Contrast/Strong Contrast预设
- * 4. 实时预览功能
- * 5. 四个区域调整：高光、明亮、暗部、阴影
+ * Features:
+ * 1. Fully aligned with Adobe Camera Raw tone curves
+ * 2. Supports Point Curve and Parametric Curve
+ * 3. Built-in Linear/Medium Contrast/Strong Contrast presets
+ * 4. Real-time preview functionality
+ * 5. Four region adjustments: Highlights, Lights, Darks, Shadows
  */
 
-// 全局节点输出缓存
+// Global node output cache
 if (!window.globalNodeCache) {
     window.globalNodeCache = new Map();
 }
 
-// 设置全局节点输出缓存
+// Setup global node output cache
 function setupGlobalNodeOutputCache() {
     if (app.api) {
         app.api.addEventListener("executed", ({ detail }) => {
@@ -28,69 +26,626 @@ function setupGlobalNodeOutputCache() {
             if (nodeId && outputData && outputData.images) {
                 window.globalNodeCache.set(nodeId, outputData);
                 
+                // Also update to app.nodeOutputs
                 if (!app.nodeOutputs) {
                     app.nodeOutputs = {};
                 }
                 app.nodeOutputs[nodeId] = outputData;
-                
-                const node = app.graph.getNodeById(nodeId);
-                if (node && outputData.images && outputData.images.length > 0) {
-                    const convertToImageUrl = (imageData) => {
-                        if (typeof imageData === 'string') {
-                            return imageData;
-                        }
-                        if (imageData && typeof imageData === 'object' && imageData.filename) {
-                            const baseUrl = window.location.origin;
-                            let url = `${baseUrl}/view?filename=${encodeURIComponent(imageData.filename)}`;
-                            if (imageData.subfolder) {
-                                url += `&subfolder=${encodeURIComponent(imageData.subfolder)}`;
-                            }
-                            if (imageData.type) {
-                                url += `&type=${encodeURIComponent(imageData.type)}`;
-                            }
-                            return url;
-                        }
-                        return null;
-                    };
-                    
-                    const imageUrls = outputData.images.map(convertToImageUrl).filter(url => url !== null);
-                    
-                    if (!node.imgs) {
-                        node.imgs = [];
-                    }
-                    node.imgs = imageUrls;
-                }
             }
         });
+        
+        console.log("📈 Camera Raw Tone Curve: Global node output cache listener set up");
     }
 }
 
-// 页面加载时设置缓存
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupGlobalNodeOutputCache);
-} else {
+// Set up cache immediately
+setupGlobalNodeOutputCache();
+
+// Delayed setup (ensure API is fully initialized)
+setTimeout(() => {
+    console.log("📈 Camera Raw Tone Curve: Delayed cache setup...");
     setupGlobalNodeOutputCache();
+}, 1000);
+
+// Camera Raw Tone Curve Editor Modal Class
+class CameraRawToneCurveEditor {
+    constructor(node, options = {}) {
+        this.node = node;
+        this.isOpen = false;
+        this.modal = null;
+        this.previewCanvas = null;
+        this.previewContext = null;
+        this.toneCurveCanvas = null;
+        this.toneCurveContext = null;
+        this.currentImage = null;
+        this.currentMask = null;
+        
+        // Camera Raw tone curve parameters
+        this.toneCurveData = {
+            point_curve: '[[0,0],[255,255]]',
+            highlights: 0.0,
+            lights: 0.0,
+            darks: 0.0,
+            shadows: 0.0,
+            curve_mode: 'Combined'
+        };
+        
+        // Curve editing state
+        this.toneCurvePoints = [[0, 0], [255, 255]];
+        this.selectedPoint = -1;
+        this.isDragging = false;
+        
+        this.createModal();
+    }
+    
+    createModal() {
+        // Create modal dialog
+        this.modal = document.createElement("dialog");
+        this.modal.className = "camera-raw-tone-curve-modal";
+        this.modal.style.cssText = `
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 10px;
+            padding: 0;
+            max-width: 95vw;
+            max-height: 95vh;
+            width: 1400px;
+            height: 900px;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        `;
+        
+        // Create style element for modal
+        const style = document.createElement('style');
+        style.textContent = `
+            .camera-raw-tone-curve-modal::backdrop {
+                background: rgba(0, 0, 0, 0.8);
+            }
+            
+            .tone-curve-header {
+                background: #3a3a3a;
+                padding: 15px 20px;
+                border-bottom: 1px solid #555;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .tone-curve-content {
+                display: flex;
+                flex: 1;
+                overflow: hidden;
+            }
+            
+            .tone-curve-preview {
+                flex: 1;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: #1a1a1a;
+            }
+            
+            .tone-curve-controls {
+                width: 400px;
+                background: #2a2a2a;
+                border-left: 1px solid #555;
+                padding: 20px;
+                overflow-y: auto;
+            }
+            
+            .tone-curve-canvas {
+                border: 1px solid #555;
+                background: #1a1a1a;
+                cursor: crosshair;
+            }
+            
+            .tone-curve-slider {
+                width: 100%;
+                margin: 10px 0;
+                background: #333;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            
+            .tone-curve-slider input {
+                width: 100%;
+                background: #555;
+                border: none;
+                height: 30px;
+                border-radius: 3px;
+                color: #fff;
+                padding: 0 10px;
+            }
+            
+            .tone-curve-button {
+                background: #4a90e2;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                margin: 5px;
+                font-size: 14px;
+            }
+            
+            .tone-curve-button:hover {
+                background: #357abd;
+            }
+            
+            .tone-curve-button.secondary {
+                background: #666;
+            }
+            
+            .tone-curve-button.secondary:hover {
+                background: #777;
+            }
+        `;
+        
+        document.head.appendChild(style);
+        
+        // Create header
+        const header = document.createElement("div");
+        header.className = "tone-curve-header";
+        header.innerHTML = `
+            <h2 style="margin: 0; font-size: 18px;">📈 Camera Raw Tone Curve Editor</h2>
+            <button class="tone-curve-button secondary" id="closeToneCurveModal">✕ Close</button>
+        `;
+        
+        // Create main content
+        const content = document.createElement("div");
+        content.className = "tone-curve-content";
+        
+        // Create preview section
+        const previewSection = document.createElement("div");
+        previewSection.className = "tone-curve-preview";
+        previewSection.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 10px 0;">Image Preview</h3>
+                <canvas id="toneCurvePreviewCanvas" width="600" height="400" style="border: 1px solid #555; max-width: 100%; height: auto;"></canvas>
+            </div>
+        `;
+        
+        // Create controls section
+        const controlsSection = document.createElement("div");
+        controlsSection.className = "tone-curve-controls";
+        controlsSection.innerHTML = `
+            <h3 style="margin: 0 0 20px 0;">Tone Curve Controls</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0;">Curve Editor</h4>
+                <canvas id="toneCurveCanvas" class="tone-curve-canvas" width="360" height="240"></canvas>
+                <div style="font-size: 12px; color: #ccc; margin-top: 5px;">
+                    Click to add points, drag to adjust, right-click to remove
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0;">Parametric Adjustments</h4>
+                
+                <div class="tone-curve-slider">
+                    <label style="display: block; margin-bottom: 5px; font-size: 12px;">Highlights</label>
+                    <input type="range" id="highlightsSlider" min="-100" max="100" value="0" step="1">
+                    <span id="highlightsValue" style="font-size: 12px; color: #ccc;">0</span>
+                </div>
+                
+                <div class="tone-curve-slider">
+                    <label style="display: block; margin-bottom: 5px; font-size: 12px;">Lights</label>
+                    <input type="range" id="lightsSlider" min="-100" max="100" value="0" step="1">
+                    <span id="lightsValue" style="font-size: 12px; color: #ccc;">0</span>
+                </div>
+                
+                <div class="tone-curve-slider">
+                    <label style="display: block; margin-bottom: 5px; font-size: 12px;">Darks</label>
+                    <input type="range" id="darksSlider" min="-100" max="100" value="0" step="1">
+                    <span id="darksValue" style="font-size: 12px; color: #ccc;">0</span>
+                </div>
+                
+                <div class="tone-curve-slider">
+                    <label style="display: block; margin-bottom: 5px; font-size: 12px;">Shadows</label>
+                    <input type="range" id="shadowsSlider" min="-100" max="100" value="0" step="1">
+                    <span id="shadowsValue" style="font-size: 12px; color: #ccc;">0</span>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0;">Presets</h4>
+                <button class="tone-curve-button" id="linearCurve">Linear</button>
+                <button class="tone-curve-button" id="mediumContrastCurve">Medium Contrast</button>
+                <button class="tone-curve-button" id="strongContrastCurve">Strong Contrast</button>
+            </div>
+            
+            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #555;">
+                <button class="tone-curve-button" id="resetToneCurve">Reset</button>
+                <button class="tone-curve-button" id="applyToneCurve">Apply</button>
+            </div>
+        `;
+        
+        content.appendChild(previewSection);
+        content.appendChild(controlsSection);
+        
+        this.modal.appendChild(header);
+        this.modal.appendChild(content);
+        
+        document.body.appendChild(this.modal);
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // Close button
+        const closeBtn = this.modal.querySelector('#closeToneCurveModal');
+        closeBtn.addEventListener('click', () => this.close());
+        
+        // Modal backdrop click to close
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.close();
+            }
+        });
+        
+        // Escape key to close
+        this.modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.close();
+            }
+        });
+        
+        // Get canvas elements
+        this.previewCanvas = this.modal.querySelector('#toneCurvePreviewCanvas');
+        this.previewContext = this.previewCanvas.getContext('2d');
+        this.toneCurveCanvas = this.modal.querySelector('#toneCurveCanvas');
+        this.toneCurveContext = this.toneCurveCanvas.getContext('2d');
+        
+        // Setup curve canvas events
+        this.setupCurveCanvasEvents();
+        
+        // Setup parameter sliders
+        this.setupParameterSliders();
+        
+        // Setup preset buttons
+        this.setupPresetButtons();
+        
+        // Setup action buttons
+        this.modal.querySelector('#resetToneCurve').addEventListener('click', () => this.resetCurve());
+        this.modal.querySelector('#applyToneCurve').addEventListener('click', () => this.applyCurve());
+    }
+    
+    setupCurveCanvasEvents() {
+        // Mouse events for curve editing
+        this.toneCurveCanvas.addEventListener('mousedown', (e) => this.onCurveMouseDown(e));
+        this.toneCurveCanvas.addEventListener('mousemove', (e) => this.onCurveMouseMove(e));
+        this.toneCurveCanvas.addEventListener('mouseup', (e) => this.onCurveMouseUp(e));
+        this.toneCurveCanvas.addEventListener('contextmenu', (e) => this.onCurveRightClick(e));
+    }
+    
+    setupParameterSliders() {
+        const params = ['highlights', 'lights', 'darks', 'shadows'];
+        params.forEach(param => {
+            const slider = this.modal.querySelector(`#${param}Slider`);
+            const valueSpan = this.modal.querySelector(`#${param}Value`);
+            
+            slider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                this.toneCurveData[param] = value / 100.0; // Convert to -1.0 to 1.0 range
+                valueSpan.textContent = value;
+                this.updatePreview();
+            });
+        });
+    }
+    
+    setupPresetButtons() {
+        this.modal.querySelector('#linearCurve').addEventListener('click', () => {
+            this.toneCurvePoints = [[0, 0], [255, 255]];
+            this.updateCurveDisplay();
+            this.updatePreview();
+        });
+        
+        this.modal.querySelector('#mediumContrastCurve').addEventListener('click', () => {
+            this.toneCurvePoints = [[0, 0], [64, 50], [128, 128], [192, 205], [255, 255]];
+            this.updateCurveDisplay();
+            this.updatePreview();
+        });
+        
+        this.modal.querySelector('#strongContrastCurve').addEventListener('click', () => {
+            this.toneCurvePoints = [[0, 0], [64, 30], [128, 128], [192, 225], [255, 255]];
+            this.updateCurveDisplay();
+            this.updatePreview();
+        });
+    }
+    
+    async open(imageUrl, maskUrl) {
+        console.log("📈 Opening Camera Raw Tone Curve editor modal");
+        
+        this.currentImage = imageUrl;
+        this.currentMask = maskUrl;
+        this.isOpen = true;
+        
+        // Show modal
+        this.modal.showModal();
+        
+        // Load and display image
+        if (imageUrl) {
+            await this.loadImage(imageUrl);
+        }
+        
+        // Initialize curve display
+        this.updateCurveDisplay();
+        this.updatePreview();
+    }
+    
+    async loadImage(imageUrl) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                // Draw image to preview canvas
+                const canvas = this.previewCanvas;
+                const ctx = this.previewContext;
+                
+                // Calculate scaling to fit canvas
+                const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+                const scaledWidth = img.width * scale;
+                const scaledHeight = img.height * scale;
+                const x = (canvas.width - scaledWidth) / 2;
+                const y = (canvas.height - scaledHeight) / 2;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                
+                resolve();
+            };
+            img.onerror = reject;
+            img.src = imageUrl;
+        });
+    }
+    
+    updateCurveDisplay() {
+        const canvas = this.toneCurveCanvas;
+        const ctx = this.toneCurveContext;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw grid
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const x = (canvas.width / 4) * i;
+            const y = (canvas.height / 4) * i;
+            
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+        
+        // Draw diagonal reference line
+        ctx.strokeStyle = '#666';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height);
+        ctx.lineTo(canvas.width, 0);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw curve
+        if (this.toneCurvePoints.length >= 2) {
+            ctx.strokeStyle = '#4ecdc4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            // Convert points to canvas coordinates
+            const canvasPoints = this.toneCurvePoints.map(point => ({
+                x: (point[0] / 255) * canvas.width,
+                y: canvas.height - (point[1] / 255) * canvas.height
+            }));
+            
+            ctx.moveTo(canvasPoints[0].x, canvasPoints[0].y);
+            
+            // Draw smooth curve through points
+            for (let i = 1; i < canvasPoints.length; i++) {
+                ctx.lineTo(canvasPoints[i].x, canvasPoints[i].y);
+            }
+            
+            ctx.stroke();
+            
+            // Draw control points
+            ctx.fillStyle = '#4ecdc4';
+            canvasPoints.forEach((point, index) => {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, index === this.selectedPoint ? 6 : 4, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                if (index === this.selectedPoint) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+        }
+    }
+    
+    onCurveMouseDown(e) {
+        const rect = this.toneCurveCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Check if clicking on existing point
+        const canvasPoints = this.toneCurvePoints.map(point => ({
+            x: (point[0] / 255) * this.toneCurveCanvas.width,
+            y: this.toneCurveCanvas.height - (point[1] / 255) * this.toneCurveCanvas.height,
+            originalIndex: this.toneCurvePoints.findIndex(p => p === point)
+        }));
+        
+        let selectedPointIndex = -1;
+        for (let i = 0; i < canvasPoints.length; i++) {
+            const dist = Math.sqrt(Math.pow(x - canvasPoints[i].x, 2) + Math.pow(y - canvasPoints[i].y, 2));
+            if (dist <= 8) {
+                selectedPointIndex = i;
+                break;
+            }
+        }
+        
+        if (selectedPointIndex !== -1) {
+            this.selectedPoint = selectedPointIndex;
+            this.isDragging = true;
+        } else {
+            // Add new point
+            const curveX = Math.round((x / this.toneCurveCanvas.width) * 255);
+            const curveY = Math.round(((this.toneCurveCanvas.height - y) / this.toneCurveCanvas.height) * 255);
+            
+            // Insert point in correct position
+            let insertIndex = this.toneCurvePoints.findIndex(point => point[0] > curveX);
+            if (insertIndex === -1) insertIndex = this.toneCurvePoints.length;
+            
+            this.toneCurvePoints.splice(insertIndex, 0, [curveX, curveY]);
+            this.selectedPoint = insertIndex;
+            this.isDragging = true;
+        }
+        
+        this.updateCurveDisplay();
+    }
+    
+    onCurveMouseMove(e) {
+        if (!this.isDragging || this.selectedPoint === -1) return;
+        
+        const rect = this.toneCurveCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const curveX = Math.max(0, Math.min(255, Math.round((x / this.toneCurveCanvas.width) * 255)));
+        const curveY = Math.max(0, Math.min(255, Math.round(((this.toneCurveCanvas.height - y) / this.toneCurveCanvas.height) * 255)));
+        
+        // Don't allow moving first or last point horizontally
+        if (this.selectedPoint === 0) {
+            this.toneCurvePoints[this.selectedPoint] = [0, curveY];
+        } else if (this.selectedPoint === this.toneCurvePoints.length - 1) {
+            this.toneCurvePoints[this.selectedPoint] = [255, curveY];
+        } else {
+            this.toneCurvePoints[this.selectedPoint] = [curveX, curveY];
+        }
+        
+        this.updateCurveDisplay();
+        this.updatePreview();
+    }
+    
+    onCurveMouseUp(e) {
+        this.isDragging = false;
+    }
+    
+    onCurveRightClick(e) {
+        e.preventDefault();
+        
+        if (this.selectedPoint > 0 && this.selectedPoint < this.toneCurvePoints.length - 1) {
+            this.toneCurvePoints.splice(this.selectedPoint, 1);
+            this.selectedPoint = -1;
+            this.updateCurveDisplay();
+            this.updatePreview();
+        }
+    }
+    
+    updatePreview() {
+        // For now, just log the curve data
+        // In a full implementation, this would apply the curve to the preview image
+        console.log("📈 Updating tone curve preview with data:", {
+            points: this.toneCurvePoints,
+            parametric: this.toneCurveData
+        });
+    }
+    
+    resetCurve() {
+        this.toneCurvePoints = [[0, 0], [255, 255]];
+        this.toneCurveData = {
+            highlights: 0.0,
+            lights: 0.0,
+            darks: 0.0,
+            shadows: 0.0
+        };
+        
+        // Reset UI sliders
+        ['highlights', 'lights', 'darks', 'shadows'].forEach(param => {
+            const slider = this.modal.querySelector(`#${param}Slider`);
+            const valueSpan = this.modal.querySelector(`#${param}Value`);
+            slider.value = 0;
+            valueSpan.textContent = '0';
+        });
+        
+        this.selectedPoint = -1;
+        this.updateCurveDisplay();
+        this.updatePreview();
+    }
+    
+    applyCurve() {
+        // Convert curve points to string format
+        const pointsString = JSON.stringify(this.toneCurvePoints);
+        
+        // Update node widget values
+        if (this.node.widgets) {
+            const pointCurveWidget = this.node.widgets.find(w => w.name === 'point_curve');
+            if (pointCurveWidget) {
+                pointCurveWidget.value = pointsString;
+            }
+            
+            // Update parametric values
+            ['highlights', 'lights', 'darks', 'shadows'].forEach(param => {
+                const widget = this.node.widgets.find(w => w.name === param);
+                if (widget) {
+                    widget.value = this.toneCurveData[param];
+                }
+            });
+        }
+        
+        console.log("📈 Applied tone curve:", {
+            point_curve: pointsString,
+            ...this.toneCurveData
+        });
+        
+        // Trigger node update
+        if (this.node.onWidgetChanged) {
+            this.node.onWidgetChanged('point_curve', pointsString, '', '');
+        }
+        
+        this.close();
+    }
+    
+    close() {
+        if (this.isOpen && this.modal) {
+            this.modal.close();
+            this.isOpen = false;
+            console.log("📈 Camera Raw Tone Curve editor closed");
+        }
+    }
 }
 
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
 app.registerExtension({
     name: "CameraRawToneCurveNode",
+    
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (nodeData.name === "CameraRawToneCurveNode") {
+            console.log("✅ Registering CameraRawToneCurveNode extension");
+            
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             
             nodeType.prototype.onNodeCreated = function () {
                 const result = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
                 
-                // 添加双击弹窗功能
-                this.onDblClick = () => {
-                    this.showToneCurveModal();
-                    return true;
-                };
+                // Initialize tone curve data
+                this.toneCurvePoints = [[0, 0], [255, 255]];
+                this.selectedPoint = -1;
+                this.isDragging = false;
                 
-                // 初始化节点数据
+                // Default tone curve parameters
                 this.toneCurveData = {
-                    curve_preset: 'Linear',
                     point_curve: '[[0,0],[255,255]]',
                     highlights: 0.0,
                     lights: 0.0,
@@ -99,1247 +654,142 @@ app.registerExtension({
                     curve_mode: 'Combined'
                 };
                 
-<<<<<<< HEAD
-                // 初始化图像处理相关属性
-                this.currentImage = null;
-                this.previewCanvas = null;
-                this.previewContext = null;
-                this.isImageLoaded = false;
-                this.preventInvalidDraw = true;
-                
-=======
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
                 return result;
             };
             
-            // 添加色调曲线弹窗方法
+            // Add double-click handler
+            const origOnDblClick = nodeType.prototype.onDblClick;
+            nodeType.prototype.onDblClick = function(e, pos, graphCanvas) {
+                console.log(`📈 Double-click Camera Raw Tone Curve node ${this.id}`);
+                this.showToneCurveModal();
+                e.stopPropagation();
+                return false;
+            };
+            
+            // Add right-click menu
+            const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+            nodeType.prototype.getExtraMenuOptions = function(_, options) {
+                if (origGetExtraMenuOptions) {
+                    origGetExtraMenuOptions.apply(this, arguments);
+                }
+                
+                options.push({
+                    content: "📈 Open Tone Curve Editor",
+                    callback: () => {
+                        console.log(`📈 Right-click menu open Tone Curve editor, node ${this.id}`);
+                        this.showToneCurveModal();
+                    }
+                });
+            };
+            
+            // Add tone curve popup method
             nodeType.prototype.showToneCurveModal = function() {
-                this.createToneCurveModal();
-            };
-            
-            nodeType.prototype.createToneCurveModal = function() {
-                // 移除现有弹窗
-                const existingModal = document.getElementById('toneCurveModal');
-                if (existingModal) {
-                    existingModal.remove();
+                console.log(`📈 Opening Camera Raw Tone Curve editor for node ${this.id}`);
+                
+                // Create modal if it doesn't exist
+                if (!this.toneCurveEditor) {
+                    this.toneCurveEditor = new CameraRawToneCurveEditor(this);
                 }
                 
-                // 创建弹窗
-                const modal = document.createElement('div');
-                modal.id = 'toneCurveModal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0, 0, 0, 0.8);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 10000;
-                `;
+                // Find input image from various sources
+                let imageUrl = "";
+                let maskUrl = null;
                 
-                const content = document.createElement('div');
-                content.style.cssText = `
-<<<<<<< HEAD
-                    background: #1e1e1e;
-                    border-radius: 8px;
-                    border: 1px solid #333;
-                    overflow: hidden;
-                    padding: 0;
-                    max-width: 90vw;
-                    max-height: 90vh;
-                    width: 1200px;
-                    height: 800px;
-                    display: flex;
-                    flex-direction: column;
-                    color: #fff;
-                    font-family: Arial, sans-serif;
-                `;
-                
-                // 创建标题栏
-                const header = document.createElement('div');
-                header.style.cssText = `
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 10px 20px;
-                    background: #2a2a2a;
-                    border-bottom: 1px solid #333;
-                `;
-                
-                const title = document.createElement('div');
-                title.style.cssText = `
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #fff;
-                `;
-                title.textContent = '📈 Camera Raw 色调曲线';
-                
-                // 预设控件
-                const presetContainer = document.createElement('div');
-                presetContainer.style.cssText = `
-                    display: flex;
-                    gap: 10px;
-                    align-items: center;
-                `;
-                
-                const presetSelect = document.createElement('select');
-                presetSelect.id = 'toneCurvePresetSelect';
-                presetSelect.style.cssText = `
-                    padding: 4px 8px;
-                    background: #444;
-                    border: 1px solid #555;
-                    border-radius: 4px;
-                    color: #fff;
-                    font-size: 12px;
-                `;
-                presetSelect.innerHTML = `
-                    <option value="Linear">Linear</option>
-                    <option value="Medium Contrast">Medium Contrast</option>
-                    <option value="Strong Contrast">Strong Contrast</option>
-                    <option value="Custom">Custom</option>
-                `;
-                
-                const saveBtn = document.createElement('button');
-                saveBtn.style.cssText = `
-                    padding: 4px 12px;
-                    font-size: 12px;
-                    background: #4a7c4e;
-                    border: none;
-                    border-radius: 4px;
-                    color: #fff;
-                    cursor: pointer;
-                `;
-                saveBtn.innerHTML = '💾 保存';
-                
-                const closeBtn = document.createElement('button');
-                closeBtn.style.cssText = `
-                    background: #e25c5c;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    color: white;
-                    cursor: pointer;
-                    font-size: 12px;
-                `;
-                closeBtn.textContent = '✕ 关闭';
-                closeBtn.onclick = () => modal.remove();
-                
-                presetContainer.appendChild(presetSelect);
-                presetContainer.appendChild(saveBtn);
-                presetContainer.appendChild(closeBtn);
-                
-                header.appendChild(title);
-                header.appendChild(presetContainer);
-                content.appendChild(header);
-                
-                // 创建主体内容
-                const body = document.createElement('div');
-                body.style.cssText = `
-                    flex: 1;
-                    display: flex;
-                    overflow: hidden;
-                `;
-                
-                // 左侧面板 - 图像预览区（与PS Curve一致的比例）
-                const leftPanel = document.createElement('div');
-                leftPanel.style.cssText = `
-                    flex: 1;
-                    padding: 20px;
-                    background: #2b2b2b;
-                    border-right: 1px solid #333;
-                    display: flex;
-                    flex-direction: column;
-                `;
-                
-                const previewTitle = document.createElement('h4');
-                previewTitle.style.cssText = `
-                    margin: 0 0 15px 0;
-                    color: #aaa;
-                    font-size: 14px;
-                `;
-                previewTitle.textContent = '图像预览';
-                
-                const previewContainer = document.createElement('div');
-                previewContainer.style.cssText = `
-                    flex: 1;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    border: 1px solid #444;
-                    border-radius: 4px;
-                    background: #1a1a1a;
-                `;
-                
-                const previewPlaceholder = document.createElement('div');
-                previewPlaceholder.style.cssText = `
-                    text-align: center;
-                    color: #666;
-                    font-size: 14px;
-                `;
-                previewPlaceholder.innerHTML = `
-                    <div>📸</div>
-                    <div>图像预览</div>
-                    <div style="font-size: 12px; margin-top: 5px;">连接图像后显示</div>
-                `;
-                
-                previewContainer.appendChild(previewPlaceholder);
-                leftPanel.appendChild(previewTitle);
-                leftPanel.appendChild(previewContainer);
-                
-                // 右侧面板 - 曲线编辑和控制区（与PS Curve一致的比例）
-                const rightPanel = document.createElement('div');
-                rightPanel.style.cssText = `
-                    width: 600px;
-                    display: flex;
-                    flex-direction: column;
-                    background: #333;
-                    overflow: hidden;
-                `;
-                
-                // 曲线编辑器区域
-                const curveSection = document.createElement('div');
-                curveSection.style.cssText = `
-                    flex: 1;
-                    padding: 20px;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                `;
-                
-                const canvas = document.createElement('canvas');
-                canvas.id = 'toneCurveCanvas';
-                canvas.width = 400;
-                canvas.height = 400;
-                canvas.style.cssText = `
-                    border: 1px solid #444;
-                    border-radius: 4px;
-                    background: #1a1a1a;
-                    cursor: crosshair;
-                `;
-                curveSection.appendChild(canvas);
-                
-                // 控制面板区域
-                const controlsSection = document.createElement('div');
-                controlsSection.style.cssText = `
-                    padding: 20px;
-                    border-top: 1px solid #444;
-                    max-height: 350px;
-                    overflow-y: auto;
-                `;
-                
-                controlsSection.innerHTML = `
-                    <!-- 曲线模式 -->
-                    <div style="margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #aaa; font-size: 14px;">曲线模式</h4>
-                        <div style="display: flex; gap: 5px;">
-                            <button class="mode-btn" data-mode="Point" style="flex: 1; padding: 6px; font-size: 11px; background: #555; border: none; border-radius: 3px; color: #fff; cursor: pointer;">点曲线</button>
-                            <button class="mode-btn" data-mode="Parametric" style="flex: 1; padding: 6px; font-size: 11px; background: #555; border: none; border-radius: 3px; color: #fff; cursor: pointer;">参数</button>
-                            <button class="mode-btn" data-mode="Combined" style="flex: 1; padding: 6px; font-size: 11px; background: #4a90e2; border: none; border-radius: 3px; color: #fff; cursor: pointer;">组合</button>
-=======
-                    background-color: #2b2b2b;
-                    border-radius: 10px;
-                    padding: 20px;
-                    width: 800px;
-                    max-width: 90vw;
-                    max-height: 90vh;
-                    overflow-y: auto;
-                    color: white;
-                    border: 2px solid #444;
-                `;
-                
-                // 创建内容
-                content.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: #fff;">📈 Camera Raw 色调曲线</h2>
-                        <button id="closeToneCurve" style="background: #ff4757; border: none; border-radius: 5px; padding: 8px 15px; color: white; cursor: pointer;">✕ 关闭</button>
-                    </div>
-                    
-                    <!-- 预设选择 -->
-                    <div style="margin-bottom: 20px; padding: 15px; background: #3a3a3a; border-radius: 8px;">
-                        <h3 style="margin-top: 0; color: #0ea5e9;">📋 曲线预设</h3>
-                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button class="preset-btn" data-preset="Linear">Linear</button>
-                            <button class="preset-btn" data-preset="Medium Contrast">Medium Contrast</button>
-                            <button class="preset-btn" data-preset="Strong Contrast">Strong Contrast</button>
-                            <button class="preset-btn" data-preset="Custom">Custom</button>
-                        </div>
-                    </div>
-                    
-                    <!-- 曲线模式选择 -->
-                    <div style="margin-bottom: 20px; padding: 15px; background: #3a3a3a; border-radius: 8px;">
-                        <h3 style="margin-top: 0; color: #10b981;">🎛️ 曲线模式</h3>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="mode-btn" data-mode="Point">点曲线</button>
-                            <button class="mode-btn" data-mode="Parametric">参数曲线</button>
-                            <button class="mode-btn" data-mode="Combined">组合模式</button>
-                        </div>
-                    </div>
-                    
-                    <!-- 曲线编辑器 -->
-                    <div style="margin-bottom: 20px; padding: 15px; background: #3a3a3a; border-radius: 8px;">
-                        <h3 style="margin-top: 0; color: #f59e0b;">📊 曲线编辑器</h3>
-                        <div style="display: flex; gap: 20px;">
-                            <div style="flex: 1;">
-                                <canvas id="toneCurveCanvas" width="400" height="400" style="border: 1px solid #666; border-radius: 5px; background: #1a1a1a; cursor: crosshair;"></canvas>
-                            </div>
-                            <div style="width: 200px;">
-                                <div id="curvePreview" style="width: 200px; height: 200px; border: 1px solid #666; border-radius: 5px; background: #1a1a1a; margin-bottom: 10px;">
-                                    <div style="padding: 20px; text-align: center; color: #888;">
-                                        图像预览
-                                        <br><small>连接图像后显示</small>
-                                    </div>
-                                </div>
-                                <button id="resetCurve" style="width: 100%; background: #3b82f6; border: none; border-radius: 5px; padding: 8px; color: white; cursor: pointer;">重置曲线</button>
-                            </div>
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                        </div>
-                    </div>
-                    
-                    <!-- 参数调整 -->
-<<<<<<< HEAD
-                    <div style="margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 15px 0; color: #aaa; font-size: 14px;">参数调整</h4>
-                        <div>
-                            <div style="margin-bottom: 12px;">
-                                <label style="display: block; margin-bottom: 4px; color: #ff6b6b; font-size: 12px;">高光 (Highlights)</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" id="highlights" min="-100" max="100" value="0" style="flex: 1;">
-                                    <span id="highlightsValue" style="color: #ccc; font-size: 11px; width: 30px;">0</span>
-                                </div>
-                            </div>
-                            <div style="margin-bottom: 12px;">
-                                <label style="display: block; margin-bottom: 4px; color: #fbbf24; font-size: 12px;">明亮 (Lights)</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" id="lights" min="-100" max="100" value="0" style="flex: 1;">
-                                    <span id="lightsValue" style="color: #ccc; font-size: 11px; width: 30px;">0</span>
-                                </div>
-                            </div>
-                            <div style="margin-bottom: 12px;">
-                                <label style="display: block; margin-bottom: 4px; color: #60a5fa; font-size: 12px;">暗部 (Darks)</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" id="darks" min="-100" max="100" value="0" style="flex: 1;">
-                                    <span id="darksValue" style="color: #ccc; font-size: 11px; width: 30px;">0</span>
-                                </div>
-                            </div>
-                            <div style="margin-bottom: 12px;">
-                                <label style="display: block; margin-bottom: 4px; color: #4338ca; font-size: 12px;">阴影 (Shadows)</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" id="shadows" min="-100" max="100" value="0" style="flex: 1;">
-                                    <span id="shadowsValue" style="color: #ccc; font-size: 11px; width: 30px;">0</span>
-                                </div>
-=======
-                    <div style="margin-bottom: 20px; padding: 15px; background: #3a3a3a; border-radius: 8px;">
-                        <h3 style="margin-top: 0; color: #8b5cf6;">🎚️ 参数调整 (Parametric Curve)</h3>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div>
-                                <label style="display: block; margin-bottom: 5px; color: #ff6b6b;">高光 (Highlights)</label>
-                                <input type="range" id="highlights" min="-100" max="100" value="0" style="width: 100%;">
-                                <span id="highlightsValue" style="color: #ff6b6b; font-weight: bold;">0</span>
-                            </div>
-                            <div>
-                                <label style="display: block; margin-bottom: 5px; color: #feca57;">明亮 (Lights)</label>
-                                <input type="range" id="lights" min="-100" max="100" value="0" style="width: 100%;">
-                                <span id="lightsValue" style="color: #feca57; font-weight: bold;">0</span>
-                            </div>
-                            <div>
-                                <label style="display: block; margin-bottom: 5px; color: #48cae4;">暗部 (Darks)</label>
-                                <input type="range" id="darks" min="-100" max="100" value="0" style="width: 100%;">
-                                <span id="darksValue" style="color: #48cae4; font-weight: bold;">0</span>
-                            </div>
-                            <div>
-                                <label style="display: block; margin-bottom: 5px; color: #6c5ce7;">阴影 (Shadows)</label>
-                                <input type="range" id="shadows" min="-100" max="100" value="0" style="width: 100%;">
-                                <span id="shadowsValue" style="color: #6c5ce7; font-weight: bold;">0</span>
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 操作按钮 -->
-<<<<<<< HEAD
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button id="resetCurve" style="width: 100%; background: #6b7280; border: none; border-radius: 4px; padding: 8px; color: white; cursor: pointer; font-size: 12px;">重置曲线</button>
-                        <button id="resetAll" style="width: 100%; background: #dc2626; border: none; border-radius: 4px; padding: 8px; color: white; cursor: pointer; font-size: 12px;">重置所有</button>
-                    </div>
-                `;
-                
-                rightPanel.appendChild(curveSection);
-                rightPanel.appendChild(controlsSection);
-                
-                body.appendChild(leftPanel);
-                body.appendChild(rightPanel);
-                content.appendChild(body);
-                
-=======
-                    <div style="display: flex; gap: 10px; justify-content: center;">
-                        <button id="applyToneCurve" style="background: #27ae60; border: none; border-radius: 5px; padding: 12px 25px; color: white; cursor: pointer; font-weight: bold;">✅ 应用</button>
-                        <button id="resetAllTone" style="background: #e74c3c; border: none; border-radius: 5px; padding: 12px 25px; color: white; cursor: pointer; font-weight: bold;">🔄 重置全部</button>
-                    </div>
-                `;
-                
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                modal.appendChild(content);
-                document.body.appendChild(modal);
-                
-                // 初始化曲线编辑器
-                this.initializeToneCurveEditor();
-                
-                // 绑定事件
-                this.bindToneCurveEvents();
-<<<<<<< HEAD
-            };
-            
-            // 初始化曲线编辑器
-            nodeType.prototype.initializeToneCurveEditor = function() {
-                const canvas = document.getElementById('toneCurveCanvas');
-                if (!canvas) return;
-                
-                const ctx = canvas.getContext('2d');
-                this.toneCurvePoints = [[0, 0], [255, 255]];
-                this.selectedPoint = -1;
-                this.isDragging = false;
-                
-=======
-                
-                // 加载当前设置
-                this.loadCurrentToneCurveSettings();
-            };
-            
-            nodeType.prototype.initializeToneCurveEditor = function() {
-                const canvas = document.getElementById('toneCurveCanvas');
-                const ctx = canvas.getContext('2d');
-                
-                this.toneCurvePoints = [[0, 0], [255, 255]]; // 当前曲线点
-                this.selectedPoint = -1;
-                this.isDragging = false;
-                
-                // 绘制曲线
-                this.drawToneCurve();
-                
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                // 绑定鼠标事件
-                canvas.addEventListener('mousedown', (e) => this.handleToneCurveMouseDown(e));
-                canvas.addEventListener('mousemove', (e) => this.handleToneCurveMouseMove(e));
-                canvas.addEventListener('mouseup', (e) => this.handleToneCurveMouseUp(e));
-                canvas.addEventListener('dblclick', (e) => this.handleToneCurveDoubleClick(e));
-<<<<<<< HEAD
-                
-                this.drawToneCurve();
-            };
-            
-            // 绘制曲线
-=======
-            };
-            
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-            nodeType.prototype.drawToneCurve = function() {
-                const canvas = document.getElementById('toneCurveCanvas');
-                if (!canvas) return;
-                
-                const ctx = canvas.getContext('2d');
-                const width = canvas.width;
-                const height = canvas.height;
-                
-                // 清空画布
-                ctx.fillStyle = '#1a1a1a';
-                ctx.fillRect(0, 0, width, height);
-                
-<<<<<<< HEAD
-                // 绘制网格
-=======
-                // 绘制PS风格的网格
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                ctx.strokeStyle = '#404040';
-                ctx.lineWidth = 0.5;
-                ctx.beginPath();
-                
-                // 垂直线
-<<<<<<< HEAD
-                for (let i = 0; i <= 4; i++) {
-                    const x = (i * width) / 4;
-=======
-                for (let i = 0; i <= 8; i++) {
-                    const x = (i / 8) * width;
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, height);
-                }
-                
-<<<<<<< HEAD
-                // 水平线
-                for (let i = 0; i <= 4; i++) {
-                    const y = (i * height) / 4;
-=======
-                // 水平线  
-                for (let i = 0; i <= 8; i++) {
-                    const y = (i / 8) * height;
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
-                }
-                ctx.stroke();
-                
-<<<<<<< HEAD
-                // 绘制对角线
-                ctx.strokeStyle = '#808080';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]);
-=======
-                // 绘制PS风格的对角线（原始色调）
-                ctx.strokeStyle = '#808080';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([3, 3]); // PS风格的虚线
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                ctx.beginPath();
-                ctx.moveTo(0, height);
-                ctx.lineTo(width, 0);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-<<<<<<< HEAD
-                // 绘制曲线
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                
-                for (let x = 0; x < width; x++) {
-                    const inputValue = (x / width) * 255;
-                    const outputValue = this.interpolateCurve(inputValue);
-=======
-                // 绘制区域标识
-                const regions = [
-                    { start: 0, end: 0.25, color: '#6c5ce7', label: '阴影' },
-                    { start: 0.25, end: 0.5, color: '#48cae4', label: '暗部' },
-                    { start: 0.5, end: 0.75, color: '#feca57', label: '明亮' },
-                    { start: 0.75, end: 1.0, color: '#ff6b6b', label: '高光' }
-                ];
-                
-                regions.forEach(region => {
-                    const startX = region.start * width;
-                    const endX = region.end * width;
-                    
-                    ctx.fillStyle = region.color + '08'; // 非常淡的区域标识，类似PS
-                    ctx.fillRect(startX, 0, endX - startX, height);
-                    
-                    // 绘制PS风格的区域标签
-                    ctx.fillStyle = region.color + 'C0'; // 半透明标签
-                    ctx.font = '10px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(region.label, (startX + endX) / 2, height - 8);
-                });
-                
-                // 生成曲线
-                const curvePoints = this.generateCurveFromPoints();
-                
-                // 绘制PS风格的精细曲线
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5; // PS风格的细线条
-                ctx.shadowBlur = 0; // 移除阴影，保持PS简洁风格
-                ctx.beginPath();
-                
-                // 使用高密度采样确保曲线平滑
-                const step = 0.25; // 更细致的采样
-                for (let x = 0; x < width; x += step) {
-                    const inputValue = (x / width) * 255;
-                    const outputValue = this.interpolateCurve(inputValue, curvePoints);
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                    const y = height - (outputValue / 255) * height;
-                    
-                    if (x === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.stroke();
-                
-<<<<<<< HEAD
-                // 绘制控制点
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 1;
-                
-=======
-                // 绘制PS风格的控制点
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                this.toneCurvePoints.forEach((point, index) => {
-                    const x = (point[0] / 255) * width;
-                    const y = height - (point[1] / 255) * height;
-                    
-<<<<<<< HEAD
-                    ctx.beginPath();
-                    ctx.arc(x, y, 3, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.stroke();
-                });
-            };
-            
-            // 曲线插值 - 使用平滑三次样条插值（与PS风格一致）
-            nodeType.prototype.interpolateCurve = function(inputValue) {
-                const points = this.toneCurvePoints;
-                let baseValue;
-                
-                if (inputValue <= points[0][0]) {
-                    baseValue = points[0][1];
-                } else if (inputValue >= points[points.length - 1][0]) {
-                    baseValue = points[points.length - 1][1];
-                } else {
-                    // 使用Catmull-Rom样条插值创建平滑曲线
-                    baseValue = this.catmullRomInterpolate(points, inputValue);
-                }
-                
-                // 应用参数调整（高光、明亮、暗部、阴影）
-                const parametricValue = this.applyParametricAdjustments(inputValue, baseValue);
-                
-                return Math.max(0, Math.min(255, parametricValue));
-            };
-            
-            // 应用参数调整（Camera Raw风格）
-            nodeType.prototype.applyParametricAdjustments = function(inputValue, baseValue) {
-                const { highlights, lights, darks, shadows } = this.toneCurveData;
-                
-                // 如果所有参数都为0，直接返回基础值
-                if (highlights === 0 && lights === 0 && darks === 0 && shadows === 0) {
-                    return baseValue;
-                }
-                
-                // Camera Raw风格的区域定义
-                // 阴影: 0-63.75, 暗部: 63.75-127.5, 明亮: 127.5-191.25, 高光: 191.25-255
-                const shadowsEnd = 63.75;
-                const darksEnd = 127.5;
-                const lightsEnd = 191.25;
-                
-                // 计算各区域的权重（使用高斯函数创建平滑过渡）
-                const shadowWeight = this.calculateRegionWeight(inputValue, 0, shadowsEnd);
-                const darkWeight = this.calculateRegionWeight(inputValue, shadowsEnd, darksEnd);
-                const lightWeight = this.calculateRegionWeight(inputValue, darksEnd, lightsEnd);
-                const highlightWeight = this.calculateRegionWeight(inputValue, lightsEnd, 255);
-                
-                // 计算总的调整量（Camera Raw风格的敏感度）
-                const totalAdjustment = (
-                    shadows * shadowWeight * 0.8 +      // 阴影敏感度
-                    darks * darkWeight * 0.6 +          // 暗部敏感度
-                    lights * lightWeight * 0.6 +        // 明亮敏感度
-                    highlights * highlightWeight * 0.8   // 高光敏感度
-                );
-                
-                // 将调整转换为曲线偏移（Camera Raw标准系数）
-                const curveOffset = totalAdjustment * 1.28;
-                
-                return baseValue + curveOffset;
-            };
-            
-            // 计算区域权重（Camera Raw风格的平滑权重函数）
-            nodeType.prototype.calculateRegionWeight = function(inputVal, regionStart, regionEnd) {
-=======
-                    // PS风格的小圆点
-                    const isSelected = index === this.selectedPoint;
-                    const radius = isSelected ? 4 : 3;
-                    
-                    // 外圈（黑色边框）
-                    ctx.fillStyle = '#000000';
-                    ctx.beginPath();
-                    ctx.arc(x, y, radius + 1, 0, 2 * Math.PI);
-                    ctx.fill();
-                    
-                    // 内圈（白色填充）
-                    ctx.fillStyle = isSelected ? '#ffffff' : '#e0e0e0';
-                    ctx.beginPath();
-                    ctx.arc(x, y, radius, 0, 2 * Math.PI);
-                    ctx.fill();
-                });
-            };
-            
-            nodeType.prototype.generateCurveFromPoints = function() {
-                // 应用当前预设和参数调整
-                const preset = this.toneCurveData.curve_preset;
-                const highlights = this.toneCurveData.highlights;
-                const lights = this.toneCurveData.lights;
-                const darks = this.toneCurveData.darks;
-                const shadows = this.toneCurveData.shadows;
-                
-                // 生成256点的曲线
-                const curve = [];
-                for (let i = 0; i < 256; i++) {
-                    let output = i; // 基础线性曲线
-                    
-                    // 应用预设曲线
-                    if (preset !== 'Linear') {
-                        output = this.applyPresetCurve(i, preset);
-                    }
-                    
-                    // 应用参数调整
-                    const inputVal = i / 255.0;
-                    
-                    // Camera Raw风格的区域权重
-                    const shadowWeight = this.cameraRawRegionWeight(inputVal, 0.0, 0.25);
-                    const darkWeight = this.cameraRawRegionWeight(inputVal, 0.25, 0.50);
-                    const lightWeight = this.cameraRawRegionWeight(inputVal, 0.50, 0.75);
-                    const highlightWeight = this.cameraRawRegionWeight(inputVal, 0.75, 1.0);
-                    
-                    const totalAdjustment = (
-                        shadows * shadowWeight * 0.8 +
-                        darks * darkWeight * 0.6 +
-                        lights * lightWeight * 0.6 +
-                        highlights * highlightWeight * 0.8
-                    );
-                    
-                    const curveOffset = totalAdjustment * 1.28;
-                    output = Math.min(255, Math.max(0, output + curveOffset));
-                    
-                    // 应用点曲线
-                    if (this.toneCurvePoints.length > 2) {
-                        output = this.interpolateCurve(output, this.toneCurvePoints);
-                    }
-                    
-                    curve.push(output);
-                }
-                
-                return curve;
-            };
-            
-            nodeType.prototype.cameraRawRegionWeight = function(inputVal, regionStart, regionEnd) {
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                if (inputVal < regionStart || inputVal > regionEnd) {
-                    return 0.0;
-                }
-                
-                const regionCenter = (regionStart + regionEnd) / 2;
-                const regionWidth = regionEnd - regionStart;
-<<<<<<< HEAD
-                
-                // 使用高斯函数创建平滑的权重分布
-                const distanceFromCenter = Math.abs(inputVal - regionCenter) / (regionWidth / 2);
-                const weight = Math.exp(-2 * distanceFromCenter * distanceFromCenter);
-                
-                return weight;
-            };
-            
-            // Catmull-Rom样条插值实现
-            nodeType.prototype.catmullRomInterpolate = function(points, x) {
-                const n = points.length;
-                
-                // 找到x所在的区间
-                let i = 0;
-                for (i = 0; i < n - 1; i++) {
-                    if (x >= points[i][0] && x <= points[i + 1][0]) {
-                        break;
+                // Try to get image from node outputs cache
+                if (window.globalNodeCache && window.globalNodeCache.has(String(this.id))) {
+                    const cachedData = window.globalNodeCache.get(String(this.id));
+                    if (cachedData && cachedData.images && cachedData.images.length > 0) {
+                        imageUrl = `/view?filename=${cachedData.images[0].filename}&type=${cachedData.images[0].type}&subfolder=${cachedData.images[0].subfolder || ''}`;
+                        console.log(`📈 Using cached image: ${imageUrl}`);
                     }
                 }
                 
-                // 如果只有两个点，使用线性插值
-                if (n === 2) {
-                    const t = (x - points[0][0]) / (points[1][0] - points[0][0]);
-                    return points[0][1] + t * (points[1][1] - points[0][1]);
-                }
-                
-                // 获取四个控制点
-                let p0, p1, p2, p3;
-                
-                if (i === 0) {
-                    // 起始区间，创建虚拟前一个点
-                    p0 = [points[0][0] - (points[1][0] - points[0][0]), points[0][1]];
-                    p1 = points[0];
-                    p2 = points[1];
-                    p3 = points[2] || points[1];
-                } else if (i === n - 2) {
-                    // 末尾区间，创建虚拟后一个点
-                    p0 = points[i - 1];
-                    p1 = points[i];
-                    p2 = points[i + 1];
-                    p3 = [points[i + 1][0] + (points[i + 1][0] - points[i][0]), points[i + 1][1]];
-                } else {
-                    // 中间区间
-                    p0 = points[i - 1];
-                    p1 = points[i];
-                    p2 = points[i + 1];
-                    p3 = points[i + 2];
-                }
-                
-                // 归一化参数t
-                const t = (x - p1[0]) / (p2[0] - p1[0]);
-                
-                // Catmull-Rom公式（张力系数0.3，匹配PS风格）
-                const tension = 0.3;
-                const t2 = t * t;
-                const t3 = t2 * t;
-                
-                // Catmull-Rom基函数
-                const h00 = 2 * t3 - 3 * t2 + 1;
-                const h10 = t3 - 2 * t2 + t;
-                const h01 = -2 * t3 + 3 * t2;
-                const h11 = t3 - t2;
-                
-                // 计算切线（考虑张力）
-                const m0 = tension * (p2[1] - p0[1]) / (p2[0] - p0[0]) * (p2[0] - p1[0]);
-                const m1 = tension * (p3[1] - p1[1]) / (p3[0] - p1[0]) * (p2[0] - p1[0]);
-                
-                // 最终插值结果
-                const result = h00 * p1[1] + h10 * m0 + h01 * p2[1] + h11 * m1;
-                
-                return Math.max(0, Math.min(255, result));
-=======
-                const distanceFromCenter = Math.abs(inputVal - regionCenter) / (regionWidth / 2);
-                
-                return Math.exp(-2 * distanceFromCenter * distanceFromCenter);
-            };
-            
-            nodeType.prototype.applyPresetCurve = function(input, preset) {
-                const presets = {
-                    'Medium Contrast': [
-                        [0, 0], [32, 22], [64, 56], [128, 128], 
-                        [192, 196], [224, 230], [255, 255]
-                    ],
-                    'Strong Contrast': [
-                        [0, 0], [32, 16], [64, 44], [128, 128], 
-                        [192, 208], [224, 240], [255, 255]
-                    ]
-                };
-                
-                const presetPoints = presets[preset];
-                if (!presetPoints) return input;
-                
-                return this.interpolateCurve(input, presetPoints);
-            };
-            
-            nodeType.prototype.interpolateCurve = function(x, points) {
-                if (points.length < 2) return x;
-                
-                // 使用平滑插值（三次样条或改进的线性插值）
-                if (points.length >= 3) {
-                    return this.cubicSplineInterpolate(x, points);
-                } else {
-                    // 点数不足时使用线性插值
-                    return this.linearInterpolate(x, points);
-                }
-            };
-            
-            nodeType.prototype.linearInterpolate = function(x, points) {
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p1 = points[i];
-                    const p2 = points[i + 1];
-                    
-                    if (x >= p1[0] && x <= p2[0]) {
-                        if (p2[0] === p1[0]) return p1[1];
-                        
-                        const t = (x - p1[0]) / (p2[0] - p1[0]);
-                        return p1[1] + t * (p2[1] - p1[1]);
-                    }
-                }
-                
-                if (x < points[0][0]) return points[0][1];
-                if (x > points[points.length - 1][0]) return points[points.length - 1][1];
-                
-                return x;
-            };
-            
-            nodeType.prototype.cubicSplineInterpolate = function(x, points) {
-                // PS风格的样条插值 - 调整曲率以匹配PS
-                const n = points.length;
-                if (n < 3) return this.linearInterpolate(x, points);
-                
-                // 找到x所在的区间
-                let i = 0;
-                while (i < n - 1 && x > points[i + 1][0]) {
-                    i++;
-                }
-                
-                if (i >= n - 1) return points[n - 1][1];
-                if (i <= 0) return points[0][1];
-                
-                // 获取四个控制点
-                const p0 = i > 0 ? points[i - 1] : points[i];
-                const p1 = points[i];
-                const p2 = points[i + 1];
-                const p3 = i < n - 2 ? points[i + 2] : points[i + 1];
-                
-                // 计算参数t (0到1之间)
-                const t = (x - p1[0]) / (p2[0] - p1[0]);
-                const t2 = t * t;
-                const t3 = t2 * t;
-                
-                // 调整曲率系数以匹配PS的曲线特性
-                const tension = 0.3; // PS风格的张力系数
-                const y = 0.5 * (
-                    (2 * p1[1]) +
-                    (-p0[1] + p2[1]) * t * tension +
-                    (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 * (1 - tension) +
-                    (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3 * tension
-                );
-                
-                return Math.max(0, Math.min(255, y));
-            };
-            
-            nodeType.prototype.bindToneCurveEvents = function() {
-                // 预设按钮
-                document.querySelectorAll('.preset-btn').forEach(btn => {
-                    btn.style.cssText = `
-                        background: #444; border: none; border-radius: 5px; 
-                        padding: 8px 15px; color: white; cursor: pointer; 
-                        transition: background 0.3s;
-                    `;
-                    
-                    btn.addEventListener('click', () => {
-                        document.querySelectorAll('.preset-btn').forEach(b => b.style.background = '#444');
-                        btn.style.background = '#0ea5e9';
-                        
-                        this.toneCurveData.curve_preset = btn.dataset.preset;
-                        this.drawToneCurve();
-                    });
-                });
-                
-                // 模式按钮
-                document.querySelectorAll('.mode-btn').forEach(btn => {
-                    btn.style.cssText = `
-                        background: #444; border: none; border-radius: 5px; 
-                        padding: 8px 15px; color: white; cursor: pointer; 
-                        transition: background 0.3s;
-                    `;
-                    
-                    btn.addEventListener('click', () => {
-                        document.querySelectorAll('.mode-btn').forEach(b => b.style.background = '#444');
-                        btn.style.background = '#10b981';
-                        
-                        this.toneCurveData.curve_mode = btn.dataset.mode;
-                        this.drawToneCurve();
-                    });
-                });
-                
-                // 参数滑块
-                ['highlights', 'lights', 'darks', 'shadows'].forEach(param => {
-                    const slider = document.getElementById(param);
-                    const valueSpan = document.getElementById(param + 'Value');
-                    
-                    slider.addEventListener('input', (e) => {
-                        const value = parseFloat(e.target.value);
-                        this.toneCurveData[param] = value;
-                        valueSpan.textContent = value;
-                        this.drawToneCurve();
-                    });
-                });
-                
-                // 关闭按钮
-                document.getElementById('closeToneCurve').addEventListener('click', () => {
-                    document.getElementById('toneCurveModal').remove();
-                });
-                
-                // 应用按钮
-                document.getElementById('applyToneCurve').addEventListener('click', () => {
-                    this.applyToneCurveSettings();
-                });
-                
-                // 重置按钮
-                document.getElementById('resetAllTone').addEventListener('click', () => {
-                    this.resetToneCurveSettings();
-                });
-                
-                // 重置曲线按钮
-                document.getElementById('resetCurve').addEventListener('click', () => {
-                    this.toneCurvePoints = [[0, 0], [255, 255]];
-                    this.drawToneCurve();
-                });
-                
-                // 点击背景关闭
-                document.getElementById('toneCurveModal').addEventListener('click', (e) => {
-                    if (e.target.id === 'toneCurveModal') {
-                        document.getElementById('toneCurveModal').remove();
-                    }
-                });
-            };
-            
-            nodeType.prototype.loadCurrentToneCurveSettings = function() {
-                // 加载当前节点设置到弹窗
-                const widgets = this.widgets || [];
-                
-                widgets.forEach(widget => {
-                    if (widget.name === 'curve_preset') {
-                        this.toneCurveData.curve_preset = widget.value;
-                        document.querySelector(`[data-preset="${widget.value}"]`)?.click();
-                    } else if (widget.name === 'curve_mode') {
-                        this.toneCurveData.curve_mode = widget.value;
-                        document.querySelector(`[data-mode="${widget.value}"]`)?.click();
-                    } else if (['highlights', 'lights', 'darks', 'shadows'].includes(widget.name)) {
-                        this.toneCurveData[widget.name] = widget.value;
-                        const slider = document.getElementById(widget.name);
-                        const valueSpan = document.getElementById(widget.name + 'Value');
-                        if (slider && valueSpan) {
-                            slider.value = widget.value;
-                            valueSpan.textContent = widget.value;
-                        }
-                    } else if (widget.name === 'point_curve') {
-                        try {
-                            this.toneCurvePoints = JSON.parse(widget.value);
-                        } catch (e) {
-                            this.toneCurvePoints = [[0, 0], [255, 255]];
+                // Try to get from connected input nodes
+                if (!imageUrl && this.inputs && this.inputs.length > 0) {
+                    for (const input of this.inputs) {
+                        if (input.link && input.type === "IMAGE") {
+                            const link = this.graph.links[input.link];
+                            if (link) {
+                                const sourceNode = this.graph._nodes_by_id[link.origin_id];
+                                if (sourceNode && window.globalNodeCache.has(String(sourceNode.id))) {
+                                    const sourceData = window.globalNodeCache.get(String(sourceNode.id));
+                                    if (sourceData && sourceData.images && sourceData.images.length > 0) {
+                                        imageUrl = `/view?filename=${sourceData.images[0].filename}&type=${sourceData.images[0].type}&subfolder=${sourceData.images[0].subfolder || ''}`;
+                                        console.log(`📈 Using input node image: ${imageUrl}`);
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
-                });
+                }
                 
-                this.drawToneCurve();
+                // Fallback to test image if no image found
+                if (!imageUrl) {
+                    imageUrl = "data:image/svg+xml;base64," + btoa('<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" fill="#333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#fff" font-size="24">Camera Raw Tone Curve</text></svg>');
+                    console.log(`📈 Using fallback test image`);
+                }
+                
+                // Open the modal
+                this.toneCurveEditor.open(imageUrl, maskUrl);
             };
+        }
+    },
+    
+    async setup(app) {
+        // Monitor WebSocket messages
+        const originalSetup = app.setup;
+        app.setup = function(...args) {
+            const result = originalSetup.apply(this, args);
             
-            nodeType.prototype.applyToneCurveSettings = function() {
-                // 将弹窗设置应用到节点
-                const widgets = this.widgets || [];
-                
-                // 更新点曲线
-                this.toneCurveData.point_curve = JSON.stringify(this.toneCurvePoints);
-                
-                widgets.forEach(widget => {
-                    if (this.toneCurveData.hasOwnProperty(widget.name)) {
-                        widget.value = this.toneCurveData[widget.name];
+            // Listen for Camera Raw tone curve preview updates
+            if (app.ws) {
+                app.ws.addEventListener("message", (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.type === "camera_raw_tone_curve_update" && message.data) {
+                            const nodeId = message.data.node_id;
+                            const node = app.graph._nodes_by_id[nodeId];
+                            
+                            if (node && node.toneCurveEditor) {
+                                node.toneCurveEditor.updatePreview(message.data);
+                            }
+                            
+                            // Cache output
+                            window.globalNodeCache.set(nodeId, message.data);
+                        }
+                    } catch (e) {
+                        // Ignore non-JSON messages
                     }
                 });
-                
-                // 触发节点更新
-                if (this.onWidgetChanged) {
-                    this.onWidgetChanged('point_curve', this.toneCurveData.point_curve);
-                }
-                
-                // 关闭弹窗
-                document.getElementById('toneCurveModal').remove();
-                
-                console.log('色调曲线设置已应用:', this.toneCurveData);
-            };
+            }
             
-            nodeType.prototype.resetToneCurveSettings = function() {
-                // 重置所有设置
-                this.toneCurveData = {
-                    curve_preset: 'Linear',
-                    point_curve: '[[0,0],[255,255]]',
-                    highlights: 0.0,
-                    lights: 0.0,
-                    darks: 0.0,
-                    shadows: 0.0,
-                    curve_mode: 'Combined'
-                };
-                
-                this.toneCurvePoints = [[0, 0], [255, 255]];
-                
-                // 更新界面
-                document.querySelector('[data-preset="Linear"]')?.click();
-                document.querySelector('[data-mode="Combined"]')?.click();
-                
-                ['highlights', 'lights', 'darks', 'shadows'].forEach(param => {
-                    const slider = document.getElementById(param);
-                    const valueSpan = document.getElementById(param + 'Value');
-                    if (slider && valueSpan) {
-                        slider.value = 0;
-                        valueSpan.textContent = '0';
-                    }
-                });
-                
-                this.drawToneCurve();
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-            };
-            
-            // 鼠标事件处理
-            nodeType.prototype.handleToneCurveMouseDown = function(e) {
-                const canvas = document.getElementById('toneCurveCanvas');
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-<<<<<<< HEAD
-                this.isDragging = true;
-                this.selectedPoint = -1;
-                
-                // 检查是否点击了现有控制点
-=======
-                // 检查是否点击了现有控制点
-                this.selectedPoint = -1;
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                this.toneCurvePoints.forEach((point, index) => {
-                    const px = (point[0] / 255) * canvas.width;
-                    const py = canvas.height - (point[1] / 255) * canvas.height;
-                    
-                    const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
-                    if (distance < 10) {
-                        this.selectedPoint = index;
-<<<<<<< HEAD
-                    }
-                });
-                
-                // 如果没有点击现有点，添加新点
-                if (this.selectedPoint === -1) {
-=======
-                        this.isDragging = true;
-                    }
-                });
-                
-                if (this.selectedPoint === -1) {
-                    // 添加新控制点（排除起点和终点）
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                    const newX = Math.round((x / canvas.width) * 255);
-                    const newY = Math.round(((canvas.height - y) / canvas.height) * 255);
-                    
-                    if (newX > 0 && newX < 255) {
-                        this.toneCurvePoints.push([newX, newY]);
-                        this.toneCurvePoints.sort((a, b) => a[0] - b[0]);
-                        this.selectedPoint = this.toneCurvePoints.findIndex(p => p[0] === newX && p[1] === newY);
-<<<<<<< HEAD
-                        this.drawToneCurve();
-                    }
-                }
-=======
-                        this.isDragging = true;
-                    }
-                }
-                
-                this.drawToneCurve();
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-            };
-            
-            nodeType.prototype.handleToneCurveMouseMove = function(e) {
-                if (!this.isDragging || this.selectedPoint === -1) return;
-                
-                const canvas = document.getElementById('toneCurveCanvas');
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                const newX = Math.round((x / canvas.width) * 255);
-                const newY = Math.round(((canvas.height - y) / canvas.height) * 255);
-                
-<<<<<<< HEAD
-                // 限制范围和防止交叉
-                if (this.selectedPoint > 0 && this.selectedPoint < this.toneCurvePoints.length - 1) {
-                    const prevX = this.toneCurvePoints[this.selectedPoint - 1][0];
-                    const nextX = this.toneCurvePoints[this.selectedPoint + 1][0];
-                    
-                    this.toneCurvePoints[this.selectedPoint][0] = Math.max(prevX + 1, Math.min(nextX - 1, newX));
-                    this.toneCurvePoints[this.selectedPoint][1] = Math.max(0, Math.min(255, newY));
-                } else {
-                    // 端点只能调整Y值
-                    this.toneCurvePoints[this.selectedPoint][1] = Math.max(0, Math.min(255, newY));
-=======
-                // 限制范围
-                const clampedX = Math.max(0, Math.min(255, newX));
-                const clampedY = Math.max(0, Math.min(255, newY));
-                
-                // 防止起点和终点移动
-                if (this.selectedPoint === 0) {
-                    this.toneCurvePoints[0] = [0, clampedY];
-                } else if (this.selectedPoint === this.toneCurvePoints.length - 1) {
-                    this.toneCurvePoints[this.selectedPoint] = [255, clampedY];
-                } else {
-                    this.toneCurvePoints[this.selectedPoint] = [clampedX, clampedY];
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                }
-                
-                this.drawToneCurve();
-            };
-            
-            nodeType.prototype.handleToneCurveMouseUp = function(e) {
-                this.isDragging = false;
-            };
-            
-            nodeType.prototype.handleToneCurveDoubleClick = function(e) {
-<<<<<<< HEAD
-=======
-                // 双击删除控制点（除了起点和终点）
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
-                if (this.selectedPoint > 0 && this.selectedPoint < this.toneCurvePoints.length - 1) {
-                    this.toneCurvePoints.splice(this.selectedPoint, 1);
-                    this.selectedPoint = -1;
-                    this.drawToneCurve();
-                }
-            };
-<<<<<<< HEAD
-            
-            // 绑定事件
-            nodeType.prototype.bindToneCurveEvents = function() {
-                // 参数滑块事件
-                ['highlights', 'lights', 'darks', 'shadows'].forEach(param => {
-                    const slider = document.getElementById(param);
-                    const valueSpan = document.getElementById(param + 'Value');
-                    
-                    if (slider && valueSpan) {
-                        slider.addEventListener('input', (e) => {
-                            const value = parseFloat(e.target.value);
-                            valueSpan.textContent = value;
-                            this.toneCurveData[param] = value;
-                            this.drawToneCurve();
-                        });
-                    }
-                });
-                
-                // 模式按钮事件
-                document.querySelectorAll('.mode-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const mode = e.target.dataset.mode;
-                        this.toneCurveData.curve_mode = mode;
-                        
-                        // 更新按钮状态
-                        document.querySelectorAll('.mode-btn').forEach(b => {
-                            b.style.background = b === e.target ? '#4a90e2' : '#555';
-                        });
-                    });
-                });
-                
-                // 重置按钮
-                const resetCurve = document.getElementById('resetCurve');
-                if (resetCurve) {
-                    resetCurve.addEventListener('click', () => {
-                        this.toneCurvePoints = [[0, 0], [255, 255]];
-                        this.drawToneCurve();
-                    });
-                }
-                
-                const resetAll = document.getElementById('resetAll');
-                if (resetAll) {
-                    resetAll.addEventListener('click', () => {
-                        this.toneCurveData = {
-                            curve_preset: 'Linear',
-                            point_curve: '[[0,0],[255,255]]',
-                            highlights: 0.0,
-                            lights: 0.0,
-                            darks: 0.0,
-                            shadows: 0.0,
-                            curve_mode: 'Combined'
-                        };
-                        this.toneCurvePoints = [[0, 0], [255, 255]];
-                        this.updateToneCurveInterface();
-                        this.drawToneCurve();
-                    });
-                }
-            };
-            
-            // 预设系统方法
-            nodeType.prototype.updateToneCurveInterface = function() {
-                const highlights = document.getElementById('highlights');
-                const lights = document.getElementById('lights');
-                const darks = document.getElementById('darks');
-                const shadows = document.getElementById('shadows');
-                
-                if (highlights) {
-                    highlights.value = this.toneCurveData.highlights;
-                    document.getElementById('highlightsValue').textContent = this.toneCurveData.highlights;
-                }
-                if (lights) {
-                    lights.value = this.toneCurveData.lights;
-                    document.getElementById('lightsValue').textContent = this.toneCurveData.lights;
-                }
-                if (darks) {
-                    darks.value = this.toneCurveData.darks;
-                    document.getElementById('darksValue').textContent = this.toneCurveData.darks;
-                }
-                if (shadows) {
-                    shadows.value = this.toneCurveData.shadows;
-                    document.getElementById('shadowsValue').textContent = this.toneCurveData.shadows;
-                }
-                
-                // 更新曲线模式按钮
-                const modeButtons = document.querySelectorAll('.mode-btn');
-                modeButtons.forEach(btn => {
-                    btn.style.background = btn.dataset.mode === this.toneCurveData.curve_mode ? '#4a90e2' : '#555';
-                });
-            };
-=======
->>>>>>> 46f66396712d9c95a0a726341177cdf1f4149a5f
+            return result;
+        };
+    }
+});
+
+// API event listener - cache node outputs
+app.api.addEventListener("executed", ({ detail }) => {
+    const nodeId = String(detail.node);
+    const outputData = detail.output;
+    
+    if (outputData) {
+        window.globalNodeCache.set(nodeId, outputData);
+        console.log(`📦 Camera Raw Tone Curve: Cached output data for node ${nodeId}`);
+    }
+});
+
+// Listen for cached execution events
+app.api.addEventListener("execution_cached", ({ detail }) => {
+    const nodeId = String(detail.node);
+    
+    // Get cached node output from last_node_outputs
+    if (app.ui?.lastNodeOutputs) {
+        const cachedOutput = app.ui.lastNodeOutputs[nodeId];
+        if (cachedOutput) {
+            window.globalNodeCache.set(nodeId, cachedOutput);
+            console.log(`📦 Camera Raw Tone Curve: Cached output data for cached node ${nodeId}`);
         }
     }
 });
