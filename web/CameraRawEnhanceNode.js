@@ -946,32 +946,70 @@ class CameraRawEnhanceEditor {
             g = g255 / 255;
             b = b255 / 255;
             
-            // Dehaze effect - simplified version, matches backend effect
+            // Dehaze effect - exact match to backend algorithm
             if (dehaze !== 0) {
                 const dehazeStrength = Math.abs(dehaze);
                 
                 if (dehaze > 0) {
-                    // Forward dehaze - best effect based on backend test verification
-                    const power_r = 1 + 0.12 * dehazeStrength;
-                    const power_g = 1 + 0.08 * dehazeStrength;
-                    const power_b = 1 + 0.15 * dehazeStrength;
+                    // Forward dehaze - exact backend match (_simple_dehaze_frontend_match)
+                    const original_r = r, original_g = g, original_b = b;
                     
-                    r = Math.pow(r, power_r) * (1 + 0.02 * dehazeStrength);
-                    g = Math.pow(g, power_g) * (1 + 0.01 * dehazeStrength);
-                    b = Math.pow(b, power_b) * (1 + 0.03 * dehazeStrength);
+                    // Step 1: Saturation enhancement (1 + strength * 1.5, max 2.5x)
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const saturation_boost = 1 + dehazeStrength * 1.5;
+                    r = gray + (r - gray) * saturation_boost;
+                    g = gray + (g - gray) * saturation_boost;
+                    b = gray + (b - gray) * saturation_boost;
+                    
+                    // Step 2: Brightness reduction (1 - strength * 0.25, minimum 0.75)
+                    const brightness_reduction = 1 - dehazeStrength * 0.25;
+                    r *= brightness_reduction;
+                    g *= brightness_reduction;
+                    b *= brightness_reduction;
+                    
+                    // Step 3: Contrast enhancement (1 + strength * 0.3)
+                    const contrast_boost = 1 + dehazeStrength * 0.3;
+                    r = (r - 0.5) * contrast_boost + 0.5;
+                    g = (g - 0.5) * contrast_boost + 0.5;
+                    b = (b - 0.5) * contrast_boost + 0.5;
+                    
+                    // Step 4: Color balance adjustment
+                    r *= 1.0;   // Red remains unchanged
+                    g *= 0.98;  // Green slightly reduced
+                    b *= 0.88;  // Blue significantly reduced (reduces haze blue tone)
+                    
+                    // Step 5: Blend with original (blend strength: 0.9 * strength)
+                    const blend_strength = 0.9 * dehazeStrength;
+                    r = original_r * (1 - blend_strength) + r * blend_strength;
+                    g = original_g * (1 - blend_strength) + g * blend_strength;
+                    b = original_b * (1 - blend_strength) + b * blend_strength;
                 } else {
-                    // Negative dehaze (add haze effect)
+                    // Negative dehaze (add haze effect) - matches backend _negative_dehaze
                     const hazeStrength = dehazeStrength;
                     
-                    // Simple haze effect: blend towards atmospheric light color
-                    const atmosphericLight = 0.8; // 0.8 brightness
-                    r += (atmosphericLight - r) * hazeStrength * 0.2;
-                    g += (atmosphericLight - g) * hazeStrength * 0.2;
-                    b += (atmosphericLight - b) * hazeStrength * 0.2;
+                    // Step 1: Reduce contrast (gamma adjustment)
+                    const gamma = 1.0 + hazeStrength * 0.5;
+                    r = Math.pow(r, gamma);
+                    g = Math.pow(g, gamma);
+                    b = Math.pow(b, gamma);
+                    
+                    // Step 2: Reduce saturation
+                    const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                    const desaturation = hazeStrength * 0.3;
+                    r = r * (1 - desaturation) + gray * desaturation;
+                    g = g * (1 - desaturation) + gray * desaturation;
+                    b = b * (1 - desaturation) + gray * desaturation;
+                    
+                    // Step 3: Add atmospheric light
+                    const atmosphericLight = 0.8; // Simulate atmospheric light intensity
+                    const hazeAmount = hazeStrength * 0.2;
+                    r += (atmosphericLight - r) * hazeAmount;
+                    g += (atmosphericLight - g) * hazeAmount;
+                    b += (atmosphericLight - b) * hazeAmount;
                 }
             }
             
-            // 最终确保值在有效范围内并转换为0-255范围
+            // Final clamping to valid range and convert to 0-255 range
             r = Math.min(1, Math.max(0, r));
             g = Math.min(1, Math.max(0, g));
             b = Math.min(1, Math.max(0, b));
@@ -1324,7 +1362,7 @@ class CameraRawEnhanceEditor {
             
             if (data.success) {
                 // 清空现有选项
-                selectElement.innerHTML = '<option value="">选择预设...</option>';
+                selectElement.innerHTML = '<option value="">Select Preset...</option>';
                 
                 // 按类别分组
                 const categories = {};
@@ -1359,11 +1397,11 @@ class CameraRawEnhanceEditor {
     
     getCategoryLabel(category) {
         const labels = {
-            'default': '默认预设',
-            'enhance': '增强',
-            'portrait': '人像',
-            'landscape': '风景',
-            'custom': '自定义'
+            'default': 'Default Presets',
+            'enhance': 'Enhancement',
+            'portrait': 'Portrait',
+            'landscape': 'Landscape',
+            'custom': 'Custom'
         };
         return labels[category] || category;
     }
@@ -1411,7 +1449,7 @@ class CameraRawEnhanceEditor {
             }
         } catch (error) {
             console.error('加载Camera Raw预设失败:', error);
-            alert('加载预设失败: ' + error.message);
+            alert('Failed to load preset: ' + error.message);
         }
     }
     
@@ -1439,10 +1477,10 @@ class CameraRawEnhanceEditor {
     }
     
     async saveCameraRawPreset(presetSelect) {
-        const name = prompt('请输入预设名称:');
+        const name = prompt('Please enter preset name:');
         if (!name) return;
         
-        const description = prompt('请输入预设描述（可选）:') || '';
+        const description = prompt('Please enter preset description (optional):') || '';
         
         try {
             // 收集当前所有Camera Raw参数
@@ -1486,15 +1524,15 @@ class CameraRawEnhanceEditor {
             const result = await response.json();
             
             if (result.success) {
-                alert('预设保存成功!');
+                alert('Preset saved successfully!');
                 // 重新加载预设列表
                 this.loadCameraRawPresetList(presetSelect);
             } else {
-                alert('保存预设失败: ' + result.error);
+                alert('Failed to save preset: ' + result.error);
             }
         } catch (error) {
             console.error('保存Camera Raw预设失败:', error);
-            alert('保存预设失败: ' + error.message);
+            alert('Failed to save preset: ' + error.message);
         }
     }
     
@@ -1505,7 +1543,7 @@ class CameraRawEnhanceEditor {
             const data = await response.json();
             
             if (!data.success) {
-                alert('获取预设列表失败');
+                alert('Failed to get preset list');
                 return;
             }
             
@@ -1537,7 +1575,7 @@ class CameraRawEnhanceEditor {
             `;
             
             const title = document.createElement('h3');
-            title.textContent = 'Camera Raw预设管理器';
+            title.textContent = 'Camera Raw Preset Manager';
             title.style.marginBottom = '20px';
             managerContent.appendChild(title);
             
@@ -1564,7 +1602,7 @@ class CameraRawEnhanceEditor {
                 const presetInfo = document.createElement('div');
                 presetInfo.innerHTML = `
                     <strong>${preset.name}</strong><br>
-                    <small>${preset.description || '无描述'}</small>
+                    <small>${preset.description || 'No description'}</small>
                 `;
                 
                 const presetActions = document.createElement('div');
@@ -1572,7 +1610,7 @@ class CameraRawEnhanceEditor {
                 
                 if (preset.type === 'user') {
                     const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = '删除';
+                    deleteBtn.textContent = 'Delete';
                     deleteBtn.style.cssText = `
                         padding: 4px 8px;
                         background: #d32f2f;
@@ -1583,7 +1621,7 @@ class CameraRawEnhanceEditor {
                         font-size: 12px;
                     `;
                     deleteBtn.onclick = async () => {
-                        if (confirm(`确定要删除预设 "${preset.name}" 吗？`)) {
+                        if (confirm(`Are you sure you want to delete preset "${preset.name}"?`)) {
                             try {
                                 const delResponse = await fetch(`/camera_raw_presets/delete/${preset.id}`, {
                                     method: 'DELETE'
@@ -1594,10 +1632,10 @@ class CameraRawEnhanceEditor {
                                     presetItem.remove();
                                     this.loadCameraRawPresetList(presetSelect);
                                 } else {
-                                    alert('删除失败: ' + delResult.error);
+                                    alert('Failed to delete: ' + delResult.error);
                                 }
                             } catch (error) {
-                                alert('删除失败: ' + error.message);
+                                alert('Failed to delete: ' + error.message);
                             }
                         }
                     };
@@ -1605,7 +1643,7 @@ class CameraRawEnhanceEditor {
                 }
                 
                 const exportBtn = document.createElement('button');
-                exportBtn.textContent = '导出';
+                exportBtn.textContent = 'Export';
                 exportBtn.style.cssText = `
                     padding: 4px 8px;
                     background: #388e3c;
@@ -1633,7 +1671,7 @@ class CameraRawEnhanceEditor {
                             URL.revokeObjectURL(url);
                         }
                     } catch (error) {
-                        alert('导出失败: ' + error.message);
+                        alert('Export failed: ' + error.message);
                     }
                 };
                 presetActions.appendChild(exportBtn);
@@ -1650,7 +1688,7 @@ class CameraRawEnhanceEditor {
             importSection.style.marginBottom = '20px';
             
             const importTitle = document.createElement('h4');
-            importTitle.textContent = '导入预设';
+            importTitle.textContent = 'Import Preset';
             importSection.appendChild(importTitle);
             
             const fileInput = document.createElement('input');
@@ -1659,7 +1697,7 @@ class CameraRawEnhanceEditor {
             fileInput.style.marginBottom = '10px';
             
             const importBtn = document.createElement('button');
-            importBtn.textContent = '导入文件';
+            importBtn.textContent = 'Import File';
             importBtn.style.cssText = `
                 padding: 8px 16px;
                 background: #1976d2;
@@ -1671,7 +1709,7 @@ class CameraRawEnhanceEditor {
             importBtn.onclick = async () => {
                 const file = fileInput.files[0];
                 if (!file) {
-                    alert('请选择要导入的文件');
+                    alert('Please select a file to import');
                     return;
                 }
                 
@@ -1688,14 +1726,14 @@ class CameraRawEnhanceEditor {
                     const impResult = await impResponse.json();
                     
                     if (impResult.success) {
-                        alert('预设导入成功!');
+                        alert('Preset imported successfully!');
                         document.body.removeChild(managerModal);
                         this.loadCameraRawPresetList(presetSelect);
                     } else {
-                        alert('导入失败: ' + impResult.error);
+                        alert('Import failed: ' + impResult.error);
                     }
                 } catch (error) {
-                    alert('导入失败: ' + error.message);
+                    alert('Import failed: ' + error.message);
                 }
             };
             
@@ -1705,7 +1743,7 @@ class CameraRawEnhanceEditor {
             
             // 关闭按钮
             const closeBtn = document.createElement('button');
-            closeBtn.textContent = '关闭';
+            closeBtn.textContent = 'Close';
             closeBtn.style.cssText = `
                 padding: 8px 16px;
                 background: #666;
@@ -1723,7 +1761,7 @@ class CameraRawEnhanceEditor {
             
         } catch (error) {
             console.error('显示Camera Raw预设管理器失败:', error);
-            alert('显示预设管理器失败: ' + error.message);
+            alert('Failed to show preset manager: ' + error.message);
         }
     }
 }
@@ -1753,7 +1791,7 @@ app.registerExtension({
                 }
                 
                 options.push({
-                    content: "📷 打开Camera Raw增强编辑器",
+                    content: "📷 Open Camera Raw Enhancement Editor",
                     callback: () => {
                         console.log(`📷 右键菜单打开 Camera Raw Enhance 编辑器，节点 ${this.id}`);
                         this.showCameraRawEnhanceModal();
