@@ -127,16 +127,16 @@ class PhotoshopCurveNode(BaseImageNode):
                 # 根据建议通道自动应用到对应通道
                 if preset_suggested_channel and preset_suggested_channel.strip():
                     channel = preset_suggested_channel.strip()
-                    if channel == 'RGB':
+                    if channel in ['RGB', 'rgb']:
                         rgb_curve = converted_curve
                         print(f"📐 预设曲线应用到RGB通道: {preset_curve_points}")
-                    elif channel == 'Red':
+                    elif channel in ['Red', 'red', 'R', 'r']:
                         red_curve = converted_curve
                         print(f"📐 预设曲线应用到红色通道: {preset_curve_points}")
-                    elif channel == 'Green':
+                    elif channel in ['Green', 'green', 'G', 'g']:
                         green_curve = converted_curve
                         print(f"📐 预设曲线应用到绿色通道: {preset_curve_points}")
-                    elif channel == 'Blue':
+                    elif channel in ['Blue', 'blue', 'B', 'b']:
                         blue_curve = converted_curve
                         print(f"📐 预设曲线应用到蓝色通道: {preset_curve_points}")
                     else:
@@ -208,7 +208,7 @@ class PhotoshopCurveNode(BaseImageNode):
             red_points = json.loads(red_curve)
             green_points = json.loads(green_curve)
             blue_points = json.loads(blue_curve)
-        except:
+        except Exception as e:
             # 如果解析失败，使用默认的线性曲线
             rgb_points = [[0,0],[255,255]]
             red_points = [[0,0],[255,255]]
@@ -312,7 +312,6 @@ class PhotoshopCurveNode(BaseImageNode):
                 interp_func = interp1d(x_coords, y_coords, kind='linear', bounds_error=False, fill_value='extrapolate')
         except Exception as e:
             # 如果插值失败，回退到线性插值
-            print(f"插值创建失败，使用线性插值: {e}")
             interp_func = interp1d(x_coords, y_coords, kind='linear', bounds_error=False, fill_value='extrapolate')
         
         # 生成查找表

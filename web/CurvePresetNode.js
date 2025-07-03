@@ -73,391 +73,364 @@ class CurvePresetNodeWidget {
     
     getPresetCurves() {
         return {
-            'Linear (No Adjustment)': { 
+            'Linear (无调整)': { 
                 points: '0,0;255,255',
-                description: 'Linear curve with no adjustments, preserves original image effect',
+                description: '线性曲线，不进行任何调整，保持原始图像效果',
                 recommendedChannel: 'RGB'
             },
             
-            // === Basic Styles (Obvious Effects) ===
-            'Portrait Special': { 
+            // === 基础风格 ===
+            '人像专用': { 
                 points: '0,15;64,85;128,155;192,210;255,245',
-                description: 'Designed for portraits, brightens skin tones, softens contrast, makes skin more transparent and natural',
-                recommendedChannel: 'R'
+                description: '专为人像设计，提亮肤色，柔化对比，让肌肤更通透自然',
+                recommendedChannel: 'RGB'
             },
-            'Landscape Special': { 
+            '风景专用': { 
                 points: '0,0;32,15;96,75;160,185;224,245;255,255',
-                description: 'Enhanced landscape contrast, highlights detail layers, makes sky bluer and plants greener',
-                recommendedChannel: 'G'
+                description: '增强风景对比度，突出细节层次，让天空更蓝植物更绿',
+                recommendedChannel: 'RGB'
             },
-            'Night Scene Special': { 
+            '夜景专用': { 
                 points: '0,25;48,80;96,130;160,190;224,230;255,250',
-                description: 'Optimized for night scenes, brightens dark details, maintains highlights without overexposure',
+                description: '针对夜景优化，大幅提亮暗部细节，保持高光不过曝',
                 recommendedChannel: 'RGB'
             },
             
-            // === Contrast Series (Most Obvious Effects) ===
-            'High Contrast': { 
+            // === 对比度系列 ===
+            '高对比度': { 
                 points: '0,0;48,25;128,128;208,230;255,255',
-                description: 'Strong S-curve, greatly enhances contrast, makes image more vivid and powerful',
+                description: '强烈S型曲线，大幅增强对比度，使图像更鲜明有力',
                 recommendedChannel: 'RGB'
             },
-            'Ultra High Contrast': { 
+            '超高对比': { 
                 points: '0,0;64,15;128,128;192,240;255,255',
-                description: 'Extreme contrast effect, strong light-dark contrast',
+                description: '极端对比效果，强烈的明暗对比',
                 recommendedChannel: 'RGB'
             },
-            'Soft Contrast': { 
+            '柔和对比': { 
                 points: '0,20;64,80;128,140;192,200;255,240',
-                description: 'Mild S-curve, moderately enhances contrast, maintains soft and natural image',
+                description: '温和S型曲线，适度增强对比，保持柔和自然',
                 recommendedChannel: 'RGB'
             },
-            'Dark Tone Style': { 
+            '暗调风格': { 
                 points: '0,0;64,35;128,85;192,140;255,200',
-                description: 'Overall darkening processing, creates low-key mysterious atmosphere, suitable for artistic creation',
+                description: '整体压暗处理，营造低调神秘氛围，适合艺术创作',
                 recommendedChannel: 'RGB'
             },
-            'Bright Tone Style': { 
+            '亮调风格': { 
                 points: '0,50;64,100;128,170;192,220;255,255',
-                description: 'Overall brightening processing, creates bright and fresh feeling, suitable for fashion or commercial photography',
+                description: '整体提亮处理，营造明亮清新感，适合时尚或商业摄影',
                 recommendedChannel: 'RGB'
             },
             
-            // === Cinematic Color Grading (Strong Style) ===
-            'Cinematic Blue Orange': { 
+            // === 电影级调色 ===
+            '电影蓝橙': { 
                 points: '0,10;48,35;96,80;160,180;208,235;255,250',
-                description: 'Cinematic blue-orange color grading, classic Hollywood style',
-                recommendedChannel: 'B'
+                description: '电影蓝橙调色，经典好莱坞风格',
+                recommendedChannel: 'Blue'
             },
-            'Cyberpunk': { 
+            '赛博朋克': { 
                 points: '0,0;32,15;96,60;160,200;224,250;255,255',
-                description: 'Cyberpunk style, futuristic tech feel, high contrast',
-                recommendedChannel: 'B'
+                description: '赛博朋克风格，未来科技感，高对比度',
+                recommendedChannel: 'Blue'
             },
-            'Post Apocalyptic': { 
+            '末日废土': { 
                 points: '0,0;64,40;128,95;192,150;255,210',
-                description: 'Post-apocalyptic style, desolate and weathered, suitable for post-apocalyptic themes',
-                recommendedChannel: 'R'
+                description: '末日废土风格，荒凉沧桑，适合末日主题',
+                recommendedChannel: 'Red'
             },
-            'Vintage Cinema': { 
+            '复古电影': { 
                 points: '0,5;48,45;96,90;160,170;224,220;255,245',
-                description: 'Vintage warm tone processing, adds warmth to the image, suitable for nostalgic themes',
-                recommendedChannel: 'R'
+                description: '复古暖调处理，为图像增加温暖感，适合怀旧主题',
+                recommendedChannel: 'Red'
             },
-            'Modern Cinema': { 
+            '现代电影': { 
                 points: '0,0;64,50;128,120;192,200;255,255',
-                description: 'Modern cool tone processing, creates cool atmosphere, suitable for modern or tech themes',
-                recommendedChannel: 'B'
+                description: '现代冷调处理，营造冷酷氛围，适合现代或科技主题',
+                recommendedChannel: 'Blue'
             },
             
-            // === Film Styles (Strong Vintage Feel) ===
-            'VSCO Classic': { 
+            // === 胶片风格 ===
+            'VSCO经典': { 
                 points: '0,20;32,50;96,110;160,180;224,230;255,245',
-                description: 'VSCO film style, vintage texture, simulates film effects',
+                description: 'VSCO胶片风格，复古质感，模拟胶片效果',
                 recommendedChannel: 'RGB'
             },
-            'Kodak Film': { 
+            '柯达胶片': { 
                 points: '0,25;48,70;96,125;160,185;224,230;255,245',
-                description: 'Kodak film style, classic film color reproduction',
-                recommendedChannel: 'R'
+                description: '柯达胶片风格，经典胶片色彩还原',
+                recommendedChannel: 'Red'
             },
-            'Fuji Film': { 
+            '富士胶片': { 
                 points: '0,15;64,85;128,150;192,210;255,245',
-                description: 'Fuji film style, vibrant and saturated color reproduction',
-                recommendedChannel: 'G'
+                description: '富士胶片风格，鲜艳饱和的色彩还原',
+                recommendedChannel: 'Green'
             },
-            'Polaroid': { 
+            '宝丽来': { 
                 points: '0,35;48,85;96,140;160,190;224,225;255,240',
-                description: 'Polaroid instant film style, vintage nostalgic texture',
-                recommendedChannel: 'R'
+                description: '宝丽来即时成像风格，复古怀旧质感',
+                recommendedChannel: 'RGB'
             },
-            'Black & White Film': { 
+            '黑白胶片': { 
                 points: '0,0;48,35;96,80;160,175;224,230;255,255',
-                description: 'Black and white film texture, strong contrast and texture feel',
+                description: '黑白胶片质感，强烈的对比和质感感',
                 recommendedChannel: 'RGB'
             },
             
-            // === Japanese Styles (Fresh and Clear) ===
-            'Japanese Fresh': { 
+            // === 日系风格 ===
+            '日系清新': { 
                 points: '0,35;64,100;128,170;192,225;255,250',
-                description: 'Creates Japanese freshness, overall brightening, reduces contrast, presents soft texture',
-                recommendedChannel: 'RGB'
+                description: '营造日系清新感，整体提亮，降低对比，呈现柔美质感',
+                recommendedChannel: 'Green'
             },
-            'Japanese Transparent': { 
+            '日系通透': { 
                 points: '0,40;48,90;96,145;144,190;192,225;255,250',
-                description: 'Creates Japanese transparency effect, significantly brightens the image, creates dreamy transparency',
+                description: '营造日系通透效果，大幅提亮图像，营造梦幻通透感',
                 recommendedChannel: 'RGB'
             },
-            'Japanese Creamy': { 
+            '日系奶油': { 
                 points: '0,45;48,100;96,155;144,200;192,235;255,250',
-                description: 'Japanese creamy tones, warm and soft, creates healing atmosphere',
-                recommendedChannel: 'R'
+                description: '日系奶油色调，温暖柔和，营造治愈氛围',
+                recommendedChannel: 'Red'
             },
-            'Japanese Forest': { 
+            '日系森系': { 
                 points: '0,20;64,80;128,145;192,200;255,240',
-                description: 'Japanese forest style, natural and fresh, suitable for outdoor and plant themes',
-                recommendedChannel: 'G'
+                description: '日系森系风格，自然清新，适合户外和植物主题',
+                recommendedChannel: 'Green'
             },
             
-            // === Hong Kong Style Series (Vintage Hong Kong Films) ===
-            'Hong Kong Classic': { 
+            // === 港风系列 ===
+            '港风经典': { 
                 points: '0,0;48,25;96,70;160,170;208,220;255,250',
-                description: 'Classic Hong Kong color tones, S-curve enhances contrast, creates vintage Hong Kong film texture',
-                recommendedChannel: 'RGB'
+                description: '经典港片色调，S型曲线增强对比度，营造复古港片质感',
+                recommendedChannel: 'Red'
             },
-            'Hong Kong Dark Tone': { 
+            '港风暗调': { 
                 points: '0,0;32,10;96,55;160,140;224,190;255,230',
-                description: 'Hong Kong dark tone processing, darkens overall color tone, creates mysterious atmosphere',
+                description: '港风暗调处理，压暗整体色调，营造神秘氛围',
                 recommendedChannel: 'RGB'
             },
-            'Hong Kong Neon': { 
+            '港风霓虹': { 
                 points: '0,10;48,35;96,75;160,190;208,240;255,255',
-                description: 'Hong Kong neon effect, enhances highlights, suitable for night scenes and urban themes',
-                recommendedChannel: 'B'
+                description: '港风霓虹效果，增强高光，适合夜景和都市主题',
+                recommendedChannel: 'Blue'
             },
             
-            // === Social Media Styles ===
-            'Xiaohongshu (Little Red Book)': { 
+            // === 社交媒体风格 ===
+            '小红书': { 
                 points: '0,30;64,90;128,155;192,220;255,250',
-                description: 'Xiaohongshu style color grading, warm and bright, suitable for daily sharing and life recording',
-                recommendedChannel: 'RGB'
+                description: '小红书风格调色，温暖明亮，适合日常分享和生活记录',
+                recommendedChannel: 'Red'
             },
             'Instagram': { 
                 points: '0,15;48,70;96,125;160,180;224,230;255,250',
-                description: 'Instagram style, fashionable and modern, suitable for social media sharing',
+                description: 'Instagram风格，时尚现代，适合社交媒体分享',
                 recommendedChannel: 'RGB'
             },
-            'TikTok Popular': { 
+            'TikTok流行': { 
                 points: '0,15;64,90;128,160;192,220;255,248',
-                description: 'TikTok popular style, youthful and energetic, suitable for short video content',
+                description: 'TikTok流行风格，青春活力，适合短视频内容',
                 recommendedChannel: 'RGB'
             },
             
-            // === Fashion Photography ===
-            'Fashion Magazine': { 
+            // === 时尚摄影 ===
+            '时尚杂志': { 
                 points: '0,0;48,30;96,75;160,185;208,235;255,255',
-                description: 'Fashion magazine style, high-end and elegant, suitable for commercial photography',
+                description: '时尚杂志风格，高端优雅，适合商业摄影',
                 recommendedChannel: 'RGB'
             },
-            'Premium Gray': { 
+            '高级灰': { 
                 points: '0,25;64,80;128,135;192,190;255,240',
-                description: 'Premium gray color grading, low saturation, premium texture',
+                description: '高级灰调色，低饱和度，高端质感',
                 recommendedChannel: 'RGB'
             },
-            'Morandi Color': { 
+            '莫兰迪色': { 
                 points: '0,40;64,95;128,150;192,205;255,235',
-                description: 'Morandi color style, soft and elegant, artistic atmosphere',
+                description: '莫兰迪色彩风格，柔和优雅，艺术氛围',
                 recommendedChannel: 'RGB'
             },
-            'Milk Tea Color': { 
+            '奶茶色': { 
                 points: '0,35;48,85;96,140;160,190;224,225;255,240',
-                description: 'Milk tea color tone, warm and comfortable, suitable for daily life recording',
-                recommendedChannel: 'R'
+                description: '奶茶色调，温暖舒适，适合日常生活记录',
+                recommendedChannel: 'Red'
             },
             
-            // === Artistic Styles ===
-            'Oil Painting Texture': { 
+            // === 艺术风格 ===
+            '油画质感': { 
                 points: '0,10;48,60;96,115;160,170;224,220;255,245',
-                description: 'Oil painting texture effect, rich artistic expression',
-                recommendedChannel: 'RGB'
+                description: '油画质感效果，丰富的艺术表现力',
+                recommendedChannel: 'Red'
             },
-            'Watercolor Painting': { 
+            '水彩画': { 
                 points: '0,40;64,105;128,170;192,220;255,245',
-                description: 'Watercolor painting style, light and transparent artistic effect',
+                description: '水彩画风格，轻盈透明的艺术效果',
                 recommendedChannel: 'RGB'
             },
-            'Sketch Style': { 
+            '素描风格': { 
                 points: '0,0;64,45;128,105;192,165;255,220',
-                description: 'Sketch style, clean and crisp line expression',
+                description: '素描风格，干净利落的线条表现',
                 recommendedChannel: 'RGB'
             },
-            'Printmaking Effect': { 
+            '版画效果': { 
                 points: '0,0;32,15;96,65;160,155;224,210;255,240',
-                description: 'Printmaking effect, strong contrast and texture feel',
+                description: '版画效果，强烈的对比和质感感',
                 recommendedChannel: 'RGB'
             },
             
-            // === Special Effects (Strong Effects) ===
-            'Dreamy Purple Tone': { 
+            // === 特殊效果 ===
+            '梦幻紫调': { 
                 points: '0,20;48,75;96,135;160,190;224,235;255,250',
-                description: 'Dreamy purple tone, romantic and mysterious visual effect',
-                recommendedChannel: 'B'
+                description: '梦幻紫调，浪漫神秘的视觉效果',
+                recommendedChannel: 'Blue'
             },
-            'Youthful Vitality': { 
+            '青春活力': { 
                 points: '0,30;64,100;128,170;192,225;255,250',
-                description: 'Youthful vitality style, bright and vibrant, full of life',
-                recommendedChannel: 'RGB'
+                description: '青春活力风格，明亮鲜艳，充满生命力',
+                recommendedChannel: 'Green'
             },
-            'Commercial Photography': { 
+            '商业摄影': { 
                 points: '0,5;48,55;96,105;160,185;224,240;255,255',
-                description: 'Commercial photography style, professional and precise color representation',
+                description: '商业摄影风格，专业精准的色彩表现',
                 recommendedChannel: 'RGB'
             },
-            'Wedding Photography': { 
+            '婚纱摄影': { 
                 points: '0,40;64,105;128,170;192,225;255,248',
-                description: 'Wedding photography style, romantic and dreamy, highlights happiness',
-                recommendedChannel: 'R'
+                description: '婚纱摄影风格，浪漫梦幻，突出幸福感',
+                recommendedChannel: 'RGB'
             },
-            'Street Photography Style': { 
+            '街拍风格': { 
                 points: '0,15;48,70;96,125;160,185;224,230;255,245',
-                description: 'Street photography style, natural and authentic, captures life moments',
+                description: '街拍风格，自然真实，捕捉生活瞬间',
                 recommendedChannel: 'RGB'
             },
             
-            // === Seasonal Themes ===
-            'Spring Warm Sun': { 
+            // === 季节主题 ===
+            '春日暖阳': { 
                 points: '0,30;64,95;128,165;192,220;255,245',
-                description: 'Spring warm sun style, warm and bright, full of hope',
-                recommendedChannel: 'R'
+                description: '春日暖阳风格，温暖明亮，充满希望',
+                recommendedChannel: 'Red'
             },
-            'Summer Cool': { 
+            '夏日清凉': { 
                 points: '0,20;48,80;96,140;160,200;224,240;255,250',
-                description: 'Summer cool style, fresh and clear, cooling and refreshing',
-                recommendedChannel: 'G'
+                description: '夏日清凉风格，清新明快，降温解暑',
+                recommendedChannel: 'Blue'
             },
-            'Autumn Golden Yellow': { 
+            '秋日金黄': { 
                 points: '0,15;48,65;96,115;160,175;224,225;255,245',
-                description: 'Autumn golden yellow style, warm harvest, mature and stable',
-                recommendedChannel: 'R'
+                description: '秋日金黄风格，温暖收获，成熟稳重',
+                recommendedChannel: 'Red'
             },
-            'Winter Snow Scene': { 
+            '冬日雪景': { 
                 points: '0,25;64,90;128,160;192,215;255,250',
-                description: 'Winter snow scene style, pure and cool, silver-clad landscape',
-                recommendedChannel: 'B'
+                description: '冬日雪景风格，纯净冷冽，银装素裹',
+                recommendedChannel: 'Blue'
             },
             
-            // === Extreme Effects (For Testing) ===
-            'Extreme Brighten': { 
-                points: '0,100;64,180;128,220;192,240;255,255',
-                description: 'Extreme brighten effect, significantly increases image brightness',
+            // === 极端效果 ===
+            '极端提亮': { 
+                points: '0,80;64,140;128,190;192,230;255,255',
+                description: '极端提亮效果，大幅增加图像亮度',
                 recommendedChannel: 'RGB'
             },
-            'Extreme Darken': { 
-                points: '0,0;64,20;128,60;192,100;255,150',
-                description: 'Extreme darken effect, creates deep atmosphere',
+            '极端压暗': { 
+                points: '0,0;64,20;128,60;192,120;255,180',
+                description: '极端压暗效果，营造深沉氛围',
                 recommendedChannel: 'RGB'
             },
-            'Invert Effect': { 
+            '反转效果': { 
                 points: '0,255;64,192;128,128;192,64;255,0',
-                description: 'Invert color tone effect, creates special visual impact',
+                description: '反转色调效果，营造特殊视觉冲击',
                 recommendedChannel: 'RGB'
             },
-            'S-Curve Enhanced': { 
+            'S型增强': { 
                 points: '0,0;32,5;96,50;160,205;224,250;255,255',
-                description: 'Strong S-curve, greatly enhances contrast',
+                description: '强烈S型曲线，大幅增强对比度',
                 recommendedChannel: 'RGB'
             },
             
-            // === Portrait Photography ===
-            'Portrait Beauty': { 
+            // === 人像摄影 ===
+            '人像美颜': { 
                 points: '0,25;48,85;96,140;160,190;224,230;255,245',
-                description: 'Portrait beauty effect, soft brightening, suitable for portrait photography',
-                recommendedChannel: 'R'
+                description: '人像美颜效果，柔和提亮，适合人像摄影',
+                recommendedChannel: 'Red'
             },
-            'Portrait Texture': { 
+            '人像质感': { 
                 points: '0,10;48,60;96,110;160,175;224,225;255,250',
-                description: 'Portrait texture enhancement, highlights skin texture and dimensionality',
+                description: '人像质感增强，突出肌肤质感和立体感',
                 recommendedChannel: 'RGB'
             },
-            'Portrait Soft Light': { 
+            '人像柔光': { 
                 points: '0,35;64,100;128,165;192,215;255,240',
-                description: 'Portrait soft light effect, creates gentle lighting feel',
-                recommendedChannel: 'R'
+                description: '人像柔光效果，营造柔和光感',
+                recommendedChannel: 'RGB'
             },
             
-            // === Landscape Photography ===
-            'Landscape Enhancement': { 
+            // === 风景摄影 ===
+            '风景增强': { 
                 points: '0,5;48,55;96,110;160,180;224,235;255,255',
-                description: 'Landscape contrast enhancement, highlights natural scenery layers',
-                recommendedChannel: 'G'
+                description: '风景对比增强，突出自然风光层次',
+                recommendedChannel: 'Green'
             },
-            'Natural Scenery': { 
+            '自然风光': { 
                 points: '0,15;64,85;128,150;192,205;255,245',
-                description: 'Natural scenery colors, maintains authentic natural color representation',
-                recommendedChannel: 'G'
+                description: '自然风光色彩，保持真实的自然色彩表现',
+                recommendedChannel: 'Green'
             },
-            'Landscape Painting Style': { 
+            '山水画意': { 
                 points: '0,20;48,75;96,130;160,185;224,220;255,240',
-                description: 'Landscape painting artistic conception, creates traditional Chinese landscape painting charm',
+                description: '山水画意境，营造中国传统山水画韵味',
                 recommendedChannel: 'RGB'
             },
             
-            // === Cinematic Styles ===
-            'Cinematic Film': { 
+            // === 电影风格 ===
+            '电影胶片': { 
                 points: '0,15;48,65;96,120;160,175;224,215;255,240',
-                description: 'Cinematic film texture, vintage cinema color tone',
+                description: '电影胶片质感，复古电影色调',
                 recommendedChannel: 'RGB'
             },
-            'Cinematic Cool Tone': { 
+            '电影冷调': { 
                 points: '0,0;48,30;96,80;160,160;224,210;255,245',
-                description: 'Cinematic cool tone, creates cool cinematic atmosphere',
-                recommendedChannel: 'B'
+                description: '电影冷调，营造冷峻电影氛围',
+                recommendedChannel: 'Blue'
             },
-            'Cinematic Warm Tone': { 
+            '电影暖调': { 
                 points: '0,20;48,75;96,125;160,185;224,230;255,250',
-                description: 'Cinematic warm tone, warm cinematic texture',
-                recommendedChannel: 'R'
+                description: '电影暖调，温暖电影质感',
+                recommendedChannel: 'Red'
             },
             
-            // === Vintage Styles ===
-            'Vintage Film': { 
+            // === 复古风格 ===
+            '复古胶片': { 
                 points: '0,10;48,55;96,105;160,165;224,205;255,235',
-                description: 'Vintage film effect, nostalgic film colors',
+                description: '复古胶片效果，怀旧胶片色彩',
                 recommendedChannel: 'RGB'
             },
-            'Vintage Warm Tone': { 
+            '复古暖调': { 
                 points: '0,25;48,80;96,135;160,190;224,225;255,245',
-                description: 'Vintage warm tone, warm nostalgic feel',
-                recommendedChannel: 'R'
+                description: '复古暖调，温暖的怀旧感觉',
+                recommendedChannel: 'Red'
             },
-            'Nostalgic Tone': { 
+            '怀旧色调': { 
                 points: '0,5;48,50;96,100;160,160;224,200;255,230',
-                description: 'Nostalgic tone effect, creates sense of time passing',
+                description: '怀旧色调效果，营造时光流逝感',
                 recommendedChannel: 'RGB'
             },
             
-            // === Modern Styles ===
-            'Modern Minimalist': { 
+            // === 现代风格 ===
+            '现代简约': { 
                 points: '0,20;64,85;128,145;192,200;255,245',
-                description: 'Modern minimalist style, clean and crisp visual effect',
+                description: '现代简约风格，干净利落的视觉效果',
                 recommendedChannel: 'RGB'
             },
-            'Tech Feel': { 
+            '科技感': { 
                 points: '0,0;48,25;96,75;160,175;224,235;255,255',
-                description: 'Tech feel color tone, cool modern technological atmosphere',
-                recommendedChannel: 'B'
+                description: '科技感色调，冷峻现代科技氛围',
+                recommendedChannel: 'Blue'
             },
-            'Futurism': { 
+            '未来主义': { 
                 points: '0,10;48,40;96,85;160,185;224,240;255,255',
-                description: 'Futuristic style, avant-garde sci-fi visual effect',
-                recommendedChannel: 'B'
-            },
-            
-            // === Contrast Series ===
-            'High Contrast': { 
-                points: '0,0;64,40;128,120;192,200;255,255',
-                description: 'High contrast effect, strong light-dark contrast',
-                recommendedChannel: 'RGB'
-            },
-            'Ultra High Contrast': { 
-                points: '0,0;48,20;128,128;208,235;255,255',
-                description: 'Ultra high contrast, extreme contrast effect',
-                recommendedChannel: 'RGB'
-            },
-            'Soft Contrast': { 
-                points: '0,30;64,90;128,155;192,210;255,245',
-                description: 'Soft contrast, gentle contrast enhancement',
-                recommendedChannel: 'RGB'
-            },
-            'Dark Tone Style': { 
-                points: '0,0;64,35;128,90;192,150;255,200',
-                description: 'Dark tone style, darkens overall color tone',
-                recommendedChannel: 'RGB'
-            },
-            'Bright Tone Style': { 
-                points: '0,50;64,110;128,175;192,220;255,250',
-                description: 'Bright tone style, brightens overall color tone',
-                recommendedChannel: 'RGB'
+                description: '未来主义风格，前卫科幻的视觉效果',
+                recommendedChannel: 'Blue'
             }
         };
     }
@@ -471,10 +444,10 @@ class CurvePresetNodeWidget {
         // 获取通道颜色和名称
         const getChannelInfo = (channel) => {
             switch (channel) {
-                case 'R': return { color: '#ff6b6b', name: 'Red Channel', desc: 'Adjust warm tones and skin color' };
-                case 'G': return { color: '#51cf66', name: 'Green Channel', desc: 'Adjust plants and neutral colors' };
-                case 'B': return { color: '#339af0', name: 'Blue Channel', desc: 'Adjust cool tones and sky' };
-                default: return { color: '#868e96', name: 'RGB Channel', desc: 'Overall color tone adjustment' };
+                case 'Red': return { color: '#ff6b6b', name: '红色通道', desc: '调整暖色调和肤色' };
+                case 'Green': return { color: '#51cf66', name: '绿色通道', desc: '调整植物和中性色彩' };
+                case 'Blue': return { color: '#339af0', name: '蓝色通道', desc: '调整冷色调和天空' };
+                default: return { color: '#868e96', name: 'RGB通道', desc: '整体色调调整' };
             }
         };
         
