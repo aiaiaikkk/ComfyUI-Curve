@@ -1,0 +1,20 @@
+[project]
+name = "comfyui-curve"
+description = "Professional image adjustment tools for ComfyUI - Curves, Levels, HSL, and Camera Raw adjustments with real-time preview"
+version = "1.0.0"
+license = { text = "MIT License" }
+dependencies = [
+    "torch>=1.13.0",
+    "torchvision>=0.14.0",
+    "numpy>=1.21.0",
+    "pillow>=8.3.0",
+    "opencv-python>=4.5.0"
+]
+
+[project.urls]
+Repository = "https://github.com/aiaiaikkk/ComfyUI-Curve"
+
+[tool.comfy]
+PublisherId = "aiaiaikkk"
+DisplayName = "ComfyUI-Curve"
+Icon = ""
