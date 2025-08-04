@@ -1,4 +1,19 @@
+"""
+ComfyUI-Curve - Professional Image Adjustment Tools
+Advanced curve, levels, HSL, and camera raw adjustments for ComfyUI
+
+Version: 1.0.0
+Author: aiaiaikkk
+Repository: https://github.com/aiaiaikkk/ComfyUI-Curve
+License: MIT
+"""
+
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS, WEB_DIRECTORY, NODE_CLASS_TO_JS_FILE
+
+# Version information
+__version__ = "1.0.0"
+__author__ = "aiaiaikkk"
+__description__ = "Professional image adjustment tools for ComfyUI"
 
 # 确保所有必需的变量都被正确导出
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY', 'NODE_CLASS_TO_JS_FILE']
@@ -31,10 +46,3 @@ try:
 except Exception as e:
     print(f"⚠️ 预设API注册时出错: {e}")
 
-# 调试信息
-print("🎨 ComfyUI-Curve 插件加载中...")
-print(f"🎨 节点类映射: {list(NODE_CLASS_MAPPINGS.keys())}")
-print(f"🎨 显示名称映射: {list(NODE_DISPLAY_NAME_MAPPINGS.keys())}")
-print(f"🎨 Web目录: {WEB_DIRECTORY}")
-print(f"🎨 JS文件映射: {NODE_CLASS_TO_JS_FILE}")
-print("🎨 ComfyUI-Curve 插件加载完成！")
