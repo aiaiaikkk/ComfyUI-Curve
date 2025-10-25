@@ -1,12 +1,12 @@
 # ComfyUI-Curve 项目依赖
 
 # 核心依赖
-torch>=1.9.0
-numpy>=1.21.0
-scipy>=1.7.0
+torch
+numpy
+scipy
 
 # 预设系统依赖
-aiofiles>=0.8.0
+aiofiles
 
 # 图表生成依赖
-matplotlib>=3.4.0
+matplotlib
